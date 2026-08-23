@@ -1,0 +1,62 @@
+# ==========================================================
+# fhss-sdr 仓库 .gitignore（高云 GW5AT + AD9363 跳频/SDR 工程）
+# 提交范围：rtl/、sim/（testbench 与参考数据）、sw/、doc/、
+#           约束文件 *.cst / *.sdc、Gowin 工程文件 *.gprj
+# ==========================================================
+
+# ============ Gowin EDA ============
+# *.gprj 工程文件要提交，只忽略用户级临时配置
+*.gprj.user
+impl/                  # 综合/布局布线输出目录（gwsynthesis、pnr、temp）
+simulate/              # IDE 仿真输出目录
+.temp/
+*.bit                  # 比特流：大二进制，不入库；归档见文末 releases 规则
+*.bin
+*.fs
+*.pnr
+*.srr
+*.pao
+*.pr
+
+# ============ 仿真产物（Icarus / ModelSim / Verilator） ============
+*.vvp                  # iverilog 编译产物
+*.vcd                  # 波形（动辄上百 MB，必须忽略）
+*.fst
+*.wlf                  # ModelSim 波形
+vsim.lock
+transcript             # ModelSim 会话日志
+work/                  # ModelSim 编译库
+obj_dir/               # Verilator 输出
+
+# ============ Python 上位机（sw/） ============
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+build/
+dist/
+
+# ============ MATLAB 浮点参考链 ============
+*.asv                  # 自动保存文件
+
+# ============ 临时 / 备份文件 ============
+*.tmp
+*.bak
+*~
+*.orig
+*.rej
+
+# ============ 操作系统 / 编辑器 ============
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+
+# ============ 大数据 ============
+# 原始射频捕获不入库；doc/ 下测试数据 CSV 为交付物，正常提交
+raw_capture/
+*.cap
+
+# 如需归档提交版比特流：把 bitstream 放入 releases/ 并取消下行注释
+# !releases/*.bit
