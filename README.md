@@ -8,5 +8,15 @@ An FPGA-based Frequency Hopping / Software-Defined Radio (SDR) anti-jamming comm
 项目目录说明
 四个顶层目录：`rtl/`（源码）、`sim/`（testbench 与参考数据）、`sw/`（上位机 Python）、`doc/`（报告/评审/测试记录）；
 
+Git仓库提交说明
+commit 格式：`模块名: 变更摘要`
+
+AI生成代码说明
+.gitignore 文件部分代码
+.gitattributes 文件部分代码
+
+env.md
+软件版本：
+- GOWIN FPGA Designer V1.9.11.03 Education build(81398)
 
 项目概述、目录结构、分支模型（main/develop/feat-xxx）、提交规范、每周节奏等等。

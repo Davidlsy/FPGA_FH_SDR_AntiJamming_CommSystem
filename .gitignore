@@ -1,7 +1,5 @@
 # ==========================================================
-# fhss-sdr 仓库 .gitignore（高云 GW5AT + AD9363 跳频/SDR 工程）
-# 提交范围：rtl/、sim/（testbench 与参考数据）、sw/、doc/、
-#           约束文件 *.cst / *.sdc、Gowin 工程文件 *.gprj
+# FPGA_FH_SDR_AntiJamming_CommSystem 仓库 .gitignore
 # ==========================================================
 
 # ============ Gowin EDA ============
