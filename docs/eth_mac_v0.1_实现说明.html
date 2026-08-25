@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P1-S4 千兆以太网原型（eth_mac v0.1）实现说明</title>
+<style>
+:root {
+  --bg: #0f1115;
+  --surface: #161a21;
+  --surface-2: #1c212b;
+  --border: #2a3140;
+  --text: #e6e9ef;
+  --text-2: #a8b0bf;
+  --text-3: #7a8294;
+  --teal: #5DCAA5;
+  --teal-2: #1D9E75;
+  --teal-bg: #0b2018;
+  --blue: #85B7EB;
+  --blue-2: #378ADD;
+  --blue-bg: #0c1a2e;
+  --amber: #EF9F27;
+  --amber-bg: #231605;
+  --red: #E24B4A;
+  --code-bg: #10141b;
+  --code-border: #232a37;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.7;
+  font-size: 15px;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 48px 28px 80px; }
+header.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  border-radius: 16px;
+  padding: 32px 32px 28px;
+  margin-bottom: 28px;
+}
+.eyebrow {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+  color: var(--teal);
+  letter-spacing: .06em;
+  margin: 0 0 10px;
+}
+h1 { font-size: 26px; font-weight: 600; margin: 0 0 10px; line-height: 1.3; }
+.hero p { color: var(--text-2); margin: 0; font-size: 15px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.meta span {
+  font-size: 12px; color: var(--text-3);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px;
+}
+section { margin: 34px 0; }
+h2 {
+  font-size: 19px; font-weight: 600; margin: 0 0 14px;
+  padding-left: 12px; border-left: 3px solid var(--teal-2);
+}
+h3 { font-size: 16px; font-weight: 600; margin: 22px 0 8px; color: var(--teal); }
+p { margin: 10px 0; color: var(--text-2); }
+strong { color: var(--text); }
+ul, ol { padding-left: 22px; margin: 10px 0; }
+li { margin: 6px 0; color: var(--text-2); }
+code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--blue);
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #d6dbe6;
+  margin: 14px 0;
+}
+pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+.callout {
+  background: var(--teal-bg);
+  border: 1px solid rgba(93,202,165,.35);
+  border-left: 3px solid var(--teal-2);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin: 16px 0;
+}
+.callout.warn {
+  background: var(--amber-bg);
+  border-color: rgba(239,159,39,.4);
+  border-left-color: var(--amber);
+}
+.callout.danger {
+  background: #2a1212;
+  border-color: rgba(226,75,74,.4);
+  border-left-color: var(--red);
+}
+.callout p { margin: 0; color: var(--text); }
+.callout .t { font-weight: 600; color: var(--teal); }
+.callout.warn .t { color: var(--amber); }
+.callout.danger .t { color: var(--red); }
+.diagram-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 18px 0;
+}
+.diagram-box figcaption { font-size: 12.5px; color: var(--text-3); margin-top: 8px; text-align: center; }
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+th, td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th { background: var(--surface-2); color: var(--text); font-weight: 600; }
+td { color: var(--text-2); }
+td code { color: var(--teal); }
+.step-list { counter-reset: step; list-style: none; padding-left: 0; }
+.step-list li {
+  counter-increment: step;
+  position: relative;
+  padding: 14px 16px 14px 54px;
+  margin: 10px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.step-list li::before {
+  content: counter(step);
+  position: absolute; left: 14px; top: 14px;
+  width: 26px; height: 26px; line-height: 26px;
+  text-align: center;
+  background: var(--teal-bg);
+  color: var(--teal);
+  border: 1px solid rgba(93,202,165,.4);
+  border-radius: 7px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+.step-list li b { color: var(--text); }
+footer {
+  margin-top: 44px; padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--text-3); font-size: 13px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">FPGA FH-SDR 抗干扰通信系统 · 实施手册 P1-S4</p>
+  <h1>千兆以太网原型（eth_mac v0.1）实现说明</h1>
+  <p>从 PHY 环回到 PC 直连 ping/iperf 打通的最小可用千兆 MAC 方案，含模块划分、RGMII 时序要点、关键代码骨架与时序约束。</p>
+  <div class="meta">
+    <span>步骤编号 P1-S4</span>
+    <span>Day 5–8 · 队员 C</span>
+    <span>器件 GW5AT-LV60（Tang Mega 60K）</span>
+    <span>验收 ping 通 / iperf ≥100Mbps</span>
+  </div>
+</header>
+
+<section>
+  <h2>1. 定位与验收目标</h2>
+  <p>这是项目里<strong>第一块与外界交互的硬件 IP</strong>，价值有三：验证 RGMII 125MHz DDR 接口时序能否在 GW5AT-LV60 上收敛；打通「PC ↔ FPGA」双向数据通道，为 P3 定频链路的 Python 上位机铺路；沉淀一份 125MHz 时钟域的约束写法供 P3 复用。</p>
+  <p>验收只认两件事：<strong><code>ping</code> 通</strong> + <strong><code>iperf ≥100Mbps</code></strong>。所以<strong>不要写 TCP、不要做完整 IP 分片</strong>，只做最小子集。</p>
+  <div class="callout danger">
+    <p><span class="t">范围红线：</span>v0.1 只做 RGMII + MAC 帧引擎 + ARP/ICMP/UDP 回显。TCP、IP 分片、DHCP、多播一律不在本步骤，避免战线失控。</p>
+  </div>
+</section>
+
+<section>
+  <h2>2. 前置依赖（P1-S3 必须已完成）</h2>
+  <p><code>eth_mac</code> 的引脚完全依赖 <code>doc/pins.md</code>，开工前先确认：</p>
+  <ul>
+    <li>板上 <strong>PHY 芯片型号</strong>（以原理图为准，常见 RTL8211 / YT8531 / 88E1512 一类）——<strong>RGMII 的 2ns 延迟怎么补，取决于具体芯片</strong>，这点先定。</li>
+    <li>RGMII 引脚组：<code>TXC / TXD[3:0] / TX_CTL</code>、<code>RXC / RXD[3:0] / RX_CTL</code>、<code>MDIO / MDC</code>、PHY 复位与中断。</li>
+    <li><strong>125MHz 时钟来源</strong>：板载晶振进 PLL 分频，还是 PHY 输出的 REF_CLK——决定约束怎么写。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>3. RGMII 接口要点：125MHz、DDR、2ns 偏斜</h2>
+  <p>这是整步最容易翻车的地方，先吃透三件事：</p>
+  <ul>
+    <li><strong>DDR</strong>：数据在时钟的<strong>上升沿和下降沿都采样/驱动</strong>，4 bit 数据线等效 8 bit @125MHz = 1000Mbps。</li>
+    <li><strong>TX 方向</strong>（FPGA→PHY）：TXC 与 TXD/TX_CTL 之间要求约 <strong>2ns</strong> 偏斜（TXC 滞后数据 90°）。FPGA 侧用 <code>ODDR</code> 打数据，TXC 用 <strong>90° 相移时钟</strong>经 ODDR 恒翻转输出。</li>
+    <li><strong>RX 方向</strong>（PHY→FPGA）：PHY 发出 RXC 与 RXD 对齐，但线上有偏斜，FPGA 用 <code>IDDR</code> 在 RXC 双边沿采样。<strong>通常让 PHY 开内部 RX delay（约 2ns）</strong>，FPGA 直接在 RXC 边沿采样即可，最省事。</li>
+  </ul>
+  <div class="callout">
+    <p><span class="t">所以第一步是 <code>mdio_ctrl</code>：</span>把 PHY 的 RGMII delay 寄存器配好 + 千兆全双工自协商，否则后面全是时序幻觉问题。先读 PHY 状态寄存器确认 link 与速率，再查数据通路。</p>
+  </div>
+</section>
+
+<section>
+  <h2>4. 模块划分与数据通路</h2>
+  <div class="diagram-box">
+    <svg viewBox="0 0 680 252" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+      <title>eth_mac v0.1 数据通路结构</title>
+      <desc>从 PHY 芯片经 RGMII 接口、MAC 帧引擎、以太网协议子集到用户 FIFO 的数据通路，以及 MDIO 控制通路。</desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <text x="40" y="30" font-family="ui-monospace, Consolas, monospace" font-size="13" fill="#5DCAA5">eth_mac v0.1 · 数据通路（RX 从左到右，TX 反向）</text>
+      <g>
+        <rect x="40" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="96" y="86" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#5DCAA5">PHY 芯片</text>
+        <text x="96" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">千兆物理层</text>
+      </g>
+      <g>
+        <rect x="162" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="218" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">rgmii_if</text>
+        <text x="218" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">IDDR/ODDR·125M</text>
+      </g>
+      <g>
+        <rect x="284" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="340" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">mac_core</text>
+        <text x="340" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">CRC32·前导码</text>
+      </g>
+      <g>
+        <rect x="406" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="462" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">eth_proto</text>
+        <text x="462" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">ARP/ICMP/UDP</text>
+      </g>
+      <g>
+        <rect x="528" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="584" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">fifo_cdc</text>
+        <text x="584" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">跨时钟→基带</text>
+      </g>
+      <path d="M152 92 L162 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <path d="M274 92 L284 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <path d="M396 92 L406 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <path d="M518 92 L528 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <g>
+        <rect x="40" y="176" width="112" height="56" rx="8" fill="#0c1a2e" stroke="#85B7EB" stroke-width="0.5"/>
+        <text x="96" y="198" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#85B7EB">mdio_ctrl</text>
+        <text x="96" y="216" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#378ADD">配置 PHY 寄存器</text>
+      </g>
+      <path d="M96 176 L96 120" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+    </svg>
+    <figcaption>图 1 · eth_mac v0.1 数据通路：RX 从左到右，TX 反向；MDIO 是独立的配置面。</figcaption>
+  </div>
+
+  <h3>4.1 rgmii_if —— RGMII ↔ 内部 8bit GMII 桥</h3>
+  <p>用高云原语 <code>IDDR</code>/<code>ODDR</code> 把 DDR 4bit 转成单沿 8bit，内部变成标准 GMII 语义，后续 <code>mac_core</code> 不再关心 DDR。</p>
+  <pre><code>// ===== RX：RGMII 4bit DDR -> 8bit GMII =====
+wire [3:0] rxd_rise, rxd_fall;
+wire       rxdv_rise, rxdv_fall;
+genvar i;
+generate
+  for (i = 0; i &lt; 4; i = i + 1) begin : gen_rxd
+    IDDR #(.Q0_INIT(1'b0), .Q1_INIT(1'b0)) u_iddr (
+      .Q0  (rxd_rise[i]),   // RXC 上升沿采样 = 低 4bit
+      .Q1  (rxd_fall[i]),   // RXC 下降沿采样 = 高 4bit
+      .D   (rxd[i]),
+      .CLK (rxc),
+      .RST (~rst_n)
+    );
+  end
+endgenerate
+IDDR u_iddr_dv (.Q0(rxdv_rise), .Q1(rxdv_fall), .D(rx_ctl), .CLK(rxc), .RST(~rst_n));
+
+// 内部 8bit：{下降沿, 上升沿}
+wire [7:0] rx_data = {rxd_fall, rxd_rise};
+wire       rx_dv   = rxdv_rise;
+
+// ===== TX：8bit GMII -> RGMII 4bit DDR =====
+generate
+  for (i = 0; i &lt; 4; i = i + 1) begin : gen_txd
+    ODDR #(.INIT(1'b0), .TXCLK_POL(1'b0)) u_oddr (
+      .Q0  (txd[i]),
+      .Q1  (),
+      .D0  (tx_data[i]),     // 上升沿 = 低 4bit
+      .D1  (tx_data[i+4]),   // 下降沿 = 高 4bit
+      .CLK (clk_125m),
+      .TX  (clk_125m)
+    );
+  end
+endgenerate
+ODDR u_oddr_ctl (.Q0(tx_ctl), .Q1(), .D0(tx_en), .D1(tx_en), .CLK(clk_125m), .TX(clk_125m));
+
+// TXC 时钟输出：用 90° 相移时钟让 ODDR 恒翻转（D0=0, D1=1）
+ODDR u_oddr_txc (.Q0(txc), .Q1(), .D0(1'b0), .D1(1'b1), .CLK(clk_125m_90), .TX(clk_125m_90));</code></pre>
+  <p class="callout"><span class="t">注意：</span>高云 <code>IDDR</code> 端口为 <code>Q0/Q1/D/CLK/RST</code>，<code>ODDR</code> 端口为 <code>Q0/Q1/D0/D1/CLK/TX</code>（<code>TX</code> 为第二沿时钟）。端口名以所选 EDA 版本的《GOWIN FPGA 原语手册》为准。</p>
+
+  <h3>4.2 mac_core —— 帧引擎 + CRC32</h3>
+  <ul>
+    <li><strong>发送</strong>：自动加 <code>7×0x55</code> 前导码 + <code>0xD5</code> SFD，握手 <code>tx_data/tx_valid/tx_ready</code>，末尾追加 4 字节 FCS；帧间间隔 IFG ≥ 12 字节（96 bit）。</li>
+    <li><strong>接收</strong>：剥前导码/SFD，校验目的 MAC（本机或广播），末尾 <strong>CRC32 校验</strong>，<code>crc_bad</code> 时丢帧。</li>
+    <li><strong>CRC32</strong>：以太网多项式 <code>0xEDB88320</code>（反射式），32bit LFSR，收发各一份。</li>
+  </ul>
+  <pre><code>module crc32_eth (
+    input  wire        clk,
+    input  wire        rst_n,
+    input  wire        crc_en,      // 当前字节参与 CRC 计算
+    input  wire        crc_clr,     // 新帧开始时复位
+    input  wire [7:0]  data,
+    output wire [31:0] crc           // 发送时需按位取反再反转字节序填入 FCS
+);
+    reg [31:0] crc_reg;
+    integer j;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)          crc_reg &lt;= 32'hFFFFFFFF;
+        else if (crc_clr)    crc_reg &lt;= 32'hFFFFFFFF;
+        else if (crc_en)     crc_reg &lt;= next_crc(crc_reg, data);
+    end
+
+    function [31:0] next_crc;
+        input [31:0] c;
+        input [7:0]  d;
+        reg   [31:0] t;
+        integer k;
+        begin
+            t = c ^ {24'h00, d};
+            for (k = 0; k &lt; 8; k = k + 1) begin
+                if (t[0]) t = (t &gt;&gt; 1) ^ 32'hEDB88320;
+                else      t =  t &gt;&gt; 1;
+            end
+            next_crc = t;
+        end
+    endfunction
+
+    assign crc = crc_reg;
+endmodule</code></pre>
+
+  <h3>4.3 eth_proto —— 最小三层协议栈</h3>
+  <ul>
+    <li><strong>ARP</strong>：收到 <code>who-has</code> → 回 <code>is-at</code>；收到 <code>is-at</code> → 缓存对端 MAC。</li>
+    <li><strong>ICMP echo</strong>：收到 echo request → 原样回 echo reply（校验和、ID、序列号回填），这是 <code>ping</code> 通的关键。</li>
+    <li><strong>UDP 回显</strong>：<code>iperf -u</code>（UDP 模式）收一个包把 payload 原样发回，用于吞吐验证。TCP 留到 P3 需要时再说。</li>
+  </ul>
+  <p>FIFO 接口按「帧」抽象：<code>rx_frame</code> 是完整以太网 payload，<code>tx_frame</code> 输出。这一层是纯同步逻辑，最容易先用仿真 + Python 参考实现比对。</p>
+
+  <h3>4.4 fifo_cdc —— 跨时钟缓冲（为 P3 预留）</h3>
+  <p>v0.1 里 PC↔回显全在 125MHz 域，<code>fifo_cdc</code> 先用<strong>旁路</strong>（同频直连）。但<strong>接口现在就按异步 FIFO 设计好</strong>：用户侧留可换时钟端口，P3 接入 61.44MHz 基带域时只把旁路换成真 FIFO + 格雷码指针同步，上层一行不改。这正是步骤卡「供 P3 复用」的落点。</p>
+</section>
+
+<section>
+  <h2>5. 实现顺序（对应步骤卡）</h2>
+  <ol class="step-list">
+    <li><b>mdio_ctrl + PHY 配置</b>：PHY 复位、开 RGMII delay、开千兆全双工自协商，读回 PHY ID/状态确认 <code>link up</code>。</li>
+    <li><b>rgmii_if + PHY 环回</b>：自发自收固定测试帧，逻辑分析仪或回环比对，确认 DDR 采样时序正确（步骤卡「先做 PHY 环回」）。</li>
+    <li><b>mac_core + CRC32</b>：仿真喂以太网帧，验前导码/CRC 收发正确。</li>
+    <li><b>eth_proto（ARP/ICMP/UDP）</b>：仿真用 Python 参考比对，再上板 <code>ping</code> 通。</li>
+    <li><b>PC 直连 + iperf</b>：<code>iperf -u</code> 测吞吐，目标 ≥100Mbps；全程 Wireshark 抓包核对。</li>
+  </ol>
+</section>
+
+<section>
+  <h2>6. 时序约束（125MHz 域，重点沉淀）</h2>
+  <pre><code># 125MHz 以太网时钟域（RGMII）
+create_clock -name eth_125m -period 8.000 [get_ports {eth_rxc}]
+# TX 时钟由 PLL 输出 125MHz（0°）与 90° 相移（给 TXC）
+create_clock -name eth_125m_pll -period 8.000 [get_pins {pll_inst/CLKOUT0}]
+create_generated_clock -name eth_125m_90 -source [get_pins {pll_inst/CLKOUT0}] \
+                       -divide_by 1 [get_pins {pll_inst/CLKOUT1}]
+# RGMII 输入时序（相对 RXC 的 skew，参考 PHY 数据手册 tSkewR）
+set_input_delay -clock eth_125m -min 0.0 [get_ports {eth_rxd[*] eth_rx_ctl}]
+set_input_delay -clock eth_125m -max 2.0 [get_ports {eth_rxd[*] eth_rx_ctl}]
+# 异步时钟域（P3 接入 61.44MHz 基带后）
+set_clock_groups -asynchronous \
+  -group [get_clocks {eth_125m eth_125m_pll eth_125m_90}] \
+  -group [get_clocks {baseband_61m44}]</code></pre>
+  <div class="callout warn">
+    <p><span class="t">交接：</span>这份写法要交给队员 B，合并进 P1-S7 的 <code>template.sdc</code>（设计报告 §3.8 的四时钟域：125M 以太 / 61.44M 基带 / AD9363 输出时钟 / 20M SPI）。</p>
+  </div>
+</section>
+
+<section>
+  <h2>7. 常见坑与规避</h2>
+  <table>
+    <thead><tr><th>现象</th><th>根因</th><th>规避</th></tr></thead>
+    <tbody>
+      <tr><td>ping 时通时不通、吞吐上不去</td><td>忘配 PHY RGMII delay，双沿采样错位</td><td>先读 PHY 状态确认 link/速率，再查数据</td></tr>
+      <tr><td>发送方向建立/保持违例</td><td>TXC 没做 90° 相移</td><td>PLL 输出锁相与相位选择核对</td></tr>
+      <tr><td>帧全被对端丢</td><td>CRC32 用错多项式（非反射 <code>0xEDB88320</code>）</td><td>与 Python <code>binascii.crc32</code> 比对</td></tr>
+      <tr><td>千兆下丢帧</td><td>IFG 太短（&lt;12B）</td><td>帧间隔 ≥ 96 bit</td></tr>
+      <tr><td>回显逻辑被淹没</td><td>没做目的 MAC 过滤</td><td>只收本机/广播，其余丢</td></tr>
+      <tr><td>ping 通但 iperf 慢</td><td>每帧中断式处理，开销大</td><td>收发流水化、FIFO 深度给足</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>8. 小结</h2>
+  <p>按 <strong>「PHY 配置 → RGMII 接口环回 → CRC32 帧引擎 → ARP/ICMP/UDP → PC 直连压测」</strong>五步推进，每步都有独立仿真/抓包验收点。RGMII 的 2ns 偏斜交给 PHY 内部 delay + TXC 90° 相移解决，<code>fifo_cdc</code> 接口从第一天就按异步 FIFO 预留。这样 <code>eth_mac</code> 在 P1 就完成「千兆通路 + 跨时钟骨架」的双重使命，P3 只需把它从 UDP 回显换成接 <code>frame_tx</code>/<code>frame_rx</code>。</p>
+</section>
+
+<footer>
+  依据文件：docs/fpga-fhss-implementation-plan.html（P1-S4 步骤卡、0.3 模块映射表、P1 出口门槛、P1-S7 约束模板）· 生成于 2026-08-24
+</footer>
+
+</div>
+</body>
+</html>
