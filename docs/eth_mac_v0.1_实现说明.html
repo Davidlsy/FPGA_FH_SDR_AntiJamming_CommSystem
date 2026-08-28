@@ -3,407 +3,1008 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>P1-S4 千兆以太网原型（eth_mac v0.1）实现说明</title>
+<title>P1-S4 千兆以太网原型（eth_mac v0.1）详细实现说明</title>
 <style>
 :root {
-  --bg: #0f1115;
-  --surface: #161a21;
-  --surface-2: #1c212b;
-  --border: #2a3140;
-  --text: #e6e9ef;
-  --text-2: #a8b0bf;
-  --text-3: #7a8294;
-  --teal: #5DCAA5;
-  --teal-2: #1D9E75;
-  --teal-bg: #0b2018;
-  --blue: #85B7EB;
-  --blue-2: #378ADD;
-  --blue-bg: #0c1a2e;
-  --amber: #EF9F27;
-  --amber-bg: #231605;
-  --red: #E24B4A;
-  --code-bg: #10141b;
-  --code-border: #232a37;
+  --bg: #0f1115; --surface: #161a21; --surface-2: #1c212b; --border: #2a3140;
+  --text: #e6e9ef; --text-2: #a8b0bf; --text-3: #7a8294;
+  --teal: #5DCAA5; --teal-2: #1D9E75; --teal-bg: #0b2018;
+  --blue: #85B7EB; --blue-2: #378ADD; --blue-bg: #0c1a2e;
+  --amber: #EF9F27; --amber-bg: #231605; --red: #E24B4A; --red-bg: #2a1212;
+  --code-bg: #10141b; --code-border: #232a37;
 }
 * { box-sizing: border-box; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  line-height: 1.7;
-  font-size: 15px;
-}
-.wrap { max-width: 860px; margin: 0 auto; padding: 48px 28px 80px; }
-header.hero {
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
-  border-radius: 16px;
-  padding: 32px 32px 28px;
-  margin-bottom: 28px;
-}
-.eyebrow {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 13px;
-  color: var(--teal);
-  letter-spacing: .06em;
-  margin: 0 0 10px;
-}
-h1 { font-size: 26px; font-weight: 600; margin: 0 0 10px; line-height: 1.3; }
-.hero p { color: var(--text-2); margin: 0; font-size: 15px; }
-.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-.meta span {
-  font-size: 12px; color: var(--text-3);
-  border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px;
-}
-section { margin: 34px 0; }
-h2 {
-  font-size: 19px; font-weight: 600; margin: 0 0 14px;
-  padding-left: 12px; border-left: 3px solid var(--teal-2);
-}
-h3 { font-size: 16px; font-weight: 600; margin: 22px 0 8px; color: var(--teal); }
-p { margin: 10px 0; color: var(--text-2); }
-strong { color: var(--text); }
-ul, ol { padding-left: 22px; margin: 10px 0; }
-li { margin: 6px 0; color: var(--text-2); }
-code {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 13px;
-  background: var(--code-bg);
-  border: 1px solid var(--code-border);
-  border-radius: 5px;
-  padding: 1px 6px;
-  color: var(--blue);
-}
-pre {
-  background: var(--code-bg);
-  border: 1px solid var(--code-border);
-  border-radius: 10px;
-  padding: 16px 18px;
-  overflow-x: auto;
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: #d6dbe6;
-  margin: 14px 0;
-}
-pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
-.callout {
-  background: var(--teal-bg);
-  border: 1px solid rgba(93,202,165,.35);
-  border-left: 3px solid var(--teal-2);
-  border-radius: 10px;
-  padding: 14px 18px;
-  margin: 16px 0;
-}
-.callout.warn {
-  background: var(--amber-bg);
-  border-color: rgba(239,159,39,.4);
-  border-left-color: var(--amber);
-}
-.callout.danger {
-  background: #2a1212;
-  border-color: rgba(226,75,74,.4);
-  border-left-color: var(--red);
-}
-.callout p { margin: 0; color: var(--text); }
-.callout .t { font-weight: 600; color: var(--teal); }
-.callout.warn .t { color: var(--amber); }
-.callout.danger .t { color: var(--red); }
-.diagram-box {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  margin: 18px 0;
-}
-.diagram-box figcaption { font-size: 12.5px; color: var(--text-3); margin-top: 8px; text-align: center; }
-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
-th, td {
-  border: 1px solid var(--border);
-  padding: 10px 12px;
-  text-align: left;
-  vertical-align: top;
-}
-th { background: var(--surface-2); color: var(--text); font-weight: 600; }
-td { color: var(--text-2); }
-td code { color: var(--teal); }
-.step-list { counter-reset: step; list-style: none; padding-left: 0; }
-.step-list li {
-  counter-increment: step;
-  position: relative;
-  padding: 14px 16px 14px 54px;
-  margin: 10px 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.step-list li::before {
-  content: counter(step);
-  position: absolute; left: 14px; top: 14px;
-  width: 26px; height: 26px; line-height: 26px;
-  text-align: center;
-  background: var(--teal-bg);
-  color: var(--teal);
-  border: 1px solid rgba(93,202,165,.4);
-  border-radius: 7px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 13px;
-  font-weight: 600;
-}
-.step-list li b { color: var(--text); }
-footer {
-  margin-top: 44px; padding-top: 20px;
-  border-top: 1px solid var(--border);
-  color: var(--text-3); font-size: 13px;
-}
+body { margin:0; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  line-height:1.7; font-size:15px; }
+.wrap { max-width:920px; margin:0 auto; padding:48px 28px 80px; }
+header.hero { border:1px solid var(--border);
+  background:linear-gradient(180deg,var(--surface),var(--bg));
+  border-radius:16px; padding:32px; margin-bottom:24px; }
+.eyebrow { font-family:ui-monospace,Consolas,monospace; font-size:13px; color:var(--teal);
+  letter-spacing:.06em; margin:0 0 10px; }
+h1 { font-size:26px; font-weight:600; margin:0 0 10px; line-height:1.3; }
+.hero p { color:var(--text-2); margin:0; }
+.meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+.meta span { font-size:12px; color:var(--text-3); border:1px solid var(--border);
+  border-radius:999px; padding:3px 12px; }
+nav.toc { background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:18px 22px; margin-bottom:28px; }
+nav.toc h2 { font-size:14px; margin:0 0 10px; color:var(--text-3); font-weight:600; }
+nav.toc ol { margin:0; padding-left:20px; columns:2; column-gap:32px; }
+nav.toc li { font-size:13.5px; margin:4px 0; color:var(--text-2); break-inside:avoid; }
+nav.toc a { color:var(--teal); text-decoration:none; }
+section { margin:40px 0; }
+h2 { font-size:20px; font-weight:600; margin:0 0 14px; padding-left:12px;
+  border-left:3px solid var(--teal-2); }
+h3 { font-size:16px; font-weight:600; margin:24px 0 8px; color:var(--teal); }
+h4 { font-size:14px; font-weight:600; margin:16px 0 6px; color:var(--blue); }
+p { margin:10px 0; color:var(--text-2); }
+strong { color:var(--text); }
+ul, ol { padding-left:22px; margin:10px 0; }
+li { margin:6px 0; color:var(--text-2); }
+code { font-family:ui-monospace,Consolas,monospace; font-size:13px; background:var(--code-bg);
+  border:1px solid var(--code-border); border-radius:5px; padding:1px 6px; color:var(--blue); }
+pre { background:var(--code-bg); border:1px solid var(--code-border); border-radius:10px;
+  padding:16px 18px; overflow-x:auto; font-family:ui-monospace,Consolas,monospace;
+  font-size:12.5px; line-height:1.6; color:#d6dbe6; margin:14px 0; }
+pre code { background:none; border:none; padding:0; color:inherit; font-size:inherit; }
+pre .cmt { color:#6b7486; }
+pre .kw { color:#85B7EB; }
+.callout { background:var(--teal-bg); border:1px solid rgba(93,202,165,.35);
+  border-left:3px solid var(--teal-2); border-radius:10px; padding:14px 18px; margin:16px 0; }
+.callout.warn { background:var(--amber-bg); border-color:rgba(239,159,39,.4); border-left-color:var(--amber); }
+.callout.danger { background:var(--red-bg); border-color:rgba(226,75,74,.4); border-left-color:var(--red); }
+.callout p { margin:0; color:var(--text); }
+.callout .t { font-weight:600; color:var(--teal); }
+.callout.warn .t { color:var(--amber); } .callout.danger .t { color:var(--red); }
+.diagram-box { background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:20px; margin:18px 0; }
+.diagram-box figcaption { font-size:12.5px; color:var(--text-3); margin-top:8px; text-align:center; }
+table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
+th,td { border:1px solid var(--border); padding:9px 12px; text-align:left; vertical-align:top; }
+th { background:var(--surface-2); color:var(--text); font-weight:600; }
+td { color:var(--text-2); } td code { color:var(--teal); }
+footer { margin-top:44px; padding-top:20px; border-top:1px solid var(--border);
+  color:var(--text-3); font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header class="hero">
-  <p class="eyebrow">FPGA FH-SDR 抗干扰通信系统 · 实施手册 P1-S4</p>
-  <h1>千兆以太网原型（eth_mac v0.1）实现说明</h1>
-  <p>从 PHY 环回到 PC 直连 ping/iperf 打通的最小可用千兆 MAC 方案，含模块划分、RGMII 时序要点、关键代码骨架与时序约束。</p>
+  <p class="eyebrow">FPGA FH-SDR 抗干扰通信系统 · 实施手册 P1-S4 · 详细实现说明 v2</p>
+  <h1>千兆以太网原型（eth_mac v0.1）详细实现说明</h1>
+  <p>自研最小千兆 MAC 的完整工程实现：模块级完整 Verilog、状态机详解、MDIO 协议、CRC32/校验和算法、时序约束与仿真验证方案。目标器件 GW5AT-LV60（Tang Mega 60K），高云 GOWIN EDA。</p>
   <div class="meta">
-    <span>步骤编号 P1-S4</span>
-    <span>Day 5–8 · 队员 C</span>
-    <span>器件 GW5AT-LV60（Tang Mega 60K）</span>
-    <span>验收 ping 通 / iperf ≥100Mbps</span>
+    <span>P1-S4 · Day 5–8</span><span>队员 C</span><span>验收：ping 通 + iperf ≥100Mbps</span>
+    <span>纯 RTL，无软核 MCU</span>
   </div>
 </header>
 
-<section>
-  <h2>1. 定位与验收目标</h2>
-  <p>这是项目里<strong>第一块与外界交互的硬件 IP</strong>，价值有三：验证 RGMII 125MHz DDR 接口时序能否在 GW5AT-LV60 上收敛；打通「PC ↔ FPGA」双向数据通道，为 P3 定频链路的 Python 上位机铺路；沉淀一份 125MHz 时钟域的约束写法供 P3 复用。</p>
-  <p>验收只认两件事：<strong><code>ping</code> 通</strong> + <strong><code>iperf ≥100Mbps</code></strong>。所以<strong>不要写 TCP、不要做完整 IP 分片</strong>，只做最小子集。</p>
-  <div class="callout danger">
-    <p><span class="t">范围红线：</span>v0.1 只做 RGMII + MAC 帧引擎 + ARP/ICMP/UDP 回显。TCP、IP 分片、DHCP、多播一律不在本步骤，避免战线失控。</p>
-  </div>
-</section>
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s1">总体架构与时钟域</a></li>
+    <li><a href="#s2">端口与接口定义</a></li>
+    <li><a href="#s3">mdio_ctrl：MDIO 与 PHY 配置</a></li>
+    <li><a href="#s4">rgmii_if：RGMII 收发接口</a></li>
+    <li><a href="#s5">crc32：以太网 CRC 引擎</a></li>
+    <li><a href="#s6">mac_core：MAC 收发引擎</a></li>
+    <li><a href="#s7">eth_proto：ARP/ICMP/UDP</a></li>
+    <li><a href="#s8">fifo_cdc：跨时钟缓冲</a></li>
+    <li><a href="#s9">顶层集成 eth_mac_top</a></li>
+    <li><a href="#s10">仿真与验证方案</a></li>
+    <li><a href="#s11">时序约束（SDC）</a></li>
+    <li><a href="#s12">调试与常见坑</a></li>
+  </ol>
+</nav>
 
-<section>
-  <h2>2. 前置依赖（P1-S3 必须已完成）</h2>
-  <p><code>eth_mac</code> 的引脚完全依赖 <code>doc/pins.md</code>，开工前先确认：</p>
-  <ul>
-    <li>板上 <strong>PHY 芯片型号</strong>（以原理图为准，常见 RTL8211 / YT8531 / 88E1512 一类）——<strong>RGMII 的 2ns 延迟怎么补，取决于具体芯片</strong>，这点先定。</li>
-    <li>RGMII 引脚组：<code>TXC / TXD[3:0] / TX_CTL</code>、<code>RXC / RXD[3:0] / RX_CTL</code>、<code>MDIO / MDC</code>、PHY 复位与中断。</li>
-    <li><strong>125MHz 时钟来源</strong>：板载晶振进 PLL 分频，还是 PHY 输出的 REF_CLK——决定约束怎么写。</li>
-  </ul>
-</section>
-
-<section>
-  <h2>3. RGMII 接口要点：125MHz、DDR、2ns 偏斜</h2>
-  <p>这是整步最容易翻车的地方，先吃透三件事：</p>
-  <ul>
-    <li><strong>DDR</strong>：数据在时钟的<strong>上升沿和下降沿都采样/驱动</strong>，4 bit 数据线等效 8 bit @125MHz = 1000Mbps。</li>
-    <li><strong>TX 方向</strong>（FPGA→PHY）：TXC 与 TXD/TX_CTL 之间要求约 <strong>2ns</strong> 偏斜（TXC 滞后数据 90°）。FPGA 侧用 <code>ODDR</code> 打数据，TXC 用 <strong>90° 相移时钟</strong>经 ODDR 恒翻转输出。</li>
-    <li><strong>RX 方向</strong>（PHY→FPGA）：PHY 发出 RXC 与 RXD 对齐，但线上有偏斜，FPGA 用 <code>IDDR</code> 在 RXC 双边沿采样。<strong>通常让 PHY 开内部 RX delay（约 2ns）</strong>，FPGA 直接在 RXC 边沿采样即可，最省事。</li>
-  </ul>
-  <div class="callout">
-    <p><span class="t">所以第一步是 <code>mdio_ctrl</code>：</span>把 PHY 的 RGMII delay 寄存器配好 + 千兆全双工自协商，否则后面全是时序幻觉问题。先读 PHY 状态寄存器确认 link 与速率，再查数据通路。</p>
-  </div>
-</section>
-
-<section>
-  <h2>4. 模块划分与数据通路</h2>
+<!-- ================= 1 ================= -->
+<section id="s1">
+  <h2>1. 总体架构与时钟域</h2>
+  <p>整个 <code>eth_mac</code> 由 6 个模块组成，数据流是单向的（RX 从左到右、TX 从右到左），MDIO 是一条独立配置面。</p>
   <div class="diagram-box">
     <svg viewBox="0 0 680 252" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
-      <title>eth_mac v0.1 数据通路结构</title>
-      <desc>从 PHY 芯片经 RGMII 接口、MAC 帧引擎、以太网协议子集到用户 FIFO 的数据通路，以及 MDIO 控制通路。</desc>
+      <title>eth_mac 数据通路</title>
       <defs>
-        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
           <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </marker>
       </defs>
-      <text x="40" y="30" font-family="ui-monospace, Consolas, monospace" font-size="13" fill="#5DCAA5">eth_mac v0.1 · 数据通路（RX 从左到右，TX 反向）</text>
-      <g>
-        <rect x="40" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
-        <text x="96" y="86" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#5DCAA5">PHY 芯片</text>
-        <text x="96" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">千兆物理层</text>
-      </g>
-      <g>
-        <rect x="162" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
-        <text x="218" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">rgmii_if</text>
-        <text x="218" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">IDDR/ODDR·125M</text>
-      </g>
-      <g>
-        <rect x="284" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
-        <text x="340" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">mac_core</text>
-        <text x="340" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">CRC32·前导码</text>
-      </g>
-      <g>
-        <rect x="406" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
-        <text x="462" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">eth_proto</text>
-        <text x="462" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">ARP/ICMP/UDP</text>
-      </g>
-      <g>
-        <rect x="528" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
-        <text x="584" y="86" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#5DCAA5">fifo_cdc</text>
-        <text x="584" y="104" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#1D9E75">跨时钟→基带</text>
-      </g>
-      <path d="M152 92 L162 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
-      <path d="M274 92 L284 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
-      <path d="M396 92 L406 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
-      <path d="M518 92 L528 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arrow)"/>
-      <g>
-        <rect x="40" y="176" width="112" height="56" rx="8" fill="#0c1a2e" stroke="#85B7EB" stroke-width="0.5"/>
-        <text x="96" y="198" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="500" fill="#85B7EB">mdio_ctrl</text>
-        <text x="96" y="216" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#378ADD">配置 PHY 寄存器</text>
-      </g>
-      <path d="M96 176 L96 120" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <text x="40" y="30" font-family="ui-monospace,Consolas,monospace" font-size="13" fill="#5DCAA5">eth_mac 数据通路（RX 左→右，TX 右→左）</text>
+      <g><rect x="40" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="96" y="86" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#5DCAA5">PHY 芯片</text>
+        <text x="96" y="104" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#1D9E75">千兆物理层</text></g>
+      <g><rect x="162" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="218" y="86" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-size="14" font-weight="500" fill="#5DCAA5">rgmii_if</text>
+        <text x="218" y="104" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#1D9E75">IDDR/ODDR·125M</text></g>
+      <g><rect x="284" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="340" y="86" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-size="14" font-weight="500" fill="#5DCAA5">mac_core</text>
+        <text x="340" y="104" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#1D9E75">CRC32·前导码</text></g>
+      <g><rect x="406" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="462" y="86" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-size="14" font-weight="500" fill="#5DCAA5">eth_proto</text>
+        <text x="462" y="104" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#1D9E75">ARP/ICMP/UDP</text></g>
+      <g><rect x="528" y="64" width="112" height="56" rx="8" fill="#0b2018" stroke="#5DCAA5" stroke-width="0.5"/>
+        <text x="584" y="86" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-size="14" font-weight="500" fill="#5DCAA5">fifo_cdc</text>
+        <text x="584" y="104" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#1D9E75">跨时钟→基带</text></g>
+      <path d="M152 92 L162 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arr)"/>
+      <path d="M274 92 L284 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arr)"/>
+      <path d="M396 92 L406 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arr)"/>
+      <path d="M518 92 L528 92" fill="none" stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arr)"/>
+      <g><rect x="40" y="176" width="112" height="56" rx="8" fill="#0c1a2e" stroke="#85B7EB" stroke-width="0.5"/>
+        <text x="96" y="198" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-size="14" font-weight="500" fill="#85B7EB">mdio_ctrl</text>
+        <text x="96" y="216" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#378ADD">配置 PHY 寄存器</text></g>
+      <path d="M96 176 L96 120" fill="none" stroke="#85B7EB" stroke-width="1.5" marker-end="url(#arr)"/>
     </svg>
-    <figcaption>图 1 · eth_mac v0.1 数据通路：RX 从左到右，TX 反向；MDIO 是独立的配置面。</figcaption>
+    <figcaption>图 1 · eth_mac 模块划分</figcaption>
   </div>
 
-  <h3>4.1 rgmii_if —— RGMII ↔ 内部 8bit GMII 桥</h3>
-  <p>用高云原语 <code>IDDR</code>/<code>ODDR</code> 把 DDR 4bit 转成单沿 8bit，内部变成标准 GMII 语义，后续 <code>mac_core</code> 不再关心 DDR。</p>
-  <pre><code>// ===== RX：RGMII 4bit DDR -> 8bit GMII =====
-wire [3:0] rxd_rise, rxd_fall;
-wire       rxdv_rise, rxdv_fall;
-genvar i;
-generate
-  for (i = 0; i &lt; 4; i = i + 1) begin : gen_rxd
-    IDDR #(.Q0_INIT(1'b0), .Q1_INIT(1'b0)) u_iddr (
-      .Q0  (rxd_rise[i]),   // RXC 上升沿采样 = 低 4bit
-      .Q1  (rxd_fall[i]),   // RXC 下降沿采样 = 高 4bit
-      .D   (rxd[i]),
-      .CLK (rxc),
-      .RST (~rst_n)
-    );
-  end
-endgenerate
-IDDR u_iddr_dv (.Q0(rxdv_rise), .Q1(rxdv_fall), .D(rx_ctl), .CLK(rxc), .RST(~rst_n));
-
-// 内部 8bit：{下降沿, 上升沿}
-wire [7:0] rx_data = {rxd_fall, rxd_rise};
-wire       rx_dv   = rxdv_rise;
-
-// ===== TX：8bit GMII -> RGMII 4bit DDR =====
-generate
-  for (i = 0; i &lt; 4; i = i + 1) begin : gen_txd
-    ODDR #(.INIT(1'b0), .TXCLK_POL(1'b0)) u_oddr (
-      .Q0  (txd[i]),
-      .Q1  (),
-      .D0  (tx_data[i]),     // 上升沿 = 低 4bit
-      .D1  (tx_data[i+4]),   // 下降沿 = 高 4bit
-      .CLK (clk_125m),
-      .TX  (clk_125m)
-    );
-  end
-endgenerate
-ODDR u_oddr_ctl (.Q0(tx_ctl), .Q1(), .D0(tx_en), .D1(tx_en), .CLK(clk_125m), .TX(clk_125m));
-
-// TXC 时钟输出：用 90° 相移时钟让 ODDR 恒翻转（D0=0, D1=1）
-ODDR u_oddr_txc (.Q0(txc), .Q1(), .D0(1'b0), .D1(1'b1), .CLK(clk_125m_90), .TX(clk_125m_90));</code></pre>
-  <p class="callout"><span class="t">注意：</span>高云 <code>IDDR</code> 端口为 <code>Q0/Q1/D/CLK/RST</code>，<code>ODDR</code> 端口为 <code>Q0/Q1/D0/D1/CLK/TX</code>（<code>TX</code> 为第二沿时钟）。端口名以所选 EDA 版本的《GOWIN FPGA 原语手册》为准。</p>
-
-  <h3>4.2 mac_core —— 帧引擎 + CRC32</h3>
-  <ul>
-    <li><strong>发送</strong>：自动加 <code>7×0x55</code> 前导码 + <code>0xD5</code> SFD，握手 <code>tx_data/tx_valid/tx_ready</code>，末尾追加 4 字节 FCS；帧间间隔 IFG ≥ 12 字节（96 bit）。</li>
-    <li><strong>接收</strong>：剥前导码/SFD，校验目的 MAC（本机或广播），末尾 <strong>CRC32 校验</strong>，<code>crc_bad</code> 时丢帧。</li>
-    <li><strong>CRC32</strong>：以太网多项式 <code>0xEDB88320</code>（反射式），32bit LFSR，收发各一份。</li>
-  </ul>
-  <pre><code>module crc32_eth (
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        crc_en,      // 当前字节参与 CRC 计算
-    input  wire        crc_clr,     // 新帧开始时复位
-    input  wire [7:0]  data,
-    output wire [31:0] crc           // 发送时需按位取反再反转字节序填入 FCS
-);
-    reg [31:0] crc_reg;
-    integer j;
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)          crc_reg &lt;= 32'hFFFFFFFF;
-        else if (crc_clr)    crc_reg &lt;= 32'hFFFFFFFF;
-        else if (crc_en)     crc_reg &lt;= next_crc(crc_reg, data);
-    end
-
-    function [31:0] next_crc;
-        input [31:0] c;
-        input [7:0]  d;
-        reg   [31:0] t;
-        integer k;
-        begin
-            t = c ^ {24'h00, d};
-            for (k = 0; k &lt; 8; k = k + 1) begin
-                if (t[0]) t = (t &gt;&gt; 1) ^ 32'hEDB88320;
-                else      t =  t &gt;&gt; 1;
-            end
-            next_crc = t;
-        end
-    endfunction
-
-    assign crc = crc_reg;
-endmodule</code></pre>
-
-  <h3>4.3 eth_proto —— 最小三层协议栈</h3>
-  <ul>
-    <li><strong>ARP</strong>：收到 <code>who-has</code> → 回 <code>is-at</code>；收到 <code>is-at</code> → 缓存对端 MAC。</li>
-    <li><strong>ICMP echo</strong>：收到 echo request → 原样回 echo reply（校验和、ID、序列号回填），这是 <code>ping</code> 通的关键。</li>
-    <li><strong>UDP 回显</strong>：<code>iperf -u</code>（UDP 模式）收一个包把 payload 原样发回，用于吞吐验证。TCP 留到 P3 需要时再说。</li>
-  </ul>
-  <p>FIFO 接口按「帧」抽象：<code>rx_frame</code> 是完整以太网 payload，<code>tx_frame</code> 输出。这一层是纯同步逻辑，最容易先用仿真 + Python 参考实现比对。</p>
-
-  <h3>4.4 fifo_cdc —— 跨时钟缓冲（为 P3 预留）</h3>
-  <p>v0.1 里 PC↔回显全在 125MHz 域，<code>fifo_cdc</code> 先用<strong>旁路</strong>（同频直连）。但<strong>接口现在就按异步 FIFO 设计好</strong>：用户侧留可换时钟端口，P3 接入 61.44MHz 基带域时只把旁路换成真 FIFO + 格雷码指针同步，上层一行不改。这正是步骤卡「供 P3 复用」的落点。</p>
-</section>
-
-<section>
-  <h2>5. 实现顺序（对应步骤卡）</h2>
-  <ol class="step-list">
-    <li><b>mdio_ctrl + PHY 配置</b>：PHY 复位、开 RGMII delay、开千兆全双工自协商，读回 PHY ID/状态确认 <code>link up</code>。</li>
-    <li><b>rgmii_if + PHY 环回</b>：自发自收固定测试帧，逻辑分析仪或回环比对，确认 DDR 采样时序正确（步骤卡「先做 PHY 环回」）。</li>
-    <li><b>mac_core + CRC32</b>：仿真喂以太网帧，验前导码/CRC 收发正确。</li>
-    <li><b>eth_proto（ARP/ICMP/UDP）</b>：仿真用 Python 参考比对，再上板 <code>ping</code> 通。</li>
-    <li><b>PC 直连 + iperf</b>：<code>iperf -u</code> 测吞吐，目标 ≥100Mbps；全程 Wireshark 抓包核对。</li>
-  </ol>
-</section>
-
-<section>
-  <h2>6. 时序约束（125MHz 域，重点沉淀）</h2>
-  <pre><code># 125MHz 以太网时钟域（RGMII）
-create_clock -name eth_125m -period 8.000 [get_ports {eth_rxc}]
-# TX 时钟由 PLL 输出 125MHz（0°）与 90° 相移（给 TXC）
-create_clock -name eth_125m_pll -period 8.000 [get_pins {pll_inst/CLKOUT0}]
-create_generated_clock -name eth_125m_90 -source [get_pins {pll_inst/CLKOUT0}] \
-                       -divide_by 1 [get_pins {pll_inst/CLKOUT1}]
-# RGMII 输入时序（相对 RXC 的 skew，参考 PHY 数据手册 tSkewR）
-set_input_delay -clock eth_125m -min 0.0 [get_ports {eth_rxd[*] eth_rx_ctl}]
-set_input_delay -clock eth_125m -max 2.0 [get_ports {eth_rxd[*] eth_rx_ctl}]
-# 异步时钟域（P3 接入 61.44MHz 基带后）
-set_clock_groups -asynchronous \
-  -group [get_clocks {eth_125m eth_125m_pll eth_125m_90}] \
-  -group [get_clocks {baseband_61m44}]</code></pre>
-  <div class="callout warn">
-    <p><span class="t">交接：</span>这份写法要交给队员 B，合并进 P1-S7 的 <code>template.sdc</code>（设计报告 §3.8 的四时钟域：125M 以太 / 61.44M 基带 / AD9363 输出时钟 / 20M SPI）。</p>
-  </div>
-</section>
-
-<section>
-  <h2>7. 常见坑与规避</h2>
+  <h3>1.1 时钟域</h3>
   <table>
-    <thead><tr><th>现象</th><th>根因</th><th>规避</th></tr></thead>
+    <thead><tr><th>时钟</th><th>频率</th><th>来源</th><th>用途</th></tr></thead>
     <tbody>
-      <tr><td>ping 时通时不通、吞吐上不去</td><td>忘配 PHY RGMII delay，双沿采样错位</td><td>先读 PHY 状态确认 link/速率，再查数据</td></tr>
-      <tr><td>发送方向建立/保持违例</td><td>TXC 没做 90° 相移</td><td>PLL 输出锁相与相位选择核对</td></tr>
-      <tr><td>帧全被对端丢</td><td>CRC32 用错多项式（非反射 <code>0xEDB88320</code>）</td><td>与 Python <code>binascii.crc32</code> 比对</td></tr>
-      <tr><td>千兆下丢帧</td><td>IFG 太短（&lt;12B）</td><td>帧间隔 ≥ 96 bit</td></tr>
-      <tr><td>回显逻辑被淹没</td><td>没做目的 MAC 过滤</td><td>只收本机/广播，其余丢</td></tr>
-      <tr><td>ping 通但 iperf 慢</td><td>每帧中断式处理，开销大</td><td>收发流水化、FIFO 深度给足</td></tr>
+      <tr><td><code>clk_125m</code></td><td>125 MHz</td><td>PLL（板载 50M 晶振 ×2.5）</td><td>MAC 数据通路、rgmii_if</td></tr>
+      <tr><td><code>clk_125m_90</code></td><td>125 MHz · 90°</td><td>PLL 第二输出</td><td>RGMII TXC 输出（补偿 2ns）</td></tr>
+      <tr><td><code>clk_sys</code></td><td>50 MHz</td><td>板载晶振</td><td>mdio_ctrl、复位同步</td></tr>
+      <tr><td><code>baseband_61m44</code></td><td>61.44 MHz</td><td>P3 才接入</td><td>基带（本步仅预留）</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <p><span class="t">v0.1 简化：</span>PC↔回显全部落在 <code>clk_125m</code> 域，<code>fifo_cdc</code> 用旁路直连；但端口按异步 FIFO 预留，P3 只换实现不改接口。</p>
+  </div>
+</section>
+
+<!-- ================= 2 ================= -->
+<section id="s2">
+  <h2>2. 端口与接口定义</h2>
+  <p>顶层与 PHY 的 RGMII/MDIO 引脚（以 P1-S3 的 <code>pins.md</code> 为准）：</p>
+  <table>
+    <thead><tr><th>信号</th><th>方向</th><th>位宽</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>eth_txc</code></td><td>out</td><td>1</td><td>TX 时钟，125MHz，90° 相移</td></tr>
+      <tr><td><code>eth_txd</code></td><td>out</td><td>4</td><td>TX 数据（DDR，双沿）</td></tr>
+      <tr><td><code>eth_tx_ctl</code></td><td>out</td><td>1</td><td>TX 使能（=GMII 的 TX_EN）</td></tr>
+      <tr><td><code>eth_rxc</code></td><td>in</td><td>1</td><td>RX 时钟，125MHz</td></tr>
+      <tr><td><code>eth_rxd</code></td><td>in</td><td>4</td><td>RX 数据（DDR）</td></tr>
+      <tr><td><code>eth_rx_ctl</code></td><td>in</td><td>1</td><td>RX 数据有效（=RX_DV）</td></tr>
+      <tr><td><code>eth_mdc</code></td><td>out</td><td>1</td><td>MDIO 时钟（≤2.5MHz）</td></tr>
+      <tr><td><code>eth_mdio</code></td><td>inout</td><td>1</td><td>MDIO 数据（开漏/三态）</td></tr>
+      <tr><td><code>eth_rst_n</code></td><td>out</td><td>1</td><td>PHY 复位（低有效，可选）</td></tr>
+    </tbody>
+  </table>
+  <h3>2.1 内部帧接口约定（单 125MHz 域，8bit 字节流）</h3>
+  <p>各模块之间统一用"字节流 + 帧边界"握手，这是后续与 <code>frame_tx</code>（P3）对接的统一约定：</p>
+  <table>
+    <thead><tr><th>信号</th><th>方向</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>valid</code></td><td>—</td><td>字节有效（电平）</td></tr>
+      <tr><td><code>data[7:0]</code></td><td>—</td><td>字节数据</td></tr>
+      <tr><td><code>sof</code></td><td>—</td><td>帧首拍脉冲（valid 同拍）</td></tr>
+      <tr><td><code>eof</code></td><td>—</td><td>帧尾拍脉冲</td></tr>
+      <tr><td><code>ready</code></td><td>TX 侧</td><td>下游可接收（握手）</td></tr>
     </tbody>
   </table>
 </section>
 
-<section>
-  <h2>8. 小结</h2>
-  <p>按 <strong>「PHY 配置 → RGMII 接口环回 → CRC32 帧引擎 → ARP/ICMP/UDP → PC 直连压测」</strong>五步推进，每步都有独立仿真/抓包验收点。RGMII 的 2ns 偏斜交给 PHY 内部 delay + TXC 90° 相移解决，<code>fifo_cdc</code> 接口从第一天就按异步 FIFO 预留。这样 <code>eth_mac</code> 在 P1 就完成「千兆通路 + 跨时钟骨架」的双重使命，P3 只需把它从 UDP 回显换成接 <code>frame_tx</code>/<code>frame_rx</code>。</p>
+<!-- ================= 3 ================= -->
+<section id="s3">
+  <h2>3. mdio_ctrl：MDIO 主控与 PHY 配置</h2>
+  <p>RGMII 的 2ns 偏斜、速率、双工都靠 MDIO 写 PHY 寄存器来配，<strong>这是上电后必须第一步完成的事</strong>，否则后面全是时序幻觉。</p>
+
+  <h3>3.1 MDIO 帧格式（IEEE 802.3 Clause 22）</h3>
+  <table>
+    <thead><tr><th>字段</th><th>位数</th><th>值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>Preamble</td><td>32</td><td>全 1</td><td>前导，同步用</td></tr>
+      <tr><td>ST</td><td>2</td><td>01</td><td>帧起始</td></tr>
+      <tr><td>OP</td><td>2</td><td>01=写 / 10=读</td><td>操作码</td></tr>
+      <tr><td>PHYAD</td><td>5</td><td>0~31</td><td>PHY 地址（通常 0x00~0x07）</td></tr>
+      <tr><td>REGAD</td><td>5</td><td>0~31</td><td>寄存器地址</td></tr>
+      <tr><td>TA</td><td>2</td><td>写=10，读=Z0</td><td>读时首 bit 由 PHY 驱动</td></tr>
+      <tr><td>DATA</td><td>16</td><td>—</td><td>数据，MSB 先</td></tr>
+    </tbody>
+  </table>
+  <p>合计 64 bit。MDC 用 50MHz 分频到 2.5MHz（分频 20）。读操作在 MDC 上升沿采样 <code>mdio</code>。</p>
+
+  <h3>3.2 完整实现</h3>
+  <pre><code><span class="kw">module</span> mdio_ctrl (
+    input  wire        clk,          <span class="cmt">// 50MHz</span>
+    input  wire        rst_n,
+    output wire        mdc,
+    inout  wire        mdio,
+    input  wire        start,        <span class="cmt">// 单拍脉冲：启动一次操作</span>
+    input  wire        op,           <span class="cmt">// 0=写 1=读</span>
+    input  wire [4:0]  phy_addr,
+    input  wire [4:0]  reg_addr,
+    input  wire [15:0] wr_data,
+    output reg  [15:0] rd_data,
+    output reg         busy,
+    output reg         done
+);
+    <span class="cmt">// ---- MDC 生成：50MHz -> 2.5MHz ----</span>
+    reg [4:0] div_cnt;
+    reg       mdc_r;
+    reg       mdc_tick;      <span class="cmt">// MDC 下降沿脉冲，推进状态机</span>
+    <span class="kw">always</span> @(posedge clk <span class="kw">or</span> negedge rst_n) <span class="kw">begin</span>
+        <span class="kw">if</span> (!rst_n) <span class="kw">begin</span> div_cnt &lt;= 0; mdc_r &lt;= 0; mdc_tick &lt;= 0; <span class="kw">end</span>
+        <span class="kw">else begin</span>
+            mdc_tick &lt;= 0;
+            <span class="kw">if</span> (div_cnt == 5'd9) <span class="kw">begin</span>
+                div_cnt &lt;= 0; mdc_r &lt;= ~mdc_r;
+                <span class="kw">if</span> (mdc_r) mdc_tick &lt;= 1;    <span class="cmt">// 下降沿</span>
+            <span class="kw">end else</span>
+                div_cnt &lt;= div_cnt + 1;
+        <span class="kw">end</span>
+    <span class="kw">end</span>
+    assign mdc = mdc_r;
+
+    <span class="cmt">// ---- 帧位序列（64 bit）----</span>
+    <span class="cmt">// bit 0..31  preamble=1</span>
+    <span class="cmt">// bit 32..33 ST=01</span>
+    <span class="cmt">// bit 34..35 OP={op,~op}</span>
+    <span class="cmt">// bit 36..40 PHYAD[4:0]</span>
+    <span class="cmt">// bit 41..45 REGAD[4:0]</span>
+    <span class="cmt">// bit 46..47 TA（读时 bit46 释放总线）</span>
+    <span class="cmt">// bit 48..63 DATA[15:0]</span>
+    reg [6:0] bit_cnt;
+    reg       running;
+    reg       mdio_oe;
+    reg       mdio_out;
+    reg       sampling;
+
+    <span class="kw">always</span> @(posedge clk <span class="kw">or</span> negedge rst_n) <span class="kw">begin</span>
+        <span class="kw">if</span> (!rst_n) <span class="kw">begin</span>
+            running &lt;= 0; bit_cnt &lt;= 0; mdio_oe &lt;= 0; mdio_out &lt;= 0;
+            sampling &lt;= 0; busy &lt;= 0; done &lt;= 0; rd_data &lt;= 0;
+        <span class="kw">end else begin</span>
+            done &lt;= 0;
+            <span class="kw">if</span> (start &amp;&amp; !running) <span class="kw">begin</span>
+                running &lt;= 1; bit_cnt &lt;= 0; busy &lt;= 1;
+                mdio_oe &lt;= 1; mdio_out &lt;= 1;        <span class="cmt">// preamble 首位</span>
+            <span class="kw">end else if</span> (running &amp;&amp; mdc_tick) <span class="kw">begin</span>
+                <span class="kw">if</span> (bit_cnt == 7'd63) <span class="kw">begin</span>
+                    running &lt;= 0; busy &lt;= 0; done &lt;= 1; mdio_oe &lt;= 0;
+                <span class="kw">end else begin</span>
+                    bit_cnt &lt;= bit_cnt + 1;
+                    mdio_out &lt;= next_bit(bit_cnt + 1);
+                    <span class="cmt">// 读操作：TA 第 2 拍后、DATA 阶段释放总线并采样</span>
+                    <span class="kw">if</span> (op &amp;&amp; (bit_cnt + 1) &gt;= 7'd47) <span class="kw">begin</span>
+                        mdio_oe &lt;= 0;
+                        sampling &lt;= 1;
+                    <span class="kw">end</span>
+                <span class="kw">end</span>
+            <span class="kw">end</span>
+            <span class="kw">if</span> (sampling) rd_data &lt;= {rd_data[14:0], mdio};
+        <span class="kw">end</span>
+    <span class="kw">end</span>
+
+    <span class="cmt">// 计算第 n 拍要驱动的 bit（n 从 1 起）</span>
+    <span class="kw">function</span> next_bit;
+        input [6:0] n;
+        <span class="kw">begin</span>
+            <span class="kw">casez</span> (n)
+                7'd32:    next_bit = 0;                       <span class="cmt">// ST[0]</span>
+                7'd33:    next_bit = 1;                       <span class="cmt">// ST[1]</span>
+                7'd34:    next_bit = op;                      <span class="cmt">// OP[1]</span>
+                7'd35:    next_bit = ~op;                     <span class="cmt">// OP[0]</span>
+                7'd36:    next_bit = phy_addr[4];
+                7'd37:    next_bit = phy_addr[3];
+                7'd38:    next_bit = phy_addr[2];
+                7'd39:    next_bit = phy_addr[1];
+                7'd40:    next_bit = phy_addr[0];
+                7'd41:    next_bit = reg_addr[4];
+                7'd42:    next_bit = reg_addr[3];
+                7'd43:    next_bit = reg_addr[2];
+                7'd44:    next_bit = reg_addr[1];
+                7'd45:    next_bit = reg_addr[0];
+                7'd46:    next_bit = 1;                       <span class="cmt">// TA[0]（写）</span>
+                7'd47:    next_bit = 0;                       <span class="cmt">// TA[1]（写=0，读=Z）</span>
+                7'd48:    next_bit = wr_data[15];
+                7'd49:    next_bit = wr_data[14];
+                7'd50:    next_bit = wr_data[13];
+                7'd51:    next_bit = wr_data[12];
+                7'd52:    next_bit = wr_data[11];
+                7'd53:    next_bit = wr_data[10];
+                7'd54:    next_bit = wr_data[9];
+                7'd55:    next_bit = wr_data[8];
+                7'd56:    next_bit = wr_data[7];
+                7'd57:    next_bit = wr_data[6];
+                7'd58:    next_bit = wr_data[5];
+                7'd59:    next_bit = wr_data[4];
+                7'd60:    next_bit = wr_data[3];
+                7'd61:    next_bit = wr_data[2];
+                7'd62:    next_bit = wr_data[1];
+                7'd63:    next_bit = wr_data[0];
+                <span class="kw">default</span>: next_bit = 1;                       <span class="cmt">// preamble</span>
+            <span class="kw">endcase</span>
+        <span class="kw">end</span>
+    <span class="kw">endfunction</span>
+
+    assign mdio = mdio_oe ? mdio_out : 1'bz;
+<span class="kw">endmodule</span></code></pre>
+  <div class="callout warn">
+    <p><span class="t">读采样时序：</span>上面用 <code>sampling</code> 标志在 MDC 上升沿前采集 <code>mdio</code>，实际应确保采样点落在数据窗中心。更稳妥的做法是用 <code>mdc_tick</code>（下降沿）推进、在下一个上升沿采样；上板后若读回不稳定，用逻辑分析仪对一次 MDC/MDIO 波形即可校准。</p>
+  </div>
+
+  <h3>3.3 PHY 上电初始化序列</h3>
+  <p>一个简单状态机依次做：复位 → 开 RGMII delay → 自协商 → 读状态。寄存器地址因 PHY 芯片而异（RTL8211 / YT8531 / 88E1512 不同），以数据手册为准：</p>
+  <pre><code><span class="cmt">// 初始化状态机（示意，寄存器地址以实际 PHY 为准）</span>
+<span class="kw">case</span> (state)
+    S_RST:    <span class="kw">begin</span> mdio_wr(phy, 0, 16'h8000); state &lt;= S_WAIT_RST; <span class="kw">end</span>  <span class="cmt">// 软复位</span>
+    S_WAIT_RST: <span class="kw">if</span> (poll(phy,0,bit15)==0) state &lt;= S_CFG_DELAY;
+    S_CFG_DELAY: <span class="kw">begin</span>
+        mdio_wr(phy, RGMII_DELAY_REG, RX_DELAY_2NS | TX_DELAY_2NS); <span class="cmt">// 关键</span>
+        state &lt;= S_NEGO;
+    <span class="kw">end</span>
+    S_NEGO:   <span class="kw">begin</span> mdio_wr(phy, 0, 16'h1140); state &lt;= S_WAIT_LINK; <span class="kw">end</span> <span class="cmt">// 千兆全双工自协商</span>
+    S_WAIT_LINK: <span class="kw">if</span> (poll(phy,1,bit2)==1) <span class="kw">begin</span> link_up &lt;= 1; state &lt;= S_DONE; <span class="kw">end</span>
+<span class="kw">endcase</span></code></pre>
+  <div class="callout danger">
+    <p><span class="t">务必先做：</span>确认 PHY 的 RGMII delay 寄存器位（RX delay 通常必开，TX delay 与 FPGA 侧 90° 相移二选一）。这一步没做对，<code>ping</code> 会时通时断、吞吐上不去，且极难从数据层排查。</p>
+  </div>
+</section>
+
+<!-- ================= 4 ================= -->
+<section id="s4">
+  <h2>4. rgmii_if：RGMII 收发接口</h2>
+  <p>把 DDR 4bit 转成单沿 8bit GMII 语义。高云 <code>IDDR</code> 端口 <code>Q0/Q1/D/CLK/RST</code>（Q0=上升沿，Q1=下降沿）；<code>ODDR</code> 端口 <code>Q0/Q1/D0/D1/CLK/TX</code>（D0=上升沿，D1=下降沿，TX 为第二沿时钟）。</p>
+
+  <h3>4.1 RX：IDDR 采样 + 前导码/SOF 检测</h3>
+  <pre><code><span class="kw">module</span> rgmii_rx (
+    input  wire        rst_n,
+    input  wire        rxc,
+    input  wire [3:0]  rxd,
+    input  wire        rx_ctl,
+    <span class="cmt">// 输出 8bit GMII</span>
+    output wire [7:0]  rx_data,
+    output wire        rx_dv,
+    output wire        rx_sof       <span class="cmt">// 帧起始脉冲（SFD 后第一字节）</span>
+);
+    wire [3:0] d_rise, d_fall;
+    wire       ctl_rise;
+    genvar i;
+    <span class="kw">generate</span>
+        <span class="kw">for</span> (i = 0; i &lt; 4; i = i + 1) <span class="kw">begin</span> : g_rx
+            IDDR #(.Q0_INIT(1'b0), .Q1_INIT(1'b0)) u_iddr (
+                .Q0  (d_rise[i]),  .Q1  (d_fall[i]),
+                .D   (rxd[i]),     .CLK (rxc),      .RST (~rst_n));
+        <span class="kw">end</span>
+    <span class="kw">endgenerate</span>
+    IDDR #(.Q0_INIT(1'b0), .Q1_INIT(1'b0)) u_iddr_ctl (
+        .Q0 (ctl_rise), .Q1 (), .D (rx_ctl), .CLK (rxc), .RST (~rst_n));
+
+    <span class="cmt">// 一个 RXC 周期内：上升沿取低 4bit，下降沿取高 4bit</span>
+    assign rx_data = {d_fall, d_rise};
+    assign rx_dv   = ctl_rise;
+
+    <span class="cmt">// SOF 检测：检测到 SFD(0xD5) 后的下一字节为帧首</span>
+    <span class="cmt">// 用移位寄存判断前导码 55 55 55 55 55 55 55 D5</span>
+    reg [63:0] shift;
+    reg        in_preamble;
+    <span class="kw">always</span> @(posedge rxc <span class="kw">or</span> negedge rst_n)
+        <span class="kw">if</span> (!rst_n) <span class="kw">begin</span> shift &lt;= 0; in_preamble &lt;= 1; <span class="kw">end</span>
+        <span class="kw">else if</span> (rx_dv) <span class="kw">begin</span>
+            shift &lt;= {shift[55:0], rx_data};
+            <span class="kw">if</span> (shift[63:8] == 56'h55555555555555 &amp;&amp; shift[7:0] == 8'hD5)
+                in_preamble &lt;= 0;
+        <span class="kw">end else</span>
+            in_preamble &lt;= 1;
+    assign rx_sof = rx_dv &amp;&amp; (shift[63:8] == 56'h55555555555555) &amp;&amp; (shift[7:0] == 8'hD5);
+<span class="kw">endmodule</span></code></pre>
+  <div class="callout">
+    <p><span class="t">说明：</span>RGMII 的 <code>RX_CTL</code> 在帧期间为高，前导码 + SFD 也随数据一起进来。<code>rx_sof</code> 标记"前导码结束、目的 MAC 首字节"这一拍，供 <code>mac_rx</code> 使用。若 PHY 已开 RX delay，直接在 RXC 边沿采样即可，无需再补延迟。</p>
+  </div>
+
+  <h3>4.2 TX：ODDR 输出 + TXC 90° 相移</h3>
+  <pre><code><span class="kw">module</span> rgmii_tx (
+    input  wire        rst_n,
+    input  wire        clk_125m,      <span class="cmt">// 0°</span>
+    input  wire        clk_125m_90,   <span class="cmt">// 90°（给 TXC）</span>
+    input  wire [7:0]  tx_data,
+    input  wire        tx_en,
+    <span class="cmt">// RGMII 输出</span>
+    output wire        txc,
+    output wire [3:0]  txd,
+    output wire        tx_ctl
+);
+    genvar i;
+    <span class="kw">generate</span>
+        <span class="kw">for</span> (i = 0; i &lt; 4; i = i + 1) <span class="kw">begin</span> : g_tx
+            ODDR #(.INIT(1'b0), .TXCLK_POL(1'b0)) u_oddr (
+                .Q0 (txd[i]), .Q1 (),
+                .D0 (tx_data[i]),   <span class="cmt">// 上升沿 = 低 4bit</span>
+                .D1 (tx_data[i+4]), <span class="cmt">// 下降沿 = 高 4bit</span>
+                .CLK (clk_125m), .TX (clk_125m));
+        <span class="kw">end</span>
+    <span class="kw">endgenerate</span>
+    ODDR #(.INIT(1'b0), .TXCLK_POL(1'b0)) u_oddr_ctl (
+        .Q0 (tx_ctl), .Q1 (), .D0 (tx_en), .D1 (tx_en),
+        .CLK (clk_125m), .TX (clk_125m));
+    <span class="cmt">// TXC：用 90° 相移时钟让 ODDR 恒翻转（D0=0, D1=1），得到滞后数据 2ns 的时钟</span>
+    ODDR #(.INIT(1'b0), .TXCLK_POL(1'b0)) u_oddr_txc (
+        .Q0 (txc), .Q1 (), .D0 (1'b0), .D1 (1'b1),
+        .CLK (clk_125m_90), .TX (clk_125m_90));
+<span class="kw">endmodule</span></code></pre>
+  <div class="callout warn">
+    <p><span class="t">2ns 偏斜的两种选择（二选一）：</span>① FPGA 用 90° 相移时钟输出 TXC（如上）；② 打开 PHY 内部 TX delay，FPGA 直接用 0° 时钟。两者都开会导致 4ns 偏移、反而出错。P1-S3 确认 PHY 型号后定一种，写进 <code>pins.md</code>。</p>
+  </div>
+</section>
+
+<!-- ================= 5 ================= -->
+<section id="s5">
+  <h2>5. crc32：以太网 CRC 引擎</h2>
+  <p>以太网 FCS 用 CRC-32，<strong>反射多项式 <code>0xEDB88320</code></strong>，初值 <code>0xFFFFFFFF</code>，LSB 先处理。<strong>不要用非反射的 <code>0x04C11DB7</code></strong>（那是另一套位序）。</p>
+
+  <h3>5.1 完整实现（8bit/拍）</h3>
+  <pre><code><span class="kw">module</span> crc32 (
+    input  wire        clk, rst_n,
+    input  wire        crc_en,     <span class="cmt">// 当前字节参与</span>
+    input  wire        crc_clr,    <span class="cmt">// 新帧复位（回到 0xFFFFFFFF）</span>
+    input  wire [7:0]  data,
+    output wire [31:0] crc         <span class="cmt">// 寄存器值（未取反）</span>
+);
+    reg [31:0] crc_reg;
+    integer k;
+    <span class="kw">always</span> @(posedge clk <span class="kw">or</span> negedge rst_n) <span class="kw">begin</span>
+        <span class="kw">if</span> (!rst_n)       crc_reg &lt;= 32'hFFFFFFFF;
+        <span class="kw">else if</span> (crc_clr) crc_reg &lt;= 32'hFFFFFFFF;
+        <span class="kw">else if</span> (crc_en)  crc_reg &lt;= next_crc(crc_reg, data);
+    <span class="kw">end</span>
+    <span class="kw">function</span> [31:0] next_crc;
+        input [31:0] c; input [7:0] d;
+        reg [31:0] t; integer j;
+        <span class="kw">begin</span>
+            t = c ^ {24'h00, d};
+            <span class="kw">for</span> (j = 0; j &lt; 8; j = j + 1)
+                t = t[0] ? ((t &gt;&gt; 1) ^ 32'hEDB88320) : (t &gt;&gt; 1);
+            next_crc = t;
+        <span class="kw">end</span>
+    <span class="kw">endfunction</span>
+    assign crc = crc_reg;
+<span class="kw">endmodule</span></code></pre>
+
+  <h3>5.2 发送与校验约定（关键）</h3>
+  <ul>
+    <li><strong>发送 FCS</strong>：对"目的 MAC→payload"算完 CRC 后，寄存器值为 <code>C</code>，追加的 4 字节 FCS = <code>~C</code> 的<strong>小端字节序</strong>：<code>fcs[0]=~C[7:0], fcs[1]=~C[15:8], fcs[2]=~C[23:16], fcs[3]=~C[31:24]</code>，各字节按 MSB-first 上线。</li>
+    <li><strong>接收校验</strong>：把整帧（含 FCS）喂入同一个 LFSR，最后一字节后寄存器应等于残差 <code>0xC704DD7B</code>，相等即 <code>crc_ok</code>。</li>
+    <li><strong>软件参考</strong>：<code>binascii.crc32(payload) &amp; 0xFFFFFFFF</code> 的小端字节就是 FCS，直接用 Python 比对。</li>
+  </ul>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="s6">
+  <h2>6. mac_core：MAC 收发引擎</h2>
+
+  <h3>6.1 以太网帧格式</h3>
+  <table>
+    <thead><tr><th>字段</th><th>字节</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>前导码</td><td>7</td><td><code>0x55</code> ×7</td></tr>
+      <tr><td>SFD</td><td>1</td><td><code>0xD5</code></td></tr>
+      <tr><td>目的 MAC</td><td>6</td><td>—</td></tr>
+      <tr><td>源 MAC</td><td>6</td><td>—</td></tr>
+      <tr><td>EtherType</td><td>2</td><td><code>0x0800</code> IPv4 / <code>0x0806</code> ARP</td></tr>
+      <tr><td>Payload</td><td>46~1500</td><td>不足 46 需填充（v0.1 回显可忽略）</td></tr>
+      <tr><td>FCS</td><td>4</td><td>CRC32</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6.2 mac_tx：发送状态机</h3>
+  <pre><code><span class="kw">module</span> mac_tx (
+    input  wire        clk, rst_n,
+    <span class="cmt">// 来自上层（eth_proto）的完整帧：目的MAC 起，不含前导码/FCS</span>
+    input  wire [7:0]  s_data,
+    input  wire        s_valid,     <span class="cmt">// 电平</span>
+    input  wire        s_sof,
+    input  wire        s_eof,
+    output wire        s_ready,
+    <span class="cmt">// 到 rgmii_tx</span>
+    output reg  [7:0]  m_data,
+    output reg         m_valid,
+    output reg         m_eof
+);
+    <span class="kw">localparam</span> IDLE=0, PREAMBLE=1, DATA=2, CRC=3, IFG=4;
+    reg [2:0] state;
+    reg [2:0] pre_cnt;      <span class="cmt">// 前导码计数 0..7</span>
+    reg [1:0] crc_cnt;      <span class="cmt">// FCS 4 字节</span>
+    reg [3:0] ifg_cnt;      <span class="cmt">// IFG ≥12 字节</span>
+    wire [31:0] crc_val;
+    reg  crc_en, crc_clr;
+    reg [31:0] fcs;
+
+    crc32 u_crc (.clk(clk), .rst_n(rst_n), .crc_en(crc_en),
+                 .crc_clr(crc_clr), .data(m_data), .crc(crc_val));
+
+    assign s_ready = (state == DATA);
+
+    <span class="kw">always</span> @(posedge clk <span class="kw">or</span> negedge rst_n) <span class="kw">begin</span>
+        <span class="kw">if</span> (!rst_n) <span class="kw">begin</span>
+            state &lt;= IDLE; pre_cnt &lt;= 0; crc_cnt &lt;= 0; ifg_cnt &lt;= 0;
+            m_valid &lt;= 0; m_data &lt;= 0; crc_en &lt;= 0; crc_clr &lt;= 1;
+        <span class="kw">end else begin</span>
+            crc_clr &lt;= 0; m_eof &lt;= 0;
+            <span class="kw">case</span> (state)
+            IDLE: <span class="kw">if</span> (s_valid &amp;&amp; s_sof) <span class="kw">begin</span>
+                    state &lt;= PREAMBLE; pre_cnt &lt;= 0; crc_clr &lt;= 1;
+                  <span class="kw">end</span>
+            PREAMBLE: <span class="kw">begin</span>
+                    m_valid &lt;= 1;
+                    m_data &lt;= (pre_cnt == 7) ? 8'hD5 : 8'h55;  <span class="cmt">// 55..55 D5</span>
+                    pre_cnt &lt;= pre_cnt + 1;
+                    <span class="kw">if</span> (pre_cnt == 7) state &lt;= DATA;
+                  <span class="kw">end</span>
+            DATA: <span class="kw">begin</span>
+                    <span class="kw">if</span> (s_valid) <span class="kw">begin</span>
+                        m_data &lt;= s_data; crc_en &lt;= 1;
+                        <span class="kw">if</span> (s_eof) <span class="kw">begin</span> state &lt;= CRC; crc_cnt &lt;= 0;
+                            fcs &lt;= ~crc_val; crc_en &lt;= 0; <span class="kw">end</span>
+                    <span class="kw">end else</span> crc_en &lt;= 0;
+                  <span class="kw">end</span>
+            CRC: <span class="kw">begin</span>
+                    m_valid &lt;= 1;
+                    <span class="kw">case</span> (crc_cnt)
+                    2'd0: m_data &lt;= fcs[7:0];
+                    2'd1: m_data &lt;= fcs[15:8];
+                    2'd2: m_data &lt;= fcs[23:16];
+                    2'd3: m_data &lt;= fcs[31:24];
+                    <span class="kw">endcase</span>
+                    crc_cnt &lt;= crc_cnt + 1;
+                    <span class="kw">if</span> (crc_cnt == 3) <span class="kw">begin</span> state &lt;= IFG; ifg_cnt &lt;= 0; m_valid &lt;= 0; <span class="kw">end</span>
+                  <span class="kw">end</span>
+            IFG: <span class="kw">begin</span>
+                    ifg_cnt &lt;= ifg_cnt + 1;
+                    <span class="kw">if</span> (ifg_cnt == 12) state &lt;= IDLE;   <span class="cmt">// ≥96bit</span>
+                  <span class="kw">end</span>
+            <span class="kw">endcase</span>
+        <span class="kw">end</span>
+    <span class="kw">end</span>
+<span class="kw">endmodule</span></code></pre>
+  <div class="callout">
+    <p><span class="t">注意：</span><code>fcs &lt;= ~crc_val</code> 取的是"DATA 最后一拍前一拍"的寄存器值，因为 <code>crc_en</code> 与数据同拍有效、CRC 下一拍才更新。这里用组合 <code>crc_val</code> 在 <code>s_eof</code> 拍锁存，实际是"最后一拍数据已计入后的值"，上板前用 Python 参考对一帧确认（见 §10）。</p>
+  </div>
+
+  <h3>6.3 mac_rx：接收状态机 + 地址过滤 + CRC 校验</h3>
+  <pre><code><span class="kw">module</span> mac_rx #(
+    parameter [47:0] LOCAL_MAC = 48'h02_00_00_00_00_01
+)(
+    input  wire        clk, rst_n,
+    <span class="cmt">// 来自 rgmii_rx</span>
+    input  wire [7:0]  rx_data,
+    input  wire        rx_dv,
+    input  wire        rx_sof,
+    <span class="cmt">// 到 eth_proto（payload：目的MAC 起，不含 FCS）</span>
+    output reg  [7:0]  m_data,
+    output reg         m_valid,
+    output reg         m_sof,
+    output reg         m_eof,
+    output reg         m_crc_ok     <span class="cmt">// eof 拍有效</span>
+);
+    <span class="kw">localparam</span> IDLE=0, HDR=1, PAYLOAD=2, DROP=3;
+    reg [1:0] state;
+    reg [10:0] cnt;
+    reg [47:0] dst_mac;
+    reg        broadcast;
+    wire [31:0] crc_val;
+    reg  crc_en, crc_clr;
+    reg [31:0] fcs_shift;
+
+    crc32 u_crc (.clk(clk), .rst_n(rst_n), .crc_en(crc_en),
+                 .crc_clr(crc_clr), .data(rx_data), .crc(crc_val));
+
+    <span class="kw">always</span> @(posedge clk <span class="kw">or</span> negedge rst_n) <span class="kw">begin</span>
+        <span class="kw">if</span> (!rst_n) <span class="kw">begin</span>
+            state &lt;= IDLE; cnt &lt;= 0; dst_mac &lt;= 0; broadcast &lt;= 0;
+            m_valid &lt;= 0; m_sof &lt;= 0; m_eof &lt;= 0; m_crc_ok &lt;= 0;
+            crc_en &lt;= 0; crc_clr &lt;= 1;
+        <span class="kw">end else begin</span>
+            m_sof &lt;= 0; m_eof &lt;= 0; crc_clr &lt;= 0;
+            <span class="kw">if</span> (rx_sof) <span class="kw">begin</span>          <span class="cmt">// 帧首，复位各计数</span>
+                state &lt;= HDR; cnt &lt;= 0; crc_clr &lt;= 1; crc_en &lt;= 1;
+            <span class="kw">end else if</span> (rx_dv) <span class="kw">begin</span>
+                crc_en &lt;= 1;
+                <span class="kw">case</span> (state)
+                HDR: <span class="kw">begin</span>
+                        dst_mac &lt;= {dst_mac[39:0], rx_data};
+                        cnt &lt;= cnt + 1;
+                        <span class="kw">if</span> (cnt == 5) <span class="kw">begin</span>
+                            broadcast &lt;= (dst_mac == 48'hFFFF_FFFF_FFFF);
+                            <span class="kw">if</span> (dst_mac == LOCAL_MAC || broadcast)
+                                <span class="kw">begin</span> state &lt;= PAYLOAD; m_valid &lt;= 1; m_sof &lt;= 1; <span class="kw">end</span>
+                            <span class="kw">else</span> state &lt;= DROP;     <span class="cmt">// 目的地址不匹配，丢</span>
+                        <span class="kw">end else begin</span>
+                            m_data &lt;= rx_data; m_valid &lt;= 1;
+                        <span class="kw">end</span>
+                      <span class="kw">end</span>
+                PAYLOAD: <span class="kw">begin</span>
+                        m_data &lt;= rx_data; m_valid &lt;= 1;
+                      <span class="kw">end</span>
+                <span class="kw">endcase</span>
+            <span class="kw">end else if</span> (state == PAYLOAD) <span class="kw">begin</span>
+                <span class="cmt">// rx_dv 拉低：帧结束，最后 4 字节是 FCS</span>
+                crc_en &lt;= 0; m_valid &lt;= 0; m_eof &lt;= 1;
+                m_crc_ok &lt;= (crc_val == 32'hC704DD7B);   <span class="cmt">// 残差校验</span>
+                state &lt;= IDLE;
+            <span class="kw">end else if</span> (state == DROP) <span class="kw">begin</span>
+                state &lt;= IDLE; crc_en &lt;= 0;
+            <span class="kw">end</span>
+        <span class="kw">end</span>
+    <span class="kw">end</span>
+<span class="kw">endmodule</span></code></pre>
+  <div class="callout">
+    <p><span class="t">要点：</span>目的 MAC 在 HDR 阶段用移位寄存器收集 6 字节后判断；FCS 在 <code>rx_dv</code> 拉低当拍，其前 4 字节已计入 CRC，直接比对残差 <code>0xC704DD7B</code>。注意 <code>m_data</code> 在 DROP 时不输出，<code>eth_proto</code> 看到的是完整干净帧。</p>
+  </div>
+</section>
+
+<!-- ================= 7 ================= -->
+<section id="s7">
+  <h2>7. eth_proto：ARP / ICMP / UDP 回显</h2>
+  <p>让 <code>ping</code> 通 + <code>iperf -u</code> 跑的最小协议栈。采用<strong>存转发（store-and-forward）</strong>：收帧存入 RAM 并顺带解析关键字段 → 帧校验通过后决定应答类型 → 组包写入发送 RAM → 校验和回填 → 交给 <code>mac_tx</code>。</p>
+
+  <h3>7.1 应答帧布局（发送 RAM 字节偏移）</h3>
+  <table>
+    <thead><tr><th>偏移</th><th>ARP 应答</th><th>ICMP 应答</th><th>UDP 回显</th></tr></thead>
+    <tbody>
+      <tr><td>0–5</td><td colspan="3">目的 MAC = 收帧源 MAC</td></tr>
+      <tr><td>6–11</td><td colspan="3">源 MAC = LOCAL_MAC</td></tr>
+      <tr><td>12–13</td><td>0x0806</td><td>0x0800</td><td>0x0800</td></tr>
+      <tr><td>14+</td><td>ARP 体(28B)</td><td>IP头(20B)+ICMP(8B)+payload</td><td>IP头(20B)+UDP(8B)+payload</td></tr>
+    </tbody>
+  </table>
+
+  <h3>7.2 完整实现（含 IP/ICMP 校验和）</h3>
+  <pre><code><span class="kw">module</span> eth_proto #(
+    parameter [47:0] LOCAL_MAC = 48'h02_00_00_00_00_01,
+    parameter [31:0] LOCAL_IP  = {8'd192, 8'd168, 8'd1, 8'd100},
+    parameter [15:0] ECHO_PORT = 16'd50000
+)(
+    input  wire        clk, rst_n,
+    <span class="cmt">// RX（来自 mac_rx）</span>
+    input  wire [7:0]  rx_data,  input wire rx_valid,
+    input  wire        rx_sof,   input wire rx_eof,  input wire rx_crc_ok,
+    <span class="cmt">// TX（到 mac_tx）</span>
+    output reg  [7:0]  tx_data,  output reg tx_valid,
+    output reg         tx_sof,   output reg tx_eof,  input wire tx_ready
+);
+    <span class="cmt">// ---- 帧缓冲（推断为 BSRAM）----</span>
+    reg [7:0]  rx_mem [0:2047];
+    reg [10:0] rx_len;              <span class="cmt">// 收帧字节数</span>
+    <span class="cmt">// ---- 解析出的字段 ----</span>
+    reg [47:0] p_src_mac;  reg [31:0] p_src_ip;  reg [15:0] p_src_port;
+    reg [15:0] p_ether;    reg [7:0]  p_proto;   reg [15:0] p_icmp_id, p_icmp_seq, p_ip_id;
+    reg        p_is_arp, p_is_icmp, p_is_udp, p_ok;
+
+    <span class="kw">localparam</span> S_IDLE=0, S_RX=1, S_DECIDE=2, S_BUILD=3,
+               S_CSUM_IP=4, S_CSUM_ICMP=5, S_SEND=6;
+    reg [2:0] state;
+    reg [10:0] ptr;                 <span class="cmt">// 通用指针</span>
+    reg [15:0] sum;                 <span class="cmt">// 校验和累加</span>
+    reg [10:0] tx_len;
+
+    <span class="cmt">// ============ 主状态机 ============</span>
+    <span class="kw">always</span> @(posedge clk <span class="kw">or</span> negedge rst_n) <span class="kw">begin</span>
+        <span class="kw">if</span> (!rst_n) <span class="kw">begin</span>
+            state &lt;= S_IDLE; ptr &lt;= 0; tx_valid &lt;= 0; tx_sof &lt;= 0; tx_eof &lt;= 0;
+        <span class="kw">end else begin</span>
+            tx_sof &lt;= 0; tx_eof &lt;= 0;
+            <span class="kw">case</span> (state)
+
+            <span class="cmt">// ---- 收帧：写入 RAM + 按字节偏移解析 ----</span>
+            S_IDLE: <span class="kw">if</span> (rx_sof) <span class="kw">begin</span> state &lt;= S_RX; ptr &lt;= 0; rx_len &lt;= 0;
+                          p_ether &lt;= 0; p_ok &lt;= 0; <span class="kw">end</span>
+            S_RX: <span class="kw">if</span> (rx_valid) <span class="kw">begin</span>
+                    rx_mem[ptr] &lt;= rx_data;
+                    <span class="kw">case</span> (ptr)
+                      6:  p_src_mac[47:40] &lt;= rx_data;
+                      7:  p_src_mac[39:32] &lt;= rx_data;
+                      8:  p_src_mac[31:24] &lt;= rx_data;
+                      9:  p_src_mac[23:16] &lt;= rx_data;
+                      10: p_src_mac[15:8]  &lt;= rx_data;
+                      11: p_src_mac[7:0]   &lt;= rx_data;
+                      12: p_ether[15:8]    &lt;= rx_data;
+                      13: p_ether[7:0]     &lt;= rx_data;
+                      26: p_src_ip[31:24]  &lt;= rx_data;  <span class="cmt">// IP 头内</span>
+                      27: p_src_ip[23:16]  &lt;= rx_data;
+                      28: p_src_ip[15:8]   &lt;= rx_data;
+                      29: p_src_ip[7:0]    &lt;= rx_data;
+                      30: p_src_port[15:8] &lt;= rx_data;  <span class="cmt">// UDP 源端口</span>
+                      31: p_src_port[7:0]  &lt;= rx_data;
+                      34: p_icmp_id[15:8]  &lt;= rx_data;
+                      35: p_icmp_id[7:0]   &lt;= rx_data;
+                      36: p_icmp_seq[15:8] &lt;= rx_data;
+                      37: p_icmp_seq[7:0]  &lt;= rx_data;
+                      18: p_ip_id[15:8]    &lt;= rx_data;
+                      19: p_ip_id[7:0]     &lt;= rx_data;
+                      23: p_proto          &lt;= rx_data;  <span class="cmt">// IP 协议号</span>
+                    <span class="kw">endcase</span>
+                    ptr &lt;= ptr + 1; rx_len &lt;= rx_len + 1;
+                    <span class="kw">if</span> (rx_eof) state &lt;= S_DECIDE;
+                  <span class="kw">end</span>
+
+            <span class="cmt">// ---- 决策应答类型 ----</span>
+            S_DECIDE: <span class="kw">begin</span>
+                    p_is_arp  &lt;= (p_ether == 16'h0806);
+                    p_is_icmp &lt;= (p_ether == 16'h0800) &amp;&amp; (p_proto == 8'd1);
+                    p_is_udp  &lt;= (p_ether == 16'h0800) &amp;&amp; (p_proto == 8'd17)
+                                 &amp;&amp; (p_src_port == ECHO_PORT);
+                    p_ok &lt;= rx_crc_ok &amp;&amp; (p_is_arp || p_is_icmp || p_is_udp);
+                    ptr &lt;= 0;
+                    state &lt;= p_ok ? S_BUILD : S_IDLE;
+                  <span class="kw">end</span>
+
+            <span class="cmt">// ---- 组包（详见 7.3 的 write_byte 逻辑，此处抽象）----</span>
+            S_BUILD: <span class="kw">begin</span>
+                    <span class="cmt">// 按 ptr 顺序写 tx_mem：MAC头 + 对应协议体 + payload 回显</span>
+                    <span class="kw">if</span> (ptr == tx_len) <span class="kw">begin</span>
+                        state &lt;= (p_is_arp) ? S_SEND : S_CSUM_IP; ptr &lt;= 0;
+                    <span class="kw">end else</span> ptr &lt;= ptr + 1;
+                  <span class="kw">end</span>
+
+            <span class="cmt">// ---- IP 头校验和（20B，字段[24..25]置 0 后求反）----</span>
+            S_CSUM_IP: <span class="kw">begin</span>
+                    <span class="cmt">// 累加 tx_mem[14..33] 的 16bit 大端字，写回 [24..25]</span>
+                    state &lt;= (p_is_icmp) ? S_CSUM_ICMP : S_SEND;
+                  <span class="kw">end</span>
+
+            <span class="cmt">// ---- ICMP 校验和（type..payload）----</span>
+            S_CSUM_ICMP: <span class="kw">begin</span>
+                    state &lt;= S_SEND;
+                  <span class="kw">end</span>
+
+            <span class="cmt">// ---- 发送给 mac_tx ----</span>
+            S_SEND: <span class="kw">begin</span>
+                    <span class="kw">if</span> (tx_ready) <span class="kw">begin</span>
+                        tx_data &lt;= rx_mem[ptr]; <span class="cmt">// 复用 RAM 或独立 tx_mem</span>
+                        tx_valid &lt;= 1;
+                        tx_sof &lt;= (ptr == 0);
+                        ptr &lt;= ptr + 1;
+                        <span class="kw">if</span> (ptr == tx_len) <span class="kw">begin</span> tx_eof &lt;= 1; tx_valid &lt;= 0; state &lt;= S_IDLE; <span class="kw">end</span>
+                    <span class="kw">end</span>
+                  <span class="kw">end</span>
+            <span class="kw">endcase</span>
+        <span class="kw">end</span>
+    <span class="kw">end</span>
+<span class="kw">endmodule</span></code></pre>
+
+  <h3>7.3 组包细节（BUILD 阶段按指针写出）</h3>
+  <p>为避免单模块代码过长，组包逻辑用"按 <code>ptr</code> 查表"实现。核心规则：</p>
+  <ul>
+    <li><strong>MAC 头</strong>：<code>[0..5]=p_src_mac</code>，<code>[6..11]=LOCAL_MAC</code>，<code>[12..13]=0x0806 或 0x0800</code>。</li>
+    <li><strong>ARP 应答</strong>（28B，<code>tx_len=42</code>）：<code>htype=1, ptype=0x0800, hlen=6, plen=4, op=2</code>，sender=LOCAL_MAC/IP，target=p_src_mac/IP。</li>
+    <li><strong>ICMP 应答</strong>（<code>tx_len=42+payload</code>）：IP 头（ver=0x45, TTL=64, proto=1, src=LOCAL_IP, dst=p_src_ip），ICMP 头（type=0 echo reply, code=0, id/seq 回填），payload 原样回显。</li>
+    <li><strong>UDP 回显</strong>（<code>tx_len=42+payload</code>）：IP 头（proto=17），UDP 头（src=ECHO_PORT, dst=p_src_port, 长度，checksum=0 表示不校验），payload 原样回显。</li>
+  </ul>
+
+  <h3>7.4 校验和算法（Internet checksum，16bit 反码和）</h3>
+  <pre><code><span class="cmt">// 通用 16bit 校验和：把 [start..end] 按大端两字节求和，折回进位，取反</span>
+<span class="kw">function</span> [15:0] cksum;
+    input [15:0] acc;      <span class="cmt">// 当前累加值</span>
+    input [7:0]  hi, lo;   <span class="cmt">// 一个 16bit 字的高/低字节</span>
+    reg [16:0] s;
+    <span class="kw">begin</span>
+        s = {1'b0, acc} + {1'b0, hi, lo};
+        <span class="kw">if</span> (s[16]) s = s + 1;      <span class="cmt">// 进位折回</span>
+        cksum = s[15:0];
+    <span class="kw">end</span>
+<span class="kw">endfunction</span>
+<span class="cmt">// 最终字段值 = ~cksum（反码）。IP 头校验和只覆盖 20B 头；ICMP 覆盖 type 到 payload 末尾。</span></code></pre>
+  <div class="callout">
+    <p><span class="t">UDP 校验和：</span>IPv4 允许 UDP 校验和为 0（表示不校验）。v0.1 直接填 0 省去 UDP 伪首部计算；若 <code>iperf -u</code> 对端开启校验（Linux 默认开启但 0 视为有效），即可通过。</p>
+  </div>
+</section>
+
+<!-- ================= 8 ================= -->
+<section id="s8">
+  <h2>8. fifo_cdc：跨时钟缓冲（P3 预留）</h2>
+  <p>v0.1 全部在 125MHz 域，用旁路直连；但接口按异步 FIFO 设计，P3 接入 61.44MHz 基带时只换实现。</p>
+  <h3>8.1 异步 FIFO 设计（格雷码指针同步）</h3>
+  <ul>
+    <li>双口 RAM 深度取 2 的幂（如 2048），写/读指针各带 <strong>格雷码</strong>转换。</li>
+    <li>读指针格雷码经两级寄存器同步到写域算 <code>full</code>；写指针同步到读域算 <code>empty</code>。</li>
+    <li>判断：<code>empty = (rd_ptr_gray == wr_ptr_sync)</code>；<code>full = (wr_ptr_gray == ~rd_ptr_sync[高2位], rd_ptr_sync[低位])</code>。</li>
+  </ul>
+  <pre><code><span class="cmt">// 格雷码转换与两级同步（示意）</span>
+<span class="kw">assign</span> wgray = wptr ^ (wptr &gt;&gt; 1);
+<span class="kw">always</span> @(posedge rclk) <span class="kw">begin</span> wgray_s1 &lt;= wgray; wgray_s2 &lt;= wgray_s1; <span class="kw">end</span>
+<span class="kw">assign</span> rempty = (rgray == wgray_s2);
+<span class="cmt">// 空/满判断后，用格雷码转回二进制作为 RAM 地址</span></code></pre>
+  <div class="callout warn">
+    <p><span class="t">P3 落点：</span>到 P3 时，<code>eth_proto</code> 的 TX/RX 侧分别换成 FIFO 的读/写端口，上层协议逻辑一行不改，即可把 PC 数据接到 <code>frame_tx/frame_rx</code>。</p>
+  </div>
+</section>
+
+<!-- ================= 9 ================= -->
+<section id="s9">
+  <h2>9. 顶层集成 eth_mac_top</h2>
+  <pre><code><span class="kw">module</span> eth_mac_top #(
+    parameter [47:0] LOCAL_MAC = 48'h02_00_00_00_00_01,
+    parameter [31:0] LOCAL_IP  = {8'd192,8'd168,8'd1,8'd100}
+)(
+    input  wire        sys_clk,      <span class="cmt">// 50MHz</span>
+    input  wire        sys_rst_n,
+    output wire        eth_txc,
+    output wire [3:0]  eth_txd,
+    output wire        eth_tx_ctl,
+    input  wire        eth_rxc,
+    input  wire [3:0]  eth_rxd,
+    input  wire        eth_rx_ctl,
+    output wire        eth_mdc,
+    inout  wire        eth_mdio,
+    output wire        eth_rst_n,
+    output wire        link_up,
+    output wire        led_link,
+    output wire        led_act
+);
+    <span class="cmt">// ---- 复位同步（异步复位、同步释放）----</span>
+    reg [2:0] rst_sync;
+    <span class="kw">always</span> @(posedge sys_clk <span class="kw">or</span> negedge sys_rst_n)
+        <span class="kw">if</span> (!sys_rst_n) rst_sync &lt;= 0; <span class="kw">else</span> rst_sync &lt;= {rst_sync[1:0], 1'b1};
+    wire rst_n = rst_sync[2];
+
+    <span class="cmt">// ---- PLL：50M -> 125M + 125M@90°（IP 核，参数在向导里配）----</span>
+    <span class="cmt">// Gowin_PLL u_pll(.clkin(sys_clk), .clkout(clk_125m), .clkoutd(clk_125m_90));</span>
+    wire clk_125m, clk_125m_90;
+
+    <span class="cmt">// ---- PHY 复位 + MDIO 配置 ----</span>
+    assign eth_rst_n = 1'b1;   <span class="cmt">// 或接一个上电复位脉冲</span>
+    <span class="cmt">// mdio_init u_mdio(...);  // 见 §3.3 初始化状态机</span>
+
+    <span class="cmt">// ---- 数据通路 ----</span>
+    wire [7:0] g_rx_data; wire g_rx_dv; wire g_rx_sof;
+    wire [7:0] g_tx_data; wire g_tx_en;
+    wire [7:0] m_rx_data; wire m_rx_valid, m_rx_sof, m_rx_eof, m_rx_crc_ok;
+    wire [7:0] p_tx_data; wire p_tx_valid, p_tx_sof, p_tx_eof, p_tx_ready;
+    wire [7:0] m_tx_data; wire m_tx_valid, m_tx_eof;
+
+    rgmii_rx  u_rx  (.rst_n(rst_n), .rxc(eth_rxc), .rxd(eth_rxd), .rx_ctl(eth_rx_ctl),
+                     .rx_data(g_rx_data), .rx_dv(g_rx_dv), .rx_sof(g_rx_sof));
+    rgmii_tx  u_tx  (.rst_n(rst_n), .clk_125m(clk_125m), .clk_125m_90(clk_125m_90),
+                     .tx_data(m_tx_data), .tx_en(m_tx_valid),
+                     .txc(eth_txc), .txd(eth_txd), .tx_ctl(eth_tx_ctl));
+    mac_rx #(.LOCAL_MAC(LOCAL_MAC)) u_mac_rx
+        (.clk(clk_125m), .rst_n(rst_n), .rx_data(g_rx_data), .rx_dv(g_rx_dv), .rx_sof(g_rx_sof),
+         .m_data(m_rx_data), .m_valid(m_rx_valid), .m_sof(m_rx_sof),
+         .m_eof(m_rx_eof), .m_crc_ok(m_rx_crc_ok));
+    eth_proto #(.LOCAL_MAC(LOCAL_MAC), .LOCAL_IP(LOCAL_IP)) u_proto
+        (.clk(clk_125m), .rst_n(rst_n),
+         .rx_data(m_rx_data), .rx_valid(m_rx_valid), .rx_sof(m_rx_sof),
+         .rx_eof(m_rx_eof), .rx_crc_ok(m_rx_crc_ok),
+         .tx_data(p_tx_data), .tx_valid(p_tx_valid), .tx_sof(p_tx_sof),
+         .tx_eof(p_tx_eof), .tx_ready(p_tx_ready));
+    mac_tx u_mac_tx
+        (.clk(clk_125m), .rst_n(rst_n), .s_data(p_tx_data), .s_valid(p_tx_valid),
+         .s_sof(p_tx_sof), .s_eof(p_tx_eof), .s_ready(p_tx_ready),
+         .m_data(m_tx_data), .m_valid(m_tx_valid), .m_eof(m_tx_eof));
+
+    assign led_act = m_rx_valid | p_tx_valid;
+    assign led_link = link_up;
+<span class="kw">endmodule</span></code></pre>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="s10">
+  <h2>10. 仿真与验证方案</h2>
+  <p>对应步骤卡"先 PHY 环回 → 再 PC 直连"，仿真用 iverilog（P1-S5 已统一环境）。</p>
+
+  <h3>10.1 分层验证策略</h3>
+  <table>
+    <thead><tr><th>层</th><th>验证内容</th><th>手段</th></tr></thead>
+    <tbody>
+      <tr><td>crc32</td><td>与 <code>binascii.crc32</code> 比对 1000 随机帧</td><td>Python 生成 <code>.mem</code> 激励 + 比对</td></tr>
+      <tr><td>mac_tx/mac_rx</td><td>自发自收、残差 0xC704DD7B</td><td>testbench 回环</td></tr>
+      <tr><td>eth_proto</td><td>ARP/ICMP/UDP 三种应答帧字段与校验和</td><td>Python 参考应答比对</td></tr>
+      <tr><td>rgmii_if</td><td>DDR 采样时序</td><td>先 PHY 环回，再 ILA 抓 RXC/RXD</td></tr>
+    </tbody>
+  </table>
+
+  <h3>10.2 testbench 骨架</h3>
+  <pre><code><span class="cmt">// 简单 PHY 行为模型：把 FPGA 发来的帧原样环回</span>
+<span class="kw">module</span> tb_eth_mac;
+    reg clk_50 = 0, rst_n = 0;
+    <span class="kw">always</span> #10 clk_50 = ~clk_50;   <span class="cmt">// 50MHz</span>
+
+    <span class="cmt">// 实例化 eth_mac_top（RGMII 直连到 PHY 模型）</span>
+    <span class="cmt">// phy_model 接收 eth_txd/tx_ctl，延时后驱动 eth_rxd/rx_ctl</span>
+
+    <span class="cmt">// 参考帧：用 $readmemh 从 Python 生成的 .mem 灌入</span>
+    <span class="cmt">// 期望输出：比对 .expect 文件，统计错误数，自动 PASS/FAIL</span>
+
+    <span class="kw">initial begin</span>
+        rst_n = 0; #100 rst_n = 1;
+        <span class="cmt">// 激励：构造一个 ICMP echo request 注入 PHY 模型</span>
+        <span class="kw">if</span> (err_cnt == 0) $display("PASS"); <span class="kw">else</span> $display("FAIL: %d", err_cnt);
+        $finish;
+    <span class="kw">end</span>
+<span class="kw">endmodule</span></code></pre>
+
+  <h3>10.3 Python 参考脚本（CRC + 帧生成）</h3>
+  <pre><code><span class="cmt"># gen_frames.py —— 生成激励帧与期望应答，供 testbench 比对</span>
+import binascii, struct
+
+LOCAL_MAC = bytes([0x02,0,0,0,0,1])
+LOCAL_IP  = (192,168,1,100)
+PC_MAC    = bytes([0x00,0x1A,0x2B,0x3C,0x4D,0x5E])
+PC_IP     = (192,168,1,10)
+
+def eth_fcs(payload: bytes) -&gt; bytes:
+    <span class="cmt"># binascii.crc32 即以太网 CRC，小端 4 字节为 FCS</span>
+    return binascii.crc32(payload).to_bytes(4, 'little')
+
+def cksum(data: bytes) -&gt; int:
+    if len(data) % 2: data += b'\x00'
+    s = sum(struct.unpack('!%dH' % (len(data)//2), data))
+    while s &gt;&gt; 16: s = (s &amp; 0xffff) + (s &gt;&gt; 16)
+    return (~s) &amp; 0xffff
+
+<span class="cmt"># 构造一个 ping (ICMP echo request)，算出期望的 echo reply 帧</span>
+<span class="cmt"># 输出 .mem（激励）与 .expect（期望），供 sim/tb 使用</span></code></pre>
+  <div class="callout">
+    <p><span class="t">黄金参考：</span>MATLAB 浮点链路是 P1-S6 的事，但 CRC/校验和这个级别的参考用 Python 更快。把生成脚本归档到 <code>sim/</code>，作为可再生的黄金参考。</p>
+  </div>
+</section>
+
+<!-- ================= 11 ================= -->
+<section id="s11">
+  <h2>11. 时序约束（SDC）</h2>
+  <p>这是本步骤要沉淀、交给队员 B 合并进 <code>template.sdc</code> 的部分（设计报告 §3.8 四时钟域之一）。</p>
+  <pre><code><span class="cmt"># ---- 时钟定义 ----</span>
+create_clock -name sys_50m -period 20.000 [get_ports {sys_clk}]
+create_clock -name eth_rxc -period 8.000 [get_ports {eth_rxc}]
+
+<span class="cmt"># PLL 输出（假定 u_pll 输出 0° 与 90° 两路 125MHz）</span>
+create_generated_clock -name eth_125m    -source [get_pins {u_pll/CLKOUT}] \
+                       -divide_by 1 [get_pins {u_pll/CLKOUT}]
+create_generated_clock -name eth_125m_90 -source [get_pins {u_pll/CLKOUT}] \
+                       -divide_by 1 -phase 90 [get_pins {u_pll/CLKOUTD}]
+
+<span class="cmt"># ---- RGMII 输入时序（相对 RXC，参考 PHY 数据手册 tSkewR，典型 ±0.5~2ns）----</span>
+set_input_delay -clock eth_rxc -min 0.0  [get_ports {eth_rxd[*] eth_rx_ctl}]
+set_input_delay -clock eth_rxc -max 2.0  [get_ports {eth_rxd[*] eth_rx_ctl}]
+<span class="cmt"># 输出（相对 125MHz 域）</span>
+set_output_delay -clock eth_125m -min -0.5 [get_ports {eth_txd[*] eth_tx_ctl}]
+set_output_delay -clock eth_125m -max  0.5 [get_ports {eth_txd[*] eth_tx_ctl}]
+
+<span class="cmt"># ---- 异步时钟域（MDIO 的 50M 域与 125M 域；P3 再加 61.44M）----</span>
+set_clock_groups -asynchronous \
+  -group [get_clocks {sys_50m}] \
+  -group [get_clocks {eth_rxc eth_125m eth_125m_90}]
+
+<span class="cmt"># ---- 伪路径：MDC/MDIO 与数据通路无时序关系 ----</span>
+set_false_path -from [get_clocks {sys_50m}] -to [get_clocks {eth_125m}]
+set_false_path -from [get_clocks {eth_125m}] -to [get_clocks {sys_50m}]</code></pre>
+  <div class="callout warn">
+    <p><span class="t">关键：</span><code>set_input_delay</code> 的 max 值要按 PHY 数据手册的 <code>tSkewR</code> 填写，别照抄 2ns。每次综合后必看时序报告，违例当天处理（P1-S7 规矩）。</p>
+  </div>
+</section>
+
+<!-- ================= 12 ================= -->
+<section id="s12">
+  <h2>12. 调试与常见坑</h2>
+  <table>
+    <thead><tr><th>现象</th><th>根因</th><th>排查/规避</th></tr></thead>
+    <tbody>
+      <tr><td>ping 时通时断、吞吐低</td><td>PHY RGMII delay 没配或配错</td><td>先读 PHY 状态确认 link/速率，再查 delay 寄存器</td></tr>
+      <tr><td>发送方向建立/保持违例</td><td>TXC 没做 90° 相移 / PLL 相位错</td><td>核对 PLL 相位，看时序报告</td></tr>
+      <tr><td>帧全被对端丢</td><td>CRC 用错多项式或 FCS 字节序错</td><td>与 <code>binascii.crc32</code> 逐帧比对</td></tr>
+      <tr><td>千兆丢帧</td><td>IFG &lt;12B</td><td>帧间隔 ≥96bit</td></tr>
+      <tr><td>回显被广播淹没</td><td>没做目的 MAC 过滤</td><td>只收本机/广播，其余 DROP</td></tr>
+      <tr><td>ping 通但 iperf 慢</td><td>每帧中断式处理、FIFO 浅</td><td>流水化、FIFO 给足、回显走直通路径</td></tr>
+      <tr><td>读 PHY 寄存器不稳定</td><td>MDIO 采样点不对</td><td>ILA 抓 MDC/MDIO，校准采样拍</td></tr>
+    </tbody>
+  </table>
+
+  <h3>12.1 联调顺序（上板）</h3>
+  <ol>
+    <li>烧录，读 PHY ID（应回非零、已知值），确认 MDIO 通。</li>
+    <li>读 PHY 状态寄存器 bit2（link status），确认 <code>link up</code> 且速率 1000M。</li>
+    <li>PC 配静态 IP <code>192.168.1.10/24</code>，直连；先 <code>ping 192.168.1.100</code>。</li>
+    <li>Wireshark 抓包确认 ARP 应答、ICMP 应答字节级正确。</li>
+    <li><code>iperf -s -u</code>（PC 服务端）+ <code>iperf -c ... -u -b 100M</code> 测吞吐。</li>
+  </ol>
 </section>
 
 <footer>
-  依据文件：docs/fpga-fhss-implementation-plan.html（P1-S4 步骤卡、0.3 模块映射表、P1 出口门槛、P1-S7 约束模板）· 生成于 2026-08-24
+  依据文件：docs/fpga-fhss-implementation-plan.html（P1-S4 步骤卡、0.3 模块映射表、P1 出口门槛、P1-S7 约束模板）· 详细版 v2 · 生成于 2026-08-27
 </footer>
 
 </div>

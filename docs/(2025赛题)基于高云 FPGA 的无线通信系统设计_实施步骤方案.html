@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基于高云 FPGA 的无线通信系统设计</title>
+<style>
+:root {
+  --primary: #1f3b73;
+  --primary-2: #2e5495;
+  --accent: #3b82f6;
+  --bg: #f4f6fa;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #e5e9f0;
+  --code-bg: #0f172a;
+  --code-text: #e2e8f0;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  font-size: 16px;
+}
+/* ---------- Hero ---------- */
+.hero {
+  background: linear-gradient(135deg, #16306b 0%, #1f3b73 45%, #2e5495 100%);
+  color: #fff;
+  padding: 56px 32px 48px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(59,130,246,.25), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(96,165,250,.22), transparent 45%);
+  pointer-events: none;
+}
+.hero .badge {
+  display: inline-block;
+  padding: 4px 14px;
+  border: 1px solid rgba(255,255,255,.4);
+  border-radius: 999px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  margin-bottom: 18px;
+  backdrop-filter: blur(4px);
+}
+.hero h1 {
+  font-size: 34px;
+  margin: 0 0 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.hero .subtitle {
+  font-size: 16px;
+  opacity: .9;
+  margin: 0 0 24px;
+}
+.hero .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+.hero .meta span {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.25);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+/* ---------- Layout ---------- */
+.wrap { display: flex; max-width: 1280px; margin: 0 auto; }
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 24px 16px;
+}
+.sidebar h3 {
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+.sidebar a {
+  display: block;
+  color: var(--text);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all .15s;
+  border-left: 2px solid transparent;
+}
+.sidebar a:hover { background: #e8edf7; color: var(--primary); }
+.sidebar a.toc-h3 { padding-left: 28px; font-size: 13px; color: var(--muted); }
+.main { flex: 1; min-width: 0; padding: 32px 24px 80px; }
+/* ---------- Card sections ---------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 36px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(16,24,40,.05);
+}
+h1 { font-size: 26px; color: var(--primary); margin: 8px 0 16px; }
+h2 {
+  font-size: 22px; color: var(--primary);
+  margin: 0 0 14px; padding-bottom: 10px;
+  border-bottom: 2px solid var(--border);
+}
+h3 { font-size: 18px; color: var(--primary-2); margin: 20px 0 10px; }
+h4 { font-size: 16px; color: var(--text); margin: 16px 0 8px; }
+p { margin: 10px 0; }
+strong { color: var(--primary); }
+a { color: var(--accent); }
+/* ---------- Table ---------- */
+table {
+  border-collapse: collapse; width: 100%; margin: 16px 0;
+  font-size: 14px; border-radius: 8px; overflow: hidden;
+}
+th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; }
+th { background: #eaf0fa; color: var(--primary); font-weight: 600; }
+tr:nth-child(even) td { background: #fafbfe; }
+/* ---------- Code ---------- */
+pre {
+  background: var(--code-bg); color: var(--code-text);
+  padding: 16px 18px; border-radius: 10px; overflow-x: auto;
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+  font-size: 13px; line-height: 1.6; margin: 16px 0;
+}
+code {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  background: #eef1f6; color: #c2410c; padding: 1px 6px;
+  border-radius: 4px; font-size: 90%;
+}
+pre code { background: none; color: inherit; padding: 0; }
+/* ---------- Lists ---------- */
+ul, ol { padding-left: 24px; margin: 10px 0; }
+li { margin: 5px 0; }
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 16px 0; padding: 8px 18px;
+  background: #f0f6ff; border-radius: 0 8px 8px 0; color: var(--muted);
+}
+hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+/* ---------- Print ---------- */
+@media print {
+  .sidebar { display: none; }
+  .hero { padding: 24px; }
+  .card { box-shadow: none; break-inside: avoid; }
+  body { background: #fff; }
+}
+@media (max-width: 900px) {
+  .wrap { flex-direction: column; }
+  .sidebar { display: none; }
+  .card { padding: 20px; }
+  .hero h1 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="badge">FPGA 创新设计赛道 · 选题二 · 实施步骤方案</div>
+  <h1>基于高云 FPGA 的无线通信系统设计</h1>
+  <p class="subtitle">详细实施步骤方案 · 全国大学生嵌入式芯片与系统设计竞赛 FPGA 创新设计赛道（选题二）</p>
+  <div class="meta">
+    <span>开发平台：Tang Mega 60K</span>
+    <span>核心芯片：GW5AT-LV60PG484A</span>
+    <span>8 个阶段 · 40+ 可执行步骤</span>
+    <span>工具：云源 IDE + ModelSim + MATLAB</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="sidebar">
+    <h3>目录</h3>
+    <a class="toc-h2" href="#sec-1">概述</a>
+<a class="toc-h3" href="#sec-2">实施路线图</a>
+<a class="toc-h3" href="#sec-3">工程目录结构（建议）</a>
+<a class="toc-h2" href="#sec-4">阶段一：环境搭建与工具准备（第 1 周）</a>
+<a class="toc-h3" href="#sec-5">步骤 1.1 安装高云云源 IDE</a>
+<a class="toc-h3" href="#sec-6">步骤 1.2 安装仿真工具 ModelSim</a>
+<a class="toc-h3" href="#sec-7">步骤 1.3 安装 MATLAB</a>
+<a class="toc-h3" href="#sec-8">步骤 1.4 硬件清单核对与连接</a>
+<a class="toc-h2" href="#sec-9">阶段二：MATLAB 浮点参考模型（第 2-3 周）</a>
+<a class="toc-h3" href="#sec-10">步骤 2.1 搭建 QPSK 收发浮点模型</a>
+<a class="toc-h3" href="#sec-11">步骤 2.2 卷积码编解码模型</a>
+<a class="toc-h3" href="#sec-12">步骤 2.3 同步算法模型</a>
+<a class="toc-h3" href="#sec-13">步骤 2.4 生成定点化参考数据与滤波器系数</a>
+<a class="toc-h2" href="#sec-14">阶段三：发送链路 FPGA 实现（第 4-5 周）</a>
+<a class="toc-h3" href="#sec-15">步骤 3.1 信源模块（PN 序列发生器）</a>
+<a class="toc-h3" href="#sec-16">步骤 3.2 组帧 + CRC-16</a>
+<a class="toc-h3" href="#sec-17">步骤 3.3 卷积码编码器</a>
+<a class="toc-h3" href="#sec-18">步骤 3.4 块交织器</a>
+<a class="toc-h3" href="#sec-19">步骤 3.5 QPSK 星座映射</a>
+<a class="toc-h3" href="#sec-20">步骤 3.6 RRC 成型滤波与插值</a>
+<a class="toc-h3" href="#sec-21">步骤 3.7 发送链路模块级仿真</a>
+<a class="toc-h2" href="#sec-22">阶段四：接收链路 FPGA 实现（第 5-6 周）</a>
+<a class="toc-h3" href="#sec-23">步骤 4.1 匹配滤波器</a>
+<a class="toc-h3" href="#sec-24">步骤 4.2 帧同步与频偏估计</a>
+<a class="toc-h3" href="#sec-25">步骤 4.3 Costas 环载波同步</a>
+<a class="toc-h3" href="#sec-26">步骤 4.4 Gardner 定时同步</a>
+<a class="toc-h3" href="#sec-27">步骤 4.5 判决、解交织与 Viterbi 译码</a>
+<a class="toc-h3" href="#sec-28">步骤 4.6 解帧与 CRC 校验</a>
+<a class="toc-h3" href="#sec-29">步骤 4.7 接收链路模块级仿真</a>
+<a class="toc-h2" href="#sec-30">阶段五：系统集成与数字回环（第 7 周）</a>
+<a class="toc-h3" href="#sec-31">步骤 5.1 顶层例化与时钟管理</a>
+<a class="toc-h3" href="#sec-32">步骤 5.2 LVDS/并行 I/Q 接口</a>
+<a class="toc-h3" href="#sec-33">步骤 5.3 数字回环联调</a>
+<a class="toc-h2" href="#sec-34">阶段六：射频前端接入（第 8 周）</a>
+<a class="toc-h3" href="#sec-35">步骤 6.1 AD9361 硬件连接与初始化</a>
+<a class="toc-h3" href="#sec-36">步骤 6.2 SPI 配置驱动</a>
+<a class="toc-h3" href="#sec-37">步骤 6.3 射频回环联调</a>
+<a class="toc-h2" href="#sec-38">阶段七：参数配置与性能优化（第 9 周）</a>
+<a class="toc-h3" href="#sec-39">步骤 7.1 频率/功率/增益配置与扫描</a>
+<a class="toc-h3" href="#sec-40">步骤 7.2 BER 测试与误码率优化</a>
+<a class="toc-h3" href="#sec-41">步骤 7.3 传输距离测试</a>
+<a class="toc-h2" href="#sec-42">阶段八：拓展功能与文档（第 10-12 周）</a>
+<a class="toc-h3" href="#sec-43">步骤 8.1 PC 端 MATLAB/GUI 联合开发</a>
+<a class="toc-h3" href="#sec-44">步骤 8.2 双平台点对点通信</a>
+<a class="toc-h3" href="#sec-45">步骤 8.3 报告与答辩材料整理</a>
+<a class="toc-h2" href="#sec-46">附录：关键风险与应对</a>
+
+  </nav>
+  <main class="main">
+    <div class="card">
+<p><strong>—— 全国大学生嵌入式芯片与系统设计竞赛 FPGA 创新设计赛道（选题二）实施指南</strong></p>
+<table>
+<thead>
+<tr>
+<th>项目名称</th>
+<th>基于高云 FPGA 的无线通信系统设计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开发平台</td>
+<td>Tang Mega 60K（GW5AT-LV60PG484A）</td>
+</tr>
+<tr>
+<td>射频前端</td>
+<td>外接 AD9361 类 SDR 收发模块</td>
+</tr>
+<tr>
+<td>开发工具</td>
+<td>高云云源 IDE + ModelSim + MATLAB</td>
+</tr>
+<tr>
+<td>方案版本</td>
+<td>V1.0</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="sec-1">概述</h2>
+<p>本方案将设计报告中的系统设计拆解为 <strong>8 个实施阶段、40 余个可执行步骤</strong>，覆盖从环境搭建、算法建模、FPGA 编码、系统集成、射频接入到测试优化的完整流程。每一步均给出<strong>目标、具体操作、关键参数、验证标准与产出物</strong>，供团队按序推进。</p>
+<h3 id="sec-2">实施路线图</h3>
+<pre><code>阶段一        阶段二          阶段三          阶段四          阶段五          阶段六        阶段七        阶段八
+环境搭建  →  浮点模型验证  →  发送链路实现  →  接收链路实现  →  系统集成回环  →  射频接入  →  参数优化  →  拓展与文档
+(第1周)      (第2-3周)       (第4-5周)       (第5-6周)       (第7周)         (第8周)      (第9周)      (第10-12周)
+</code></pre>
+<h3 id="sec-3">工程目录结构（建议）</h3>
+<pre><code>wireless_sdr/
+├── doc/                # 设计文档、报告
+├── rtl/                # Verilog 源码
+│   ├── tx/             # 发送链路
+│   ├── rx/             # 接收链路
+│   ├── sync/           # 同步模块
+│   ├── codec/          # 编解码模块
+│   └── top/            # 顶层
+├── sim/                # 仿真工程与 testbench
+├── matlab/             # MATLAB 浮点模型与系数生成
+├── constraint/         # 引脚约束（.cst）
+└── ip/                 # PLL、FIFO 等 IP 配置
+</code></pre>
+<hr />
+<h2 id="sec-4">阶段一：环境搭建与工具准备（第 1 周）</h2>
+<h3 id="sec-5">步骤 1.1 安装高云云源 IDE</h3>
+<ul>
+<li><strong>目标</strong>：搭建 FPGA 综合、布局布线、下载调试环境。</li>
+<li><strong>操作</strong>：<br />
+  1. 前往高云半导体官网下载 Gowin 云源 IDE，<strong>商业版 ≥ V1.9.10.03</strong> 或 <strong>教育版 ≥ V1.9.11.03</strong>（Tang Mega 60K 需该版本以上才支持 GW5AT-LV60）。<br />
+  2. 安装时勾选 Programmer（编程器）；推荐单独安装 <strong>V1.9.12 SP1 云源编程器</strong>。<br />
+  3. 申请 License（商业版）或使用 Sipeed 提供的在线 Float Lic 服务。</li>
+<li><strong>验证</strong>：新建工程，在器件列表中找到 <code>GW5AT-LV60PG484A</code>，封装选择 <code>PBG484A</code>、Device Version 选 <code>B</code>。</li>
+<li><strong>产出</strong>：可正常创建工程的 IDE 环境。</li>
+</ul>
+<h3 id="sec-6">步骤 1.2 安装仿真工具 ModelSim</h3>
+<ul>
+<li><strong>目标</strong>：搭建 RTL 功能仿真环境。</li>
+<li><strong>操作</strong>：安装 ModelSim（或高云 IDE 内嵌仿真器），将仿真库路径加入工程。</li>
+<li><strong>验证</strong>：运行一个计数器例程仿真，能查看波形。</li>
+<li><strong>产出</strong>：可用的仿真环境。</li>
+</ul>
+<h3 id="sec-7">步骤 1.3 安装 MATLAB</h3>
+<ul>
+<li><strong>目标</strong>：搭建浮点参考模型与滤波器系数生成环境。</li>
+<li><strong>操作</strong>：安装 MATLAB（含 Communications Toolbox、DSP System Toolbox、Filter Designer）。</li>
+<li><strong>验证</strong>：运行 <code>rcosdesign</code>、<code>convenc</code>、<code>vitdec</code> 等函数确认工具箱可用。</li>
+<li><strong>产出</strong>：可用的算法验证环境。</li>
+</ul>
+<h3 id="sec-8">步骤 1.4 硬件清单核对与连接</h3>
+<ul>
+<li><strong>目标</strong>：确认硬件齐备并正确连接。</li>
+<li><strong>操作</strong>：<br />
+  1. 核对清单：Tang Mega 60K 板卡 ×1、AD9361 射频模块 ×1、12V DC 电源、USB 数据线、天线、杜邦线/排线、衰减器（测试用）、SD 卡。<br />
+  2. 将射频模块通过 PMOD/40P 排针连接 SPI 与 I/Q 接口，天线接入射频模块。<br />
+  3. 用 USB 线连接板卡 <code>DEBUG-USB2</code> 接口至 PC，接入 12V DC 电源。</li>
+<li><strong>验证</strong>：按 PWR 键 2 秒开机，Programmer 能识别设备（无 "No USB Cable Connection" 提示）。</li>
+<li><strong>产出</strong>：可上电调试的硬件平台。</li>
+</ul>
+<hr />
+<h2 id="sec-9">阶段二：MATLAB 浮点参考模型（第 2-3 周）</h2>
+<h3 id="sec-10">步骤 2.1 搭建 QPSK 收发浮点模型</h3>
+<ul>
+<li><strong>目标</strong>：建立端到端基带链路浮点模型，作为 FPGA 定点实现的"黄金参考"。</li>
+<li><strong>操作</strong>：<br />
+  1. 生成随机比特流 → QPSK 格雷映射 → RRC 成型（<code>rcosdesign(0.35, 8, 4)</code>，每符号 4 采样）→ 加噪声 → 匹配滤波 → 下采样 → 判决 → 统计 BER。<br />
+  2. 绘制星座图、眼图、BER-SNR 曲线。</li>
+<li><strong>验证</strong>：无噪声时 BER=0；有噪声时 BER 曲线与理论 QPSK 曲线（<code>berawgn</code>）吻合。</li>
+<li><strong>产出</strong>：<code>matlab/qpsk_link.m</code>，BER 理论基线。</li>
+</ul>
+<h3 id="sec-11">步骤 2.2 卷积码编解码模型</h3>
+<ul>
+<li><strong>目标</strong>：验证 (2,1,7) 卷积码 + Viterbi 软判决的正确性。</li>
+<li><strong>操作</strong>：<br />
+  1. 用 <code>poly2trellis(7, [171 133])</code> 建网格，<code>convenc</code> 编码，<code>vitdec(...,'soft',3)</code> 软判决译码。<br />
+  2. 对比硬判决与软判决的 BER 增益。</li>
+<li><strong>验证</strong>：软判决较硬判决约 2 dB 增益，编码整体约 5 dB 增益。</li>
+<li><strong>产出</strong>：<code>matlab/conv_code.m</code>，编码/译码参考模型。</li>
+</ul>
+<h3 id="sec-12">步骤 2.3 同步算法模型</h3>
+<ul>
+<li><strong>目标</strong>：验证帧同步、频偏估计、Costas 环、Gardner 定时的算法有效性。</li>
+<li><strong>操作</strong>：<br />
+  1. 帧同步：用 32 bit PN 序列做滑动相关，验证相关峰检测。<br />
+  2. 载波同步：仿真修正 Costas 环，施加频偏/相偏，验证锁定。<br />
+  3. 定时同步：仿真 Gardner 算法，施加时钟偏差（±100 ppm），验证收敛。</li>
+<li><strong>验证</strong>：在 ±5% 符号率频偏、±100 ppm 时钟偏差下均能锁定。</li>
+<li><strong>产出</strong>：<code>matlab/sync_model.m</code>，同步参数（环路带宽、阻尼系数）设计值。</li>
+</ul>
+<h3 id="sec-13">步骤 2.4 生成定点化参考数据与滤波器系数</h3>
+<ul>
+<li><strong>目标</strong>：生成 FPGA 实现所需的定点系数与测试向量。</li>
+<li><strong>操作</strong>：<br />
+  1. 生成 40 阶 RRC 滤波器系数并定点化为 16 bit 有符号整数，导出为 <code>.coe</code>/<code>.mem</code> 文件。<br />
+  2. 生成一组定点化测试激励（I/Q 数据、编码后比特）及对应的期望输出，供 FPGA 仿真比对。<br />
+  3. 确定各模块定点位宽（数据通路 18 bit、相位累加 16 bit 等）。</li>
+<li><strong>验证</strong>：定点模型与浮点模型误码率差异 ≤ 0.2 dB。</li>
+<li><strong>产出</strong>：<code>matlab/coeff.mem</code>、<code>matlab/test_vectors.txt</code>、定点化方案文档。</li>
+</ul>
+<hr />
+<h2 id="sec-14">阶段三：发送链路 FPGA 实现（第 4-5 周）</h2>
+<blockquote>
+<p>统一约定：时钟 <code>clk</code>，复位 <code>rst_n</code>，数据有效 <code>din_valid</code>/<code>dout_valid</code>。</p>
+</blockquote>
+<h3 id="sec-15">步骤 3.1 信源模块（PN 序列发生器）</h3>
+<ul>
+<li><strong>目标</strong>：产生测试数据比特流。</li>
+<li><strong>操作</strong>：实现 LFSR 伪随机序列发生器（如 9 级 m 序列，本原多项式 x⁹+x⁴+1），输出 1 bit/时钟的比特流；预留 SD 卡/网口数据接口。</li>
+<li><strong>关键信号</strong>：<code>pn_out[0:0]</code>、<code>pn_valid</code>。</li>
+<li><strong>验证</strong>：仿真输出序列与 MATLAB 生成的 PN 序列一致。</li>
+<li><strong>产出</strong>：<code>rtl/tx/pn_gen.v</code>。</li>
+</ul>
+<h3 id="sec-16">步骤 3.2 组帧 + CRC-16</h3>
+<ul>
+<li><strong>目标</strong>：将数据封装为固定帧结构，附加 CRC 校验。</li>
+<li><strong>操作</strong>：实现帧头（前导 + UW + 帧头）插入模块与 CRC-16 生成器（多项式 0x8005），按 4.7 节帧格式组帧。</li>
+<li><strong>关键信号</strong>：<code>frame_out</code>、<code>frame_valid</code>、<code>frame_start</code>。</li>
+<li><strong>验证</strong>：输出帧格式与 MATLAB 组帧结果一致，CRC 计算正确。</li>
+<li><strong>产出</strong>：<code>rtl/tx/framer.v</code>、<code>rtl/tx/crc16.v</code>。</li>
+</ul>
+<h3 id="sec-17">步骤 3.3 卷积码编码器</h3>
+<ul>
+<li><strong>目标</strong>：实现 (2,1,7) 卷积码编码。</li>
+<li><strong>操作</strong>：6 级移位寄存器 + 2 路模 2 加，生成多项式 g₁=171、g₂=133；每帧结束插入 6 个尾比特归零。</li>
+<li><strong>关键信号</strong>：<code>din[0:0]</code>、<code>dout[1:0]</code>。</li>
+<li><strong>验证</strong>：编码输出与 MATLAB <code>convenc</code> 结果逐比特一致。</li>
+<li><strong>产出</strong>：<code>rtl/codec/conv_enc.v</code>。</li>
+</ul>
+<h3 id="sec-18">步骤 3.4 块交织器</h3>
+<ul>
+<li><strong>目标</strong>：实现 8×8 块交织，打散突发错误。</li>
+<li><strong>操作</strong>：用双端口 Block SRAM 按行写入、按列读出，实现交织与解交织共用模块（读写方向可切换）。</li>
+<li><strong>验证</strong>：交织-解交织级联后数据完全还原。</li>
+<li><strong>产出</strong>：<code>rtl/codec/interleaver.v</code>。</li>
+</ul>
+<h3 id="sec-19">步骤 3.5 QPSK 星座映射</h3>
+<ul>
+<li><strong>目标</strong>：将比特映射为 I/Q 符号。</li>
+<li><strong>操作</strong>：实现格雷映射查找表（00→(+1,+1)、01→(-1,+1)、11→(-1,-1)、10→(+1,-1)，归一化 1/√2），输出 18 bit 定点 I/Q。</li>
+<li><strong>验证</strong>：映射表与设计报告 4.4 节一致。</li>
+<li><strong>产出</strong>：<code>rtl/tx/qpsk_map.v</code>。</li>
+</ul>
+<h3 id="sec-20">步骤 3.6 RRC 成型滤波与插值</h3>
+<ul>
+<li><strong>目标</strong>：实现根升余弦滤波与符号到采样率的插值。</li>
+<li><strong>操作</strong>：采用多相 FIR 结构，40 阶、每符号 4 采样，系数从 <code>coeff.mem</code> 读入 ROM；乘法器用 18×18 硬核。</li>
+<li><strong>验证</strong>：输出波形与 MATLAB 成型结果比对，归一化误差 &lt; 1%。</li>
+<li><strong>产出</strong>：<code>rtl/tx/rrc_tx.v</code>、<code>rtl/tx/coeff_rom.v</code>。</li>
+</ul>
+<h3 id="sec-21">步骤 3.7 发送链路模块级仿真</h3>
+<ul>
+<li><strong>目标</strong>：验证发送链路各模块级联正确性。</li>
+<li><strong>操作</strong>：编写 testbench，将各模块串联，注入测试数据，导出 I/Q 波形与 MATLAB 比对。</li>
+<li><strong>验证</strong>：输出 I/Q 与 MATLAB 参考一致。</li>
+<li><strong>产出</strong>：<code>sim/tx_tb.v</code> 及仿真报告。</li>
+</ul>
+<hr />
+<h2 id="sec-22">阶段四：接收链路 FPGA 实现（第 5-6 周）</h2>
+<h3 id="sec-23">步骤 4.1 匹配滤波器</h3>
+<ul>
+<li><strong>目标</strong>：实现接收端 RRC 匹配滤波。</li>
+<li><strong>操作</strong>：复用发送端 RRC 系数，实现接收匹配滤波（结构同 3.6）。</li>
+<li><strong>验证</strong>：匹配滤波输出与 MATLAB 一致。</li>
+<li><strong>产出</strong>：<code>rtl/rx/rrc_rx.v</code>。</li>
+</ul>
+<h3 id="sec-24">步骤 4.2 帧同步与频偏估计</h3>
+<ul>
+<li><strong>目标</strong>：检测帧到达并估计载波频偏。</li>
+<li><strong>操作</strong>：<br />
+  1. 本地 UW 与接收序列滑动相关，相关峰过门限判定帧同步。<br />
+  2. 利用前导重复结构做差分相关，估计频偏，输出 NCO 校正量。</li>
+<li><strong>验证</strong>：在指定频偏下能正确检测帧同步并估计频偏，误差 &lt; 1%。</li>
+<li><strong>产出</strong>：<code>rtl/sync/frame_sync.v</code>、<code>rtl/sync/freq_est.v</code>。</li>
+</ul>
+<h3 id="sec-25">步骤 4.3 Costas 环载波同步</h3>
+<ul>
+<li><strong>目标</strong>：恢复载波相位，消除残留频偏/相偏。</li>
+<li><strong>操作</strong>：实现鉴相器 <code>sign(I)·Q − sign(Q)·I</code> + PI 环路滤波器 + NCO（CORDIC），完成相位跟踪。</li>
+<li><strong>验证</strong>：施加相偏后能收敛锁定，星座点旋转消除。</li>
+<li><strong>产出</strong>：<code>rtl/sync/costas_loop.v</code>、<code>rtl/sync/nco.v</code>。</li>
+</ul>
+<h3 id="sec-26">步骤 4.4 Gardner 定时同步</h3>
+<ul>
+<li><strong>目标</strong>：恢复最佳采样时刻。</li>
+<li><strong>操作</strong>：实现 Gardner 定时误差检测 + PI 环路滤波器 + Farrow 插值滤波器，每符号 2 采样点误差计算。</li>
+<li><strong>验证</strong>：±100 ppm 时钟偏差下眼图张开、判决正确。</li>
+<li><strong>产出</strong>：<code>rtl/sync/gardner.v</code>、<code>rtl/sync/farrow.v</code>。</li>
+</ul>
+<h3 id="sec-27">步骤 4.5 判决、解交织与 Viterbi 译码</h3>
+<ul>
+<li><strong>目标</strong>：完成符号判决与信道译码。</li>
+<li><strong>操作</strong>：<br />
+  1. 星座判决：根据 I/Q 符号位恢复双比特，并生成 4 bit 软值。<br />
+  2. 解交织（复用交织模块反向）。<br />
+  3. Viterbi 译码：实现 BMC/ACS/TB，64 状态、回溯深度 40。</li>
+<li><strong>验证</strong>：译码输出与 MATLAB <code>vitdec</code> 一致。</li>
+<li><strong>产出</strong>：<code>rtl/rx/qpsk_demap.v</code>、<code>rtl/codec/viterbi.v</code>。</li>
+</ul>
+<h3 id="sec-28">步骤 4.6 解帧与 CRC 校验</h3>
+<ul>
+<li><strong>目标</strong>：恢复原始数据并检测帧差错。</li>
+<li><strong>操作</strong>：实现解帧器（提取数据载荷）+ CRC-16 校验，输出数据与 <code>crc_ok</code> 标志。</li>
+<li><strong>验证</strong>：无差错时 <code>crc_ok=1</code> 且数据还原；注入错误时检出。</li>
+<li><strong>产出</strong>：<code>rtl/rx/deframer.v</code>。</li>
+</ul>
+<h3 id="sec-29">步骤 4.7 接收链路模块级仿真</h3>
+<ul>
+<li><strong>目标</strong>：验证接收链路级联正确性。</li>
+<li><strong>操作</strong>：用发送链路输出的 I/Q（加噪声/频偏/相偏）作为激励，跑通接收链路。</li>
+<li><strong>验证</strong>：BER 与 MATLAB 参考一致。</li>
+<li><strong>产出</strong>：<code>sim/rx_tb.v</code> 及仿真报告。</li>
+</ul>
+<hr />
+<h2 id="sec-30">阶段五：系统集成与数字回环（第 7 周）</h2>
+<h3 id="sec-31">步骤 5.1 顶层例化与时钟管理</h3>
+<ul>
+<li><strong>目标</strong>：整合收发链路，建立时钟树。</li>
+<li><strong>操作</strong>：<br />
+  1. 例化 <code>tx_top</code>、<code>rx_top</code>、同步模块、状态机；<br />
+  2. 配置 PLL：生成射频参考时钟、符号时钟（5 MHz）、系统时钟（100~200 MHz）；<br />
+  3. 时钟域间用异步 FIFO 做 CDC。</li>
+<li><strong>验证</strong>：综合通过，时序无违例。</li>
+<li><strong>产出</strong>：<code>rtl/top/sdr_top.v</code>、PLL IP 配置。</li>
+</ul>
+<h3 id="sec-32">步骤 5.2 LVDS/并行 I/Q 接口</h3>
+<ul>
+<li><strong>目标</strong>：实现与射频前端的数据接口。</li>
+<li><strong>操作</strong>：实现 LVDS 收发接口或并行 I/Q 接口，完成 FPGA 基带数据与射频模块 I/Q 数据的对接。</li>
+<li><strong>验证</strong>：接口回环测试数据无误。</li>
+<li><strong>产出</strong>：<code>rtl/top/lvds_if.v</code>。</li>
+</ul>
+<h3 id="sec-33">步骤 5.3 数字回环联调</h3>
+<ul>
+<li><strong>目标</strong>：在不接射频的情况下验证完整基带链路。</li>
+<li><strong>操作</strong>：将发送链路 I/Q 直接回环到接收链路（LVDS 发→收数字回环），统计 BER。</li>
+<li><strong>验证</strong>：数字回环下 BER=0（或接近 0），全链路数据还原。</li>
+<li><strong>产出</strong>：数字回环测试报告。</li>
+</ul>
+<hr />
+<h2 id="sec-34">阶段六：射频前端接入（第 8 周）</h2>
+<h3 id="sec-35">步骤 6.1 AD9361 硬件连接与初始化</h3>
+<ul>
+<li><strong>目标</strong>：完成射频模块电气连接与上电初始化。</li>
+<li><strong>操作</strong>：<br />
+  1. 核对 SPI（CS/SCLK/MOSI/MISO）、I/Q、参考时钟、电源连线；<br />
+  2. 提供参考时钟（MS5351 或 FPGA PLL）；<br />
+  3. 上电，检查射频模块工作正常。</li>
+<li><strong>验证</strong>：射频模块初始化完成，寄存器可读写。</li>
+<li><strong>产出</strong>：接线记录、初始化状态。</li>
+</ul>
+<h3 id="sec-36">步骤 6.2 SPI 配置驱动</h3>
+<ul>
+<li><strong>目标</strong>：实现 AD9361 寄存器配置。</li>
+<li><strong>操作</strong>：<br />
+  1. 实现 SPI 主机（Mode 0，时钟 ≤ 25 MHz）；<br />
+  2. 编写寄存器配置序列：载波频率（2400~2483.5 MHz）、发射功率、接收增益、滤波器带宽、采样率；<br />
+  3. 封装为 <code>rf_cfg</code> 模块，支持串口下发动态配置。</li>
+<li><strong>验证</strong>：配置后射频模块按设定频率/功率工作（频谱仪观测）。</li>
+<li><strong>产出</strong>：<code>rtl/top/spi_master.v</code>、<code>rtl/top/rf_cfg.v</code>、配置表文档。</li>
+</ul>
+<h3 id="sec-37">步骤 6.3 射频回环联调</h3>
+<ul>
+<li><strong>目标</strong>：打通射频收发链路。</li>
+<li><strong>操作</strong>：天线自环或衰减器直连，发送端→射频→接收端完整链路，统计 BER、观测星座图/频谱。</li>
+<li><strong>验证</strong>：射频回环下 BER ≤ 1×10⁻⁵（20 dB 信噪比），占用带宽约 6.75 MHz。</li>
+<li><strong>产出</strong>：射频回环测试数据。</li>
+</ul>
+<hr />
+<h2 id="sec-38">阶段七：参数配置与性能优化（第 9 周）</h2>
+<h3 id="sec-39">步骤 7.1 频率/功率/增益配置与扫描</h3>
+<ul>
+<li><strong>目标</strong>：实现并验证射频参数可配置。</li>
+<li><strong>操作</strong>：通过串口/网口下发命令，扫描不同频率、功率、增益，记录链路状态。</li>
+<li><strong>验证</strong>：参数配置即时生效，链路保持稳定。</li>
+<li><strong>产出</strong>：参数配置接口与测试记录。</li>
+</ul>
+<h3 id="sec-40">步骤 7.2 BER 测试与误码率优化</h3>
+<ul>
+<li><strong>目标</strong>：绘制 BER-SNR 曲线并优化误码率。</li>
+<li><strong>操作</strong>：<br />
+  1. 用衰减器改变信噪比，逐点统计 BER，绘制曲线；<br />
+  2. 优化环路滤波器参数、AGC 阈值、量化位宽；<br />
+  3. 对比编码前后 BER，验证编码增益。</li>
+<li><strong>验证</strong>：BER 曲线与理论值接近，达到指标。</li>
+<li><strong>产出</strong>：BER-SNR 曲线与优化报告。</li>
+</ul>
+<h3 id="sec-41">步骤 7.3 传输距离测试</h3>
+<ul>
+<li><strong>目标</strong>：验证并优化无失真传输距离。</li>
+<li><strong>操作</strong>：加衰减器等效远距离，或实测拉开天线距离，记录最远无失真传输距离；必要时切换 BPSK 模式提升链路余量。</li>
+<li><strong>验证</strong>：记录无失真传输最远距离、传输时延（≤ 5 ms）。</li>
+<li><strong>产出</strong>：距离与时延测试报告。</li>
+</ul>
+<hr />
+<h2 id="sec-42">阶段八：拓展功能与文档（第 10-12 周）</h2>
+<h3 id="sec-43">步骤 8.1 PC 端 MATLAB/GUI 联合开发</h3>
+<ul>
+<li><strong>目标</strong>：实现 PC 端实时分析与人机交互。</li>
+<li><strong>操作</strong>：通过千兆网口/USB 3.0 将接收数据送入 PC，MATLAB 绘制频谱/星座图/眼图；编写 GUI（Qt/Python）实现参数配置与误码率显示。</li>
+<li><strong>验证</strong>：PC 能实时显示链路状态并远程配置参数。</li>
+<li><strong>产出</strong>：上位机程序、GUI 界面。</li>
+</ul>
+<h3 id="sec-44">步骤 8.2 双平台点对点通信</h3>
+<ul>
+<li><strong>目标</strong>：实现两台平台间的真实无线通信。</li>
+<li><strong>操作</strong>：两套 Tang Mega 60K + AD9361，一台发射、一台接收，验证点对点双向通信。</li>
+<li><strong>验证</strong>：两端数据互通，误码率达标。</li>
+<li><strong>产出</strong>：点对点通信演示。</li>
+</ul>
+<h3 id="sec-45">步骤 8.3 报告与答辩材料整理</h3>
+<ul>
+<li><strong>目标</strong>：形成完整参赛文档与演示材料。</li>
+<li><strong>操作</strong>：整理设计报告、测试数据、演示视频、答辩 PPT。</li>
+<li><strong>验证</strong>：文档齐全、数据完整、可流畅演示。</li>
+<li><strong>产出</strong>：最终设计报告、演示视频、答辩 PPT。</li>
+</ul>
+<hr />
+<h2 id="sec-46">附录：关键风险与应对</h2>
+<table>
+<thead>
+<tr>
+<th>风险</th>
+<th>影响</th>
+<th>应对措施</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IDE 版本过低不支持 GW5AT-LV60</td>
+<td>无法综合/下载</td>
+<td>按步骤 1.1 升级至要求版本</td>
+</tr>
+<tr>
+<td>AD9361 SPI 时序配置错误</td>
+<td>射频不工作</td>
+<td>先做寄存器读回自检，对照官方初始化序列</td>
+</tr>
+<tr>
+<td>同步环路不收敛</td>
+<td>误码率高</td>
+<td>用 MATLAB 先定环路参数，FPGA 中分步开环验证</td>
+</tr>
+<tr>
+<td>时钟域不同步导致数据错乱</td>
+<td>链路错误</td>
+<td>统一用异步 FIFO 做 CDC，加强复位与握手</td>
+</tr>
+<tr>
+<td>资源/时序不满足</td>
+<td>综合失败</td>
+<td>流水线重定时、复用乘法器、优化 Viterbi 结构</td>
+</tr>
+<tr>
+<td>2.4G 频段干扰</td>
+<td>误码波动</td>
+<td>扫描选频、降低速率、提高功率</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>（本方案为可执行实施指南，各步骤的具体参数以设计报告为准，可根据实际调试进度滚动调整。）</em></p>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>
