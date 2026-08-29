@@ -1,28 +1,31 @@
 module mdio_ctrl (
-    input  wire        clk,          // 50MHz
+    input  wire        clk,          // 50MHz系统时钟，全模块唯一时序来源，MDC 由它分频而来。
     input  wire        rst_n,
-    output wire        mdc,
-    inout  wire        mdio,
-    input  wire        start,        // 单拍脉冲：启动一次操作
+
+    //MDIO 总线两根线。
+    output wire        mdc,          //MDC 是主机给 PHY 的参考时钟；
+    inout  wire        mdio,         //MDIO 是双向线——写时主机驱动、读时 PHY 驱动，所以必须是 inout（三态）。
+
+    input  wire        start,        // 单拍脉冲：启动一次操作//start 用单拍脉冲而不是电平：状态机只在空闲时抓一次（start && !running），若是电平，一帧跑完会被再次误触发。
     input  wire        op,           // 0=写 1=读
     input  wire [4:0]  phy_addr,
     input  wire [4:0]  reg_addr,
     input  wire [15:0] wr_data,
     output reg  [15:0] rd_data,
-    output reg         busy,
-    output reg         done
+    output reg         busy,         //忙信号。busy=1，代表模块正在收发 MDIO 帧，外部不能再给 start 启动信号
+    output reg         done          //完成脉冲，单周期高脉冲。只有 done 拉高的这一个时钟周期，rd_data上面的数据才是有效可用的。
 );
     // ---- MDC 生成：50MHz -> 2.5MHz ----
-    reg [4:0] div_cnt;
-    reg       mdc_r;
-    reg       mdc_tick;      // MDC 下降沿脉冲，推进状态机
+    reg [4:0] div_cnt;    //分频计数器
+    reg       mdc_r;      //MDC 的寄存器输出
+    reg       mdc_tick;      // MDC 下降沿脉冲，推进状态机  //tick 就是只持续 1 个系统时钟周期的高电平脉冲，用来标记 “某一件事该做了”
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin div_cnt <= 0; mdc_r <= 0; mdc_tick <= 0; end
         else begin
             mdc_tick <= 0;
-            if (div_cnt == 5'd9) begin
-                div_cnt <= 0; mdc_r <= ~mdc_r;
-                if (mdc_r) mdc_tick <= 1;    // 下降沿
+            if (div_cnt == 5'd9) begin         //计数到 9（0~9 共 10 拍）翻转一次 mdc_r → MDC 半周期 = 10×20ns = 200ns，全周期 400ns = 2.5MHz。  
+                div_cnt <= 0; mdc_r <= ~mdc_r;  //为什么是 2.5MHz：IEEE 802.3 规定 MDC 最高 2.5MHz，这是兼容所有 PHY 的最保守值（50MHz ÷ 20 正好 = 2.5MHz）。
+                if (mdc_r) mdc_tick <= 1;    // 下降沿 //为什么选下降沿推进：MDIO 规范要求主机（STA）在 MDC 下降沿改变 MDIO，PHY 在上升沿采样。让 FSM 在下降沿后马上换数据，新数据在下一个上升沿前有整整 200ns 建立时间。
             end else
                 div_cnt <= div_cnt + 1;
         end
