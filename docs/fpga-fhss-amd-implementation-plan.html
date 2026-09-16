@@ -1,0 +1,1901 @@
+<html lang="zh-CN" data-trae-theme="light"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMD 移植版 · 基于 Zynq 的跳频/SDR 抗干扰通信系统 · 实施执行手册 V3.0.1</title>
+<style>
+:root{
+  --bg:#0b0f17; --bg2:#0e1420; --panel:#111826; --panel2:#151f30; --line:#1f2a3a; --line2:#2a3a52;
+  --txt:#e6edf7; --muted:#8b98ac; --dim:#5d6b80;
+  --amd:#ed1c24; --amd2:#ff5c5c; --cyan:#2dd4bf; --amber:#f59e0b; --blue:#3b82f6; --green:#22c55e; --purple:#a78bfa; --pink:#f472b6;
+  --mono:"JetBrains Mono","SF Mono",Consolas,"Courier New",monospace;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:15px;line-height:1.75}
+::selection{background:rgba(237,28,36,.35)}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.86em;background:#0a0e16;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#ffd479}
+.wrap{max-width:1220px;margin:0 auto;padding:0 28px}
+
+/* ===== top nav ===== */
+.topnav{position:sticky;top:0;z-index:200;background:rgba(11,15,23,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topnav .wrap{display:flex;align-items:center;gap:6px;overflow-x:auto;padding-top:0;padding-bottom:0;height:52px}
+.topnav .brand{font-weight:800;font-size:14px;letter-spacing:.5px;color:var(--txt);white-space:nowrap;margin-right:14px;display:flex;align-items:center;gap:8px}
+.topnav .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--amd);box-shadow:0 0 10px rgba(237,28,36,.8)}
+.topnav a.nl{color:var(--muted);font-size:13px;padding:5px 11px;border-radius:7px;white-space:nowrap;transition:.15s}
+.topnav a.nl:hover{color:var(--txt);background:var(--panel2);text-decoration:none}
+.topnav a.nl.hot{color:var(--amd2);border:1px solid rgba(237,28,36,.35)}
+
+/* ===== hero ===== */
+.hero{padding:64px 0 40px;background:
+  radial-gradient(900px 400px at 85% -10%,rgba(237,28,36,.14),transparent 60%),
+  radial-gradient(700px 380px at 5% 0%,rgba(45,212,191,.10),transparent 60%),var(--bg)}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--amd2);border:1px solid rgba(237,28,36,.4);background:rgba(237,28,36,.08);padding:4px 14px;border-radius:99px;letter-spacing:1px;margin-bottom:20px}
+.hero h1{font-size:clamp(28px,4.4vw,46px);font-weight:900;line-height:1.25;letter-spacing:.5px}
+.hero h1 .grad{background:linear-gradient(92deg,#fff 20%,var(--amd2) 60%,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{color:var(--muted);font-size:16px;margin-top:14px;max-width:820px}
+.hero .sub b{color:var(--txt)}
+.metarow{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:34px}
+.metacard{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.metacard .k{font-size:12px;color:var(--dim);letter-spacing:1px;margin-bottom:6px}
+.metacard .v{font-size:14px;color:var(--txt)}
+.metacard .v b{color:var(--cyan)}
+
+/* ===== stat strip ===== */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:26px 0 8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center}
+.stat .n{font-size:32px;font-weight:900;font-family:var(--mono);background:linear-gradient(92deg,var(--cyan),var(--amd2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat .l{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+/* ===== sections ===== */
+section.block{padding:44px 0 8px}
+.sechead{display:flex;align-items:baseline;gap:16px;margin-bottom:8px}
+.secnum{font-family:var(--mono);font-size:15px;color:var(--amd2);font-weight:700;border:1px solid rgba(237,28,36,.4);padding:2px 10px;border-radius:8px;background:rgba(237,28,36,.07)}
+.sechead h2{font-size:26px;font-weight:800}
+.secsub{color:var(--muted);font-size:14.5px;margin-bottom:20px}
+h3.sub3{font-size:18px;font-weight:700;margin:30px 0 12px;padding-left:12px;border-left:3px solid var(--amd)}
+h3.sub3 .tag{font-size:12px;color:var(--dim);font-weight:400;margin-left:10px}
+
+/* ===== generic card ===== */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:14px 0}
+.panel.hl{border-color:rgba(237,28,36,.45);background:linear-gradient(180deg,rgba(237,28,36,.06),var(--panel))}
+.panel.hl2{border-color:rgba(45,212,191,.4);background:linear-gradient(180deg,rgba(45,212,191,.05),var(--panel))}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:900px){.grid2,.grid3,.stats{grid-template-columns:1fr}}
+
+/* ===== tables ===== */
+table.tbl{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--panel);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.tbl th{background:var(--panel2);color:var(--txt);font-weight:700;text-align:left;padding:11px 13px;border-bottom:1px solid var(--line2);font-size:13px;letter-spacing:.3px}
+.tbl td{padding:10px 13px;border-bottom:1px solid var(--line);color:#c6d0de;vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(59,130,246,.05)}
+.tbl td b{color:var(--txt)}
+.tbl .mod{font-family:var(--mono);font-size:12.5px;color:#ffd479}
+
+/* badges */
+.bdg{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 10px;border-radius:99px;letter-spacing:.5px;white-space:nowrap}
+.b-port{color:#4ade80;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4)}
+.b-mod{color:#fbbf24;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4)}
+.b-ip{color:#60a5fa;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.4)}
+.b-del{color:#94a3b8;background:rgba(148,163,184,.1);border:1px solid rgba(148,163,184,.35)}
+.b-new{color:#ff6b6b;background:rgba(237,28,36,.12);border:1px solid rgba(237,28,36,.45)}
+.b-keep{color:#2dd4bf;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.4)}
+
+/* callout */
+.note{border-left:3px solid var(--cyan);background:rgba(45,212,191,.06);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0;font-size:14px;color:#c6d0de}
+.note.warn{border-color:var(--amber);background:rgba(245,158,11,.07)}
+.note.danger{border-color:var(--amd);background:rgba(237,28,36,.07)}
+.note b{color:var(--txt)}
+
+/* ===== gantt ===== */
+.gantt{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin:16px 0;overflow-x:auto}
+.gantt .grow{display:grid;grid-template-columns:130px 1fr;align-items:center;gap:12px;margin:7px 0;min-width:760px}
+.gantt .glabel{font-size:13px;color:var(--txt);font-weight:600;white-space:nowrap}
+.gantt .glabel .d{display:block;font-size:11px;color:var(--dim);font-weight:400;font-family:var(--mono)}
+.gantt .gtrack{position:relative;height:26px;background:#0a0e16;border:1px solid var(--line);border-radius:7px}
+.gantt .gbar{position:absolute;top:3px;bottom:3px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0b0f17;white-space:nowrap;overflow:hidden}
+.gantt .milestone{position:absolute;top:-5px;bottom:-5px;width:2px;z-index:5}
+.gantt .milestone .ml{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10.5px;white-space:nowrap;font-weight:700}
+.ghead{display:grid;grid-template-columns:130px 1fr;gap:12px;margin-bottom:10px;min-width:760px}
+.ghead .scale{position:relative;height:18px;font-size:10.5px;color:var(--dim);font-family:var(--mono)}
+.ghead .scale span{position:absolute;transform:translateX(-50%)}
+
+/* workload bars */
+.wl{display:flex;align-items:center;gap:12px;margin:8px 0}
+.wl .wl-n{width:150px;font-size:13px;color:#c6d0de;white-space:nowrap}
+.wl .wl-t{flex:1;height:20px;background:#0a0e16;border:1px solid var(--line);border-radius:6px;position:relative}
+.wl .wl-b{position:absolute;top:2px;bottom:2px;border-radius:4px;background:linear-gradient(90deg,rgba(59,130,246,.7),rgba(45,212,191,.7))}
+.wl .wl-v{width:70px;font-size:12px;font-family:var(--mono);color:var(--cyan);text-align:right}
+
+/* ===== phase ===== */
+.phase{margin:34px 0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--bg2)}
+.phase-head{padding:22px 26px;background:linear-gradient(120deg,var(--panel2),var(--panel));border-bottom:1px solid var(--line);position:relative}
+.phase-head::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--pc,var(--amd))}
+.phase-head .prow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.phase-head .pchip{font-family:var(--mono);font-weight:800;font-size:15px;color:#0b0f17;background:var(--pc,var(--amd));padding:3px 12px;border-radius:8px}
+.phase-head h3{font-size:21px;font-weight:800}
+.phase-head .pd{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-left:auto}
+.phase-head .pgoal{color:var(--muted);font-size:14px;margin-top:8px}
+.phase-head .pgoal b{color:var(--cyan)}
+.gate{margin:16px 26px;padding:13px 16px;border:1px dashed rgba(245,158,11,.5);background:rgba(245,158,11,.06);border-radius:10px;font-size:13.5px;color:#e8d9be}
+.gate b{color:var(--amber)}
+.gate .gk{font-weight:800;color:var(--amber);letter-spacing:1px;font-size:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;padding:6px 26px 24px}
+.scard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;transition:.15s}
+.scard:hover{border-color:var(--line2);transform:translateY(-2px)}
+.scard .sid{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--pc,var(--amd));letter-spacing:.5px}
+.scard h4{font-size:15.5px;font-weight:700;margin:4px 0 2px}
+.scard .smeta{font-size:12px;color:var(--dim);margin-bottom:9px;font-family:var(--mono)}
+.scard .slbl{font-size:11.5px;font-weight:700;color:var(--cyan);letter-spacing:1px;margin:9px 0 3px}
+.scard ul{list-style:none;font-size:13px;color:#b9c4d4}
+.scard ul li{padding-left:16px;position:relative;margin:3px 0}
+.scard ul li::before{content:"▸";position:absolute;left:0;color:var(--pc,var(--amd))}
+.scard .vrfc{font-size:13px;color:#d8c9a8;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:7px 10px;margin-top:9px}
+.scard .vrfc b{color:var(--amber)}
+.scard .delta{font-size:12px;margin-top:9px;padding:6px 10px;border-radius:7px;background:rgba(45,212,191,.07);border:1px solid rgba(45,212,191,.25);color:#a7e8de}
+.scard .delta b{color:var(--cyan)}
+.scard .delta.r{background:rgba(237,28,36,.07);border-color:rgba(237,28,36,.3);color:#f3b8ba}
+.scard .delta.r b{color:var(--amd2)}
+
+/* arch diagram */
+.arch{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:16px 0}
+@media(max-width:800px){.arch{grid-template-columns:1fr}}
+.arch .side{padding:20px}
+.arch .side.ps{background:linear-gradient(180deg,rgba(167,139,250,.08),transparent);border-right:1px solid var(--line)}
+.arch .side.pl{background:linear-gradient(180deg,rgba(45,212,191,.07),transparent)}
+.arch .side h4{font-size:15px;margin-bottom:10px}
+.arch .side h4 .chip{font-size:11px;padding:2px 8px;border-radius:99px;margin-left:8px;vertical-align:2px}
+.arch .box{background:var(--panel);border:1px solid var(--line2);border-radius:9px;padding:8px 12px;margin:7px 0;font-size:13px}
+.arch .box .en{font-family:var(--mono);color:#ffd479;font-size:12px}
+.arch .bus{text-align:center;font-family:var(--mono);font-size:11.5px;color:var(--muted);padding:6px;background:#0a0e16;border-top:1px solid var(--line)}
+
+/* misc */
+.footer{border-top:1px solid var(--line);margin-top:60px;padding:30px 0 50px;color:var(--dim);font-size:13px}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.toc a{font-size:12.5px;color:var(--muted);border:1px solid var(--line);padding:4px 12px;border-radius:99px}
+.toc a:hover{color:var(--txt);border-color:var(--line2);text-decoration:none}
+.refs ol{font-size:13px;color:var(--muted);padding-left:22px}
+.refs li{margin:5px 0}
+kbd{font-family:var(--mono);font-size:11px;background:#0a0e16;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--cyan)}
+</style>
+<style data-trae-edit-ui="true" id="trae-previewer-tools-styles">:root {
+  --trae-layer-image-download: 89990;
+  --trae-layer-browser-inspect-overlay: 90000;
+  --trae-layer-browser-inspect-highlight: 90010;
+  --trae-layer-browser-inspect-action: 90020;
+  --trae-layer-text-selection-action: 90030;
+  --trae-layer-edit-tooltip: 100095;
+}
+:root,
+[data-trae-theme='dark'] {
+  --trae-bg-base-default: #171717;
+  --trae-bg-menu: #222427;
+  --trae-bg-overlay-l1: rgba(255, 255, 255, 0.04);
+  --trae-bg-overlay-l2: rgba(255, 255, 255, 0.08);
+  --trae-bg-overlay-l3: rgba(255, 255, 255, 0.12);
+  --trae-bg-overlay-l4: rgba(255, 255, 255, 0.16);
+  --trae-bg-invert: #f5f9fe;
+  --trae-bg-invert-hover: #e8ecf0;
+  --trae-bg-invert-active: #dce0e4;
+  --trae-bg-invert-disabled: rgba(224, 226, 242, 0.12);
+  --bg-bg-brand-disabled: rgba(75, 63, 227, 0.35);
+  --bg-bg-brand-popup: rgba(106, 111, 255, 0.15);
+  --trae-border-l1: #e0e2f217;
+  --trae-border-l2: rgba(255, 255, 255, 0.12);
+  --trae-border-l3: rgba(255, 255, 255, 0.08);
+  --trae-border-neutral-l3: rgba(229, 229, 229, 0.20);
+  --trae-border-brand: #6a6fff;
+  --trae-text-default: #f5f9fe;
+  --trae-text-default-hover: #f5f9fe;
+  --trae-text-default-active: #f5f9fe;
+  --trae-text-secondary: rgba(245, 249, 254, 0.5);
+  --trae-text-tertiary: rgba(245, 249, 254, 0.4);
+  --trae-text-disabled: #666b75;
+  --trae-text-onaccent: #222427;
+  --trae-icon-default: #f5f9fe;
+  --trae-icon-secondary: rgba(245, 249, 254, 0.5);
+  --trae-icon-brand: #6a6fff;
+  --icon-icon-brand: var(--trae-icon-brand);
+  --trae-icon-onaccent: #222427;
+  --trae-status-success: #22c55e;
+  --trae-status-primary: #3b82f6;
+  --trae-status-primary-default: #387bff;
+  --trae-status-primary-surface-l1: rgba(53, 121, 255, 0.18);
+  --trae-status-success-default: #33c192;
+  --trae-status-success-surface-l1: rgba(0, 165, 110, 0.18);
+  --trae-status-error-default: #f65a5a;
+  --trae-status-error-surface-l1: rgba(246, 70, 70, 0.18);
+  --trae-annotation-marker-bg: #4b3fe3;
+  --trae-annotation-marker-text: #ffffff;
+  --trae-annotation-region-border: var(--trae-status-primary-default);
+  --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.32);
+  --trae-panel-shadow: 0px 6px 24px -1px rgba(0, 0, 0, 0.16);
+  --trae-floating-shadow: 0px 2px 8px 0px rgba(0, 0, 0, 0.2);
+  --trae-shadow-elevation-50: 0 1px 2px -1px rgba(0, 0, 0, 0.45);
+  --text-text-default: var(--trae-text-default);
+  --text-text-onaccent: var(--trae-text-onaccent);
+  --bg-bg-menu: var(--trae-bg-menu);
+  --bg-bg-white: var(--trae-bg-menu);
+  --bg-bg-invert: var(--trae-bg-invert);
+  --bg-bg-invert-disabled: var(--trae-bg-invert-disabled);
+  --bg-bg-overlay-l1: var(--trae-bg-overlay-l1);
+  --bg-bg-overlay-l2: var(--trae-bg-overlay-l2);
+  --bg-bg-overlay-l3: var(--trae-bg-overlay-l3);
+  --border-border-neutral-l1: var(--trae-border-l1);
+  --border-border-brand: var(--trae-border-brand);
+  --border-border-brand-half: rgba(106, 111, 255, 0.4);
+  --status-error-default: var(--trae-status-error-default);
+  --status-error-surface-l1: var(--trae-status-error-surface-l1);
+  --radius-radius-md-12: 12px;
+  --spacers-spacer-0: 0;
+  --spacers-spacer-6: 6px;
+}
+
+[data-trae-theme='light'] {
+  --trae-bg-base-default: #fafafa;
+  --trae-bg-menu: #ffffff;
+  --trae-bg-overlay-l1: rgba(0, 0, 0, 0.04);
+  --trae-bg-overlay-l2: rgba(0, 0, 0, 0.06);
+  --trae-bg-overlay-l3: rgba(0, 0, 0, 0.08);
+  --trae-bg-overlay-l4: rgba(0, 0, 0, 0.12);
+  --trae-bg-invert: #1f2328;
+  --trae-bg-invert-hover: #32383f;
+  --trae-bg-invert-active: #444d56;
+  --trae-bg-invert-disabled: rgba(115, 115, 115, 0.20);
+  --bg-bg-brand-disabled: rgba(75, 63, 227, 0.22);
+  --bg-bg-brand-popup: rgba(170, 183, 255, 0.36);
+  --trae-border-l1: rgba(0, 0, 0, 0.1);
+  --trae-border-l2: rgba(0, 0, 0, 0.12);
+  --trae-border-l3: rgba(0, 0, 0, 0.08);
+  --trae-border-neutral-l3: rgba(115, 115, 115, 0.36);
+  --trae-border-brand: #4b3fe3;
+  --trae-text-default: #1f2328;
+  --trae-text-default-hover: #111214;
+  --trae-text-default-active: #111214;
+  --trae-text-secondary: rgba(31, 35, 40, 0.5);
+  --trae-text-tertiary: rgba(31, 35, 40, 0.4);
+  --trae-text-disabled: #a1a1a1;
+  --trae-text-onaccent: #ffffff;
+  --trae-icon-default: #1f2328;
+  --trae-icon-secondary: rgba(31, 35, 40, 0.5);
+  --trae-icon-brand: #4b3fe3;
+  --icon-icon-brand: var(--trae-icon-brand);
+  --trae-icon-onaccent: #ffffff;
+  --trae-status-success: #22c55e;
+  --trae-status-primary: #3b82f6;
+  --trae-status-primary-default: #2f74ff;
+  --trae-status-primary-surface-l1: rgba(47, 116, 255, 0.12);
+  --trae-status-success-default: #15a877;
+  --trae-status-success-surface-l1: rgba(64, 176, 139, 0.12);
+  --trae-status-error-default: #e8463a;
+  --trae-status-error-surface-l1: rgba(232, 70, 58, 0.12);
+  --trae-annotation-marker-bg: #4b3fe3;
+  --trae-annotation-marker-text: #ffffff;
+  --trae-annotation-region-border: var(--trae-status-primary-default);
+  --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.18);
+  --trae-panel-shadow: 0px 6px 24px -1px rgba(24, 24, 24, 0.06);
+  --trae-floating-shadow: 0px 2px 8px 0px rgba(24, 24, 24, 0.2);
+  --trae-shadow-elevation-50: 0 1px 2px -1px rgba(24, 24, 24, 0.08);
+  --text-text-default: var(--trae-text-default);
+  --text-text-onaccent: var(--trae-text-onaccent);
+  --bg-bg-menu: var(--trae-bg-menu);
+  --bg-bg-white: var(--trae-bg-menu);
+  --bg-bg-invert: var(--trae-bg-invert);
+  --bg-bg-invert-disabled: var(--trae-bg-invert-disabled);
+  --bg-bg-overlay-l1: var(--trae-bg-overlay-l1);
+  --bg-bg-overlay-l2: var(--trae-bg-overlay-l2);
+  --bg-bg-overlay-l3: var(--trae-bg-overlay-l3);
+  --border-border-neutral-l1: var(--trae-border-l1);
+  --border-border-brand: var(--trae-border-brand);
+  --border-border-brand-half: rgba(75, 63, 227, 0.4);
+  --status-error-default: var(--trae-status-error-default);
+  --status-error-surface-l1: var(--trae-status-error-surface-l1);
+  --radius-radius-md-12: 12px;
+  --spacers-spacer-0: 0;
+  --spacers-spacer-6: 6px;
+}
+
+@keyframes trae-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes trae-edit-bar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes trae-edit-bar-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes trae-edit-panel-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.trae-edit-mode-active:not(.trae-edit-mode-dragging) body *:not([data-trae-edit-ui]):not([data-trae-edit-ui] *) {
+  transition: none !important;
+  animation-play-state: paused !important;
+}
+
+.trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel),
+.trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel) * {
+  pointer-events: none !important;
+}
+
+.trae-browser-inspect-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--trae-layer-browser-inspect-overlay);
+  pointer-events: auto;
+  background: transparent;
+}
+
+.trae-browser-inspect-highlight-box {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--trae-layer-browser-inspect-highlight);
+  display: none;
+}
+
+.trae-browser-inspect-highlight-tag {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  height: 18px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 4px;
+  background-color: var(--trae-status-success-default);
+  color: var(--trae-text-onaccent);
+  font-size: 12px;
+  font-weight: 400;
+  display: none;
+  align-items: center;
+  z-index: var(--trae-layer-browser-inspect-action);
+}
+
+.trae-browser-inspect-highlight-box-show {
+  display: flex;
+}
+
+.trae-browser-inspect-highlight-tag.trae-browser-inspect-highlight-box-show {
+  display: none;
+}
+
+.trae-browser-inspect-select-button.trae-browser-inspect-highlight-box-show {
+  display: block !important;
+}
+
+.trae-browser-inspect-select-button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  z-index: var(--trae-layer-browser-inspect-action);
+}
+
+.trae-browser-inspect-select-highlight-box {
+  background: transparent !important;
+}
+
+.trae-browser-inspect-select-highlight-box .trae-browser-inspect-highlight-tag {
+  background-color: var(--trae-status-success-default);
+}
+
+.trae-add-to-chat-card {
+  display: block;
+  overflow: hidden;
+  background: var(--trae-bg-menu);
+  border: 1px solid var(--trae-border-l1);
+  border-radius: 8px;
+  box-shadow: var(--trae-floating-shadow);
+  transition:
+    width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.trae-add-to-chat-content {
+  position: relative;
+  width: max-content;
+}
+
+.trae-fade-exit {
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.trae-fade-enter {
+  opacity: 1;
+  transition: opacity 0.2s ease-in;
+}
+
+.trae-buttons-view {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: transparent;
+}
+
+.trae-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+.trae-action-button:hover {
+  background: var(--trae-bg-overlay-l2);
+}
+
+.trae-action-button:active {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-action-button:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-action-button-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--trae-icon-default);
+  flex-shrink: 0;
+}
+
+.trae-action-button-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--trae-text-default);
+  white-space: nowrap;
+}
+
+.trae-edit-toolbar-button-active {
+  background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important;
+  color: var(--icon-icon-brand, #4b3fe3) !important;
+  font-weight: bold !important;
+}
+
+.trae-edit-toolbar-button-active:hover {
+  background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important;
+}
+
+.trae-edit-toolbar button[data-action='alignment-dropdown']:hover,
+.trae-edit-toolbar button[data-action='text-align-dropdown']:hover,
+.trae-edit-toolbar button[data-action='font-decrease']:hover,
+.trae-edit-toolbar button[data-action='font-increase']:hover,
+.trae-edit-toolbar button[data-action^='align-']:hover {
+  border-radius: 8px;
+  background: var(--bg-bg-overlay-l1, rgba(115, 115, 115, 0.08)) !important;
+}
+
+.trae-edit-toolbar button[data-action='alignment-dropdown']:active,
+.trae-edit-toolbar button[data-action='text-align-dropdown']:active,
+.trae-edit-toolbar button[data-action='font-decrease']:active,
+.trae-edit-toolbar button[data-action='font-increase']:active,
+.trae-edit-toolbar button[data-action^='align-']:active {
+  border-radius: 8px;
+  background: var(--bg-bg-overlay-l2, rgba(115, 115, 115, 0.12)) !important;
+}
+
+.trae-comment-input {
+  background: transparent;
+  color: var(--trae-text-default);
+  caret-color: var(--trae-text-default);
+}
+
+.trae-comment-input::placeholder {
+  color: var(--trae-text-tertiary);
+}
+
+.trae-point-edit-bar,
+.trae-point-comment-input-bar,
+.trae-comment-only-panel {
+  transform-origin: top center;
+  will-change: opacity, transform;
+}
+
+.trae-edit-panel:not(.trae-edit-panel-leave) {
+  pointer-events: auto !important;
+}
+
+.trae-edit-bar-enter {
+  animation: trae-edit-bar-enter var(--transition-normal, 0.18s cubic-bezier(0.2, 0, 0, 1)) both;
+}
+
+.trae-edit-bar-leave {
+  pointer-events: none;
+  animation: trae-edit-bar-leave var(--transition-fast, 0.14s ease) both;
+}
+
+.trae-edit-panel-leave {
+  pointer-events: none;
+  animation: trae-edit-panel-leave var(--transition-fast, 0.14s ease) both;
+}
+
+.trae-edit-panel [data-trae-tooltip] {
+  position: relative;
+}
+
+.trae-edit-panel [data-trae-tooltip]::after {
+  content: attr(data-trae-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: var(--trae-layer-edit-tooltip);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--trae-bg-invert, var(--bg-bg-invert));
+  color: var(--trae-text-onaccent, var(--text-text-onaccent));
+  box-shadow: var(--trae-floating-shadow);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.039px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-sizing: border-box;
+  opacity: 0;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+
+.trae-edit-panel [data-trae-tooltip]::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 5px);
+  z-index: var(--trae-layer-edit-tooltip);
+  width: 8px;
+  height: 4px;
+  background: var(--trae-bg-invert, var(--bg-bg-invert));
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.trae-edit-panel [data-trae-tooltip]:hover::after,
+.trae-edit-panel [data-trae-tooltip]:focus-visible::after,
+.trae-edit-panel [data-trae-tooltip]:hover::before,
+.trae-edit-panel [data-trae-tooltip]:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+.trae-comment-btn {
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trae-comment-btn:disabled {
+  cursor: not-allowed;
+}
+
+.trae-comment-btn:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-comment-btn-primary {
+  background: var(--trae-bg-invert);
+  color: var(--trae-text-onaccent);
+}
+
+.trae-comment-btn-primary:hover:not(:disabled) {
+  background: var(--trae-bg-invert-hover);
+}
+
+.trae-comment-btn-primary:active:not(:disabled) {
+  background: var(--trae-bg-invert-active);
+}
+
+.trae-comment-btn-primary:disabled {
+  background: var(--trae-bg-invert-disabled);
+  color: var(--trae-text-disabled);
+}
+
+.trae-comment-btn-secondary {
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-default);
+}
+
+.trae-comment-btn-secondary:hover:not(:disabled) {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-comment-btn-secondary:active:not(:disabled) {
+  background: var(--trae-bg-overlay-l4);
+}
+
+.trae-comment-btn-secondary:disabled {
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-disabled);
+}
+
+.trae-comment-btn-text {
+  background: transparent;
+  color: var(--trae-text-default);
+}
+
+.trae-comment-btn-text:hover:not(:disabled) {
+  border-radius: 8px;
+  background: var(--bg-bg-overlay-l1, var(--trae-bg-overlay-l1));
+  color: var(--trae-text-default-hover);
+}
+
+.trae-comment-btn-text:active:not(:disabled) {
+  border-radius: 8px;
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-default-active);
+}
+
+.trae-comment-btn-text:disabled {
+  background: transparent;
+  color: var(--trae-text-disabled);
+}
+
+.trae-marking-btn {
+  justify-content: center;
+}
+
+.trae-marking-btn:hover:not(:disabled) {
+  background: var(--trae-bg-overlay-l1) !important;
+}
+
+.trae-marking-btn-active {
+  background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important;
+  color: var(--icon-icon-brand, var(--trae-icon-brand)) !important;
+}
+
+.trae-marking-btn-active:hover {
+  background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important;
+  color: var(--icon-icon-brand, var(--trae-icon-brand)) !important;
+}
+
+.trae-marking-btn:active:not(:disabled) {
+  background: var(--trae-bg-overlay-l2) !important;
+}
+
+.trae-marking-btn:disabled {
+  color: var(--trae-text-disabled) !important;
+  cursor: not-allowed !important;
+}
+
+.trae-action-button-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--trae-icon-secondary);
+  flex-shrink: 0;
+}
+
+.trae-shortcut-container {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.trae-shortcut-key {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 12px;
+  color: var(--trae-icon-secondary);
+}
+
+.trae-add-to-chat-divider {
+  width: 2px;
+  height: 12px;
+  padding: 0 6px;
+  box-sizing: content-box;
+  background-clip: content-box;
+  background-color: var(--trae-border-l2);
+  flex-shrink: 0;
+}
+
+.trae-editor-view {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  padding: 8px;
+  background: transparent;
+}
+
+.trae-editor-text-container {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background: var(--trae-bg-overlay-l1);
+  border: 1px solid var(--trae-border-l3);
+  border-radius: 4px;
+  gap: 8px;
+}
+
+.trae-editor-textarea {
+  flex: 1;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--trae-text-default);
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  max-height: 140px;
+}
+
+.trae-editor-textarea::placeholder {
+  color: var(--trae-text-tertiary);
+}
+
+.trae-editor-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 0.2s ease-out,
+    opacity 0.2s ease-out,
+    margin-top 0.2s ease-out;
+}
+
+.trae-editor-action-bar-visible {
+  max-height: 32px;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+.trae-editor-cancel-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 4px;
+  background: var(--trae-bg-overlay-l2);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trae-editor-cancel-button:hover {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-editor-cancel-button:active {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-editor-cancel-button:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-editor-cancel-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--trae-text-default);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.trae-editor-submit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--trae-bg-invert);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trae-editor-submit-button:hover {
+  background: var(--trae-bg-invert-hover);
+}
+
+.trae-editor-submit-button:active {
+  background: var(--trae-bg-invert-active);
+}
+
+.trae-editor-submit-button:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-editor-submit-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--trae-text-onaccent);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.trae-editor-submit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  color: var(--trae-icon-onaccent);
+  flex-shrink: 0;
+}
+
+.trae-success-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 32px;
+  white-space: nowrap;
+}
+
+.trae-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--trae-status-success);
+  flex-shrink: 0;
+}
+
+.trae-success-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--trae-text-default);
+  user-select: none;
+}
+</style><style data-trae-pptx-captured-css="true">:root { --bg: #0b0f17; --bg2: #0e1420; --panel: #111826; --panel2: #151f30; --line: #1f2a3a; --line2: #2a3a52; --txt: #e6edf7; --muted: #8b98ac; --dim: #5d6b80; --amd: #ed1c24; --amd2: #ff5c5c; --cyan: #2dd4bf; --amber: #f59e0b; --blue: #3b82f6; --green: #22c55e; --purple: #a78bfa; --pink: #f472b6; --mono: "JetBrains Mono","SF Mono",Consolas,"Courier New",monospace; --sans: "Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif; }
+* { margin: 0px; padding: 0px; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--txt); font-family: var(--sans); font-size: 15px; line-height: 1.75; }
+::selection { background: rgba(237, 28, 36, 0.35); }
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: var(--mono); font-size: 0.86em; background: rgb(10, 14, 22); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; color: rgb(255, 212, 121); }
+.wrap { max-width: 1220px; margin: 0px auto; padding: 0px 28px; }
+.topnav { position: sticky; top: 0px; z-index: 200; background: rgba(11, 15, 23, 0.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.topnav .wrap { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-top: 0px; padding-bottom: 0px; height: 52px; }
+.topnav .brand { font-weight: 800; font-size: 14px; letter-spacing: 0.5px; color: var(--txt); white-space: nowrap; margin-right: 14px; display: flex; align-items: center; gap: 8px; }
+.topnav .brand .dot { width: 9px; height: 9px; border-radius: 2px; background: var(--amd); box-shadow: rgba(237, 28, 36, 0.8) 0px 0px 10px; }
+.topnav a.nl { color: var(--muted); font-size: 13px; padding: 5px 11px; border-radius: 7px; white-space: nowrap; transition: 0.15s; }
+.topnav a.nl:hover { color: var(--txt); background: var(--panel2); text-decoration: none; }
+.topnav a.nl.hot { color: var(--amd2); border: 1px solid rgba(237, 28, 36, 0.35); }
+.hero { padding: 64px 0px 40px; background: radial-gradient(900px 400px at 85% -10%,rgba(237,28,36,.14),transparent 60%),
+  radial-gradient(700px 380px at 5% 0%,rgba(45,212,191,.10),transparent 60%),var(--bg); }
+.kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--amd2); border: 1px solid rgba(237, 28, 36, 0.4); background: rgba(237, 28, 36, 0.08); padding: 4px 14px; border-radius: 99px; letter-spacing: 1px; margin-bottom: 20px; }
+.hero h1 { font-size: clamp(28px, 4.4vw, 46px); font-weight: 900; line-height: 1.25; letter-spacing: 0.5px; }
+.hero h1 .grad { background-image: ; background-position-x: ; background-position-y: ; background-size: ; background-repeat: ; background-attachment: ; background-origin: ; background-color: ; background-clip: text; color: transparent; }
+.hero .sub { color: var(--muted); font-size: 16px; margin-top: 14px; max-width: 820px; }
+.hero .sub b { color: var(--txt); }
+.metarow { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 34px; }
+.metacard { background: linear-gradient(180deg,var(--panel),var(--bg2)); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.metacard .k { font-size: 12px; color: var(--dim); letter-spacing: 1px; margin-bottom: 6px; }
+.metacard .v { font-size: 14px; color: var(--txt); }
+.metacard .v b { color: var(--cyan); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 26px 0px 8px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; text-align: center; }
+.stat .n { font-size: 32px; font-weight: 900; font-family: var(--mono); background-image: ; background-position-x: ; background-position-y: ; background-size: ; background-repeat: ; background-attachment: ; background-origin: ; background-color: ; background-clip: text; color: transparent; }
+.stat .l { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+section.block { padding: 44px 0px 8px; }
+.sechead { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+.secnum { font-family: var(--mono); font-size: 15px; color: var(--amd2); font-weight: 700; border: 1px solid rgba(237, 28, 36, 0.4); padding: 2px 10px; border-radius: 8px; background: rgba(237, 28, 36, 0.07); }
+.sechead h2 { font-size: 26px; font-weight: 800; }
+.secsub { color: var(--muted); font-size: 14.5px; margin-bottom: 20px; }
+h3.sub3 { font-size: 18px; font-weight: 700; margin: 30px 0px 12px; padding-left: 12px; border-left: 3px solid var(--amd); }
+h3.sub3 .tag { font-size: 12px; color: var(--dim); font-weight: 400; margin-left: 10px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin: 14px 0px; }
+.panel.hl { border-color: rgba(237, 28, 36, 0.45); background: linear-gradient(180deg,rgba(237,28,36,.06),var(--panel)); }
+.panel.hl2 { border-color: rgba(45, 212, 191, 0.4); background: linear-gradient(180deg,rgba(45,212,191,.05),var(--panel)); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 900px) {
+  .grid2, .grid3, .stats { grid-template-columns: 1fr; }
+}
+table.tbl { width: 100%; border-collapse: collapse; margin: 14px 0px; font-size: 13.5px; background: var(--panel); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+.tbl th { background: var(--panel2); color: var(--txt); font-weight: 700; text-align: left; padding: 11px 13px; border-bottom: 1px solid var(--line2); font-size: 13px; letter-spacing: 0.3px; }
+.tbl td { padding: 10px 13px; border-bottom: 1px solid var(--line); color: rgb(198, 208, 222); vertical-align: top; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: rgba(59, 130, 246, 0.05); }
+.tbl td b { color: var(--txt); }
+.tbl .mod { font-family: var(--mono); font-size: 12.5px; color: rgb(255, 212, 121); }
+.bdg { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 99px; letter-spacing: 0.5px; white-space: nowrap; }
+.b-port { color: rgb(74, 222, 128); background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.4); }
+.b-mod { color: rgb(251, 191, 36); background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); }
+.b-ip { color: rgb(96, 165, 250); background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.4); }
+.b-del { color: rgb(148, 163, 184); background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.35); }
+.b-new { color: rgb(255, 107, 107); background: rgba(237, 28, 36, 0.12); border: 1px solid rgba(237, 28, 36, 0.45); }
+.b-keep { color: rgb(45, 212, 191); background: rgba(45, 212, 191, 0.1); border: 1px solid rgba(45, 212, 191, 0.4); }
+.note { border-left: 3px solid var(--cyan); background: rgba(45, 212, 191, 0.06); padding: 12px 16px; border-radius: 0px 10px 10px 0px; margin: 14px 0px; font-size: 14px; color: rgb(198, 208, 222); }
+.note.warn { border-color: var(--amber); background: rgba(245, 158, 11, 0.07); }
+.note.danger { border-color: var(--amd); background: rgba(237, 28, 36, 0.07); }
+.note b { color: var(--txt); }
+.gantt { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; margin: 16px 0px; overflow-x: auto; }
+.gantt .grow { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 12px; margin: 7px 0px; min-width: 760px; }
+.gantt .glabel { font-size: 13px; color: var(--txt); font-weight: 600; white-space: nowrap; }
+.gantt .glabel .d { display: block; font-size: 11px; color: var(--dim); font-weight: 400; font-family: var(--mono); }
+.gantt .gtrack { position: relative; height: 26px; background: rgb(10, 14, 22); border: 1px solid var(--line); border-radius: 7px; }
+.gantt .gbar { position: absolute; top: 3px; bottom: 3px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: rgb(11, 15, 23); white-space: nowrap; overflow: hidden; }
+.gantt .milestone { position: absolute; top: -5px; bottom: -5px; width: 2px; z-index: 5; }
+.gantt .milestone .ml { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 10.5px; white-space: nowrap; font-weight: 700; }
+.ghead { display: grid; grid-template-columns: 130px 1fr; gap: 12px; margin-bottom: 10px; min-width: 760px; }
+.ghead .scale { position: relative; height: 18px; font-size: 10.5px; color: var(--dim); font-family: var(--mono); }
+.ghead .scale span { position: absolute; transform: translateX(-50%); }
+.wl { display: flex; align-items: center; gap: 12px; margin: 8px 0px; }
+.wl .wl-n { width: 150px; font-size: 13px; color: rgb(198, 208, 222); white-space: nowrap; }
+.wl .wl-t { flex: 1 1 0%; height: 20px; background: rgb(10, 14, 22); border: 1px solid var(--line); border-radius: 6px; position: relative; }
+.wl .wl-b { position: absolute; top: 2px; bottom: 2px; border-radius: 4px; background: linear-gradient(90deg, rgba(59, 130, 246, 0.7), rgba(45, 212, 191, 0.7)); }
+.wl .wl-v { width: 70px; font-size: 12px; font-family: var(--mono); color: var(--cyan); text-align: right; }
+.phase { margin: 34px 0px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--bg2); }
+.phase-head { padding: 22px 26px; background: linear-gradient(120deg,var(--panel2),var(--panel)); border-bottom: 1px solid var(--line); position: relative; }
+.phase-head::before { content: ""; position: absolute; left: 0px; top: 0px; bottom: 0px; width: 4px; background: var(--pc,var(--amd)); }
+.phase-head .prow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.phase-head .pchip { font-family: var(--mono); font-weight: 800; font-size: 15px; color: rgb(11, 15, 23); background: var(--pc,var(--amd)); padding: 3px 12px; border-radius: 8px; }
+.phase-head h3 { font-size: 21px; font-weight: 800; }
+.phase-head .pd { font-family: var(--mono); font-size: 12.5px; color: var(--muted); margin-left: auto; }
+.phase-head .pgoal { color: var(--muted); font-size: 14px; margin-top: 8px; }
+.phase-head .pgoal b { color: var(--cyan); }
+.gate { margin: 16px 26px; padding: 13px 16px; border: 1px dashed rgba(245, 158, 11, 0.5); background: rgba(245, 158, 11, 0.06); border-radius: 10px; font-size: 13.5px; color: rgb(232, 217, 190); }
+.gate b { color: var(--amber); }
+.gate .gk { font-weight: 800; color: var(--amber); letter-spacing: 1px; font-size: 12px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; padding: 6px 26px 24px; }
+.scard { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; transition: 0.15s; }
+.scard:hover { border-color: var(--line2); transform: translateY(-2px); }
+.scard .sid { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--pc,var(--amd)); letter-spacing: 0.5px; }
+.scard h4 { font-size: 15.5px; font-weight: 700; margin: 4px 0px 2px; }
+.scard .smeta { font-size: 12px; color: var(--dim); margin-bottom: 9px; font-family: var(--mono); }
+.scard .slbl { font-size: 11.5px; font-weight: 700; color: var(--cyan); letter-spacing: 1px; margin: 9px 0px 3px; }
+.scard ul { list-style: none; font-size: 13px; color: rgb(185, 196, 212); }
+.scard ul li { padding-left: 16px; position: relative; margin: 3px 0px; }
+.scard ul li::before { content: "▸"; position: absolute; left: 0px; color: var(--pc,var(--amd)); }
+.scard .vrfc { font-size: 13px; color: rgb(216, 201, 168); background: rgba(245, 158, 11, 0.07); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 7px 10px; margin-top: 9px; }
+.scard .vrfc b { color: var(--amber); }
+.scard .delta { font-size: 12px; margin-top: 9px; padding: 6px 10px; border-radius: 7px; background: rgba(45, 212, 191, 0.07); border: 1px solid rgba(45, 212, 191, 0.25); color: rgb(167, 232, 222); }
+.scard .delta b { color: var(--cyan); }
+.scard .delta.r { background: rgba(237, 28, 36, 0.07); border-color: rgba(237, 28, 36, 0.3); color: rgb(243, 184, 186); }
+.scard .delta.r b { color: var(--amd2); }
+.arch { display: grid; grid-template-columns: 1fr 1fr; gap: 0px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin: 16px 0px; }
+@media (max-width: 800px) {
+  .arch { grid-template-columns: 1fr; }
+}
+.arch .side { padding: 20px; }
+.arch .side.ps { background: linear-gradient(rgba(167, 139, 250, 0.08), transparent); border-right: 1px solid var(--line); }
+.arch .side.pl { background: linear-gradient(rgba(45, 212, 191, 0.07), transparent); }
+.arch .side h4 { font-size: 15px; margin-bottom: 10px; }
+.arch .side h4 .chip { font-size: 11px; padding: 2px 8px; border-radius: 99px; margin-left: 8px; vertical-align: 2px; }
+.arch .box { background: var(--panel); border: 1px solid var(--line2); border-radius: 9px; padding: 8px 12px; margin: 7px 0px; font-size: 13px; }
+.arch .box .en { font-family: var(--mono); color: rgb(255, 212, 121); font-size: 12px; }
+.arch .bus { text-align: center; font-family: var(--mono); font-size: 11.5px; color: var(--muted); padding: 6px; background: rgb(10, 14, 22); border-top: 1px solid var(--line); }
+.footer { border-top: 1px solid var(--line); margin-top: 60px; padding: 30px 0px 50px; color: var(--dim); font-size: 13px; }
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0px; }
+.toc a { font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); padding: 4px 12px; border-radius: 99px; }
+.toc a:hover { color: var(--txt); border-color: var(--line2); text-decoration: none; }
+.refs ol { font-size: 13px; color: var(--muted); padding-left: 22px; }
+.refs li { margin: 5px 0px; }
+kbd { font-family: var(--mono); font-size: 11px; background: rgb(10, 14, 22); border-top-color: ; border-top-style: ; border-top-width: ; border-right-color: ; border-right-style: ; border-right-width: ; border-bottom-color: ; border-bottom-style: ; border-left-color: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; color: var(--cyan); }
+:root { --trae-layer-image-download: 89990; --trae-layer-browser-inspect-overlay: 90000; --trae-layer-browser-inspect-highlight: 90010; --trae-layer-browser-inspect-action: 90020; --trae-layer-text-selection-action: 90030; --trae-layer-edit-tooltip: 100095; }
+:root, [data-trae-theme="dark"] { --trae-bg-base-default: #171717; --trae-bg-menu: #222427; --trae-bg-overlay-l1: rgba(255, 255, 255, 0.04); --trae-bg-overlay-l2: rgba(255, 255, 255, 0.08); --trae-bg-overlay-l3: rgba(255, 255, 255, 0.12); --trae-bg-overlay-l4: rgba(255, 255, 255, 0.16); --trae-bg-invert: #f5f9fe; --trae-bg-invert-hover: #e8ecf0; --trae-bg-invert-active: #dce0e4; --trae-bg-invert-disabled: rgba(224, 226, 242, 0.12); --bg-bg-brand-disabled: rgba(75, 63, 227, 0.35); --bg-bg-brand-popup: rgba(106, 111, 255, 0.15); --trae-border-l1: #e0e2f217; --trae-border-l2: rgba(255, 255, 255, 0.12); --trae-border-l3: rgba(255, 255, 255, 0.08); --trae-border-neutral-l3: rgba(229, 229, 229, 0.20); --trae-border-brand: #6a6fff; --trae-text-default: #f5f9fe; --trae-text-default-hover: #f5f9fe; --trae-text-default-active: #f5f9fe; --trae-text-secondary: rgba(245, 249, 254, 0.5); --trae-text-tertiary: rgba(245, 249, 254, 0.4); --trae-text-disabled: #666b75; --trae-text-onaccent: #222427; --trae-icon-default: #f5f9fe; --trae-icon-secondary: rgba(245, 249, 254, 0.5); --trae-icon-brand: #6a6fff; --icon-icon-brand: var(--trae-icon-brand); --trae-icon-onaccent: #222427; --trae-status-success: #22c55e; --trae-status-primary: #3b82f6; --trae-status-primary-default: #387bff; --trae-status-primary-surface-l1: rgba(53, 121, 255, 0.18); --trae-status-success-default: #33c192; --trae-status-success-surface-l1: rgba(0, 165, 110, 0.18); --trae-status-error-default: #f65a5a; --trae-status-error-surface-l1: rgba(246, 70, 70, 0.18); --trae-annotation-marker-bg: #4b3fe3; --trae-annotation-marker-text: #ffffff; --trae-annotation-region-border: var(--trae-status-primary-default); --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.32); --trae-panel-shadow: 0px 6px 24px -1px rgba(0, 0, 0, 0.16); --trae-floating-shadow: 0px 2px 8px 0px rgba(0, 0, 0, 0.2); --trae-shadow-elevation-50: 0 1px 2px -1px rgba(0, 0, 0, 0.45); --text-text-default: var(--trae-text-default); --text-text-onaccent: var(--trae-text-onaccent); --bg-bg-menu: var(--trae-bg-menu); --bg-bg-white: var(--trae-bg-menu); --bg-bg-invert: var(--trae-bg-invert); --bg-bg-invert-disabled: var(--trae-bg-invert-disabled); --bg-bg-overlay-l1: var(--trae-bg-overlay-l1); --bg-bg-overlay-l2: var(--trae-bg-overlay-l2); --bg-bg-overlay-l3: var(--trae-bg-overlay-l3); --border-border-neutral-l1: var(--trae-border-l1); --border-border-brand: var(--trae-border-brand); --border-border-brand-half: rgba(106, 111, 255, 0.4); --status-error-default: var(--trae-status-error-default); --status-error-surface-l1: var(--trae-status-error-surface-l1); --radius-radius-md-12: 12px; --spacers-spacer-0: 0; --spacers-spacer-6: 6px; }
+[data-trae-theme="light"] { --trae-bg-base-default: #fafafa; --trae-bg-menu: #ffffff; --trae-bg-overlay-l1: rgba(0, 0, 0, 0.04); --trae-bg-overlay-l2: rgba(0, 0, 0, 0.06); --trae-bg-overlay-l3: rgba(0, 0, 0, 0.08); --trae-bg-overlay-l4: rgba(0, 0, 0, 0.12); --trae-bg-invert: #1f2328; --trae-bg-invert-hover: #32383f; --trae-bg-invert-active: #444d56; --trae-bg-invert-disabled: rgba(115, 115, 115, 0.20); --bg-bg-brand-disabled: rgba(75, 63, 227, 0.22); --bg-bg-brand-popup: rgba(170, 183, 255, 0.36); --trae-border-l1: rgba(0, 0, 0, 0.1); --trae-border-l2: rgba(0, 0, 0, 0.12); --trae-border-l3: rgba(0, 0, 0, 0.08); --trae-border-neutral-l3: rgba(115, 115, 115, 0.36); --trae-border-brand: #4b3fe3; --trae-text-default: #1f2328; --trae-text-default-hover: #111214; --trae-text-default-active: #111214; --trae-text-secondary: rgba(31, 35, 40, 0.5); --trae-text-tertiary: rgba(31, 35, 40, 0.4); --trae-text-disabled: #a1a1a1; --trae-text-onaccent: #ffffff; --trae-icon-default: #1f2328; --trae-icon-secondary: rgba(31, 35, 40, 0.5); --trae-icon-brand: #4b3fe3; --icon-icon-brand: var(--trae-icon-brand); --trae-icon-onaccent: #ffffff; --trae-status-success: #22c55e; --trae-status-primary: #3b82f6; --trae-status-primary-default: #2f74ff; --trae-status-primary-surface-l1: rgba(47, 116, 255, 0.12); --trae-status-success-default: #15a877; --trae-status-success-surface-l1: rgba(64, 176, 139, 0.12); --trae-status-error-default: #e8463a; --trae-status-error-surface-l1: rgba(232, 70, 58, 0.12); --trae-annotation-marker-bg: #4b3fe3; --trae-annotation-marker-text: #ffffff; --trae-annotation-region-border: var(--trae-status-primary-default); --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.18); --trae-panel-shadow: 0px 6px 24px -1px rgba(24, 24, 24, 0.06); --trae-floating-shadow: 0px 2px 8px 0px rgba(24, 24, 24, 0.2); --trae-shadow-elevation-50: 0 1px 2px -1px rgba(24, 24, 24, 0.08); --text-text-default: var(--trae-text-default); --text-text-onaccent: var(--trae-text-onaccent); --bg-bg-menu: var(--trae-bg-menu); --bg-bg-white: var(--trae-bg-menu); --bg-bg-invert: var(--trae-bg-invert); --bg-bg-invert-disabled: var(--trae-bg-invert-disabled); --bg-bg-overlay-l1: var(--trae-bg-overlay-l1); --bg-bg-overlay-l2: var(--trae-bg-overlay-l2); --bg-bg-overlay-l3: var(--trae-bg-overlay-l3); --border-border-neutral-l1: var(--trae-border-l1); --border-border-brand: var(--trae-border-brand); --border-border-brand-half: rgba(75, 63, 227, 0.4); --status-error-default: var(--trae-status-error-default); --status-error-surface-l1: var(--trae-status-error-surface-l1); --radius-radius-md-12: 12px; --spacers-spacer-0: 0; --spacers-spacer-6: 6px; }
+@keyframes trae-spin { 
+  100% { transform: rotate(360deg); }
+}
+@keyframes trae-edit-bar-enter { 
+  0% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0px) scale(1); }
+}
+@keyframes trae-edit-bar-leave { 
+  0% { opacity: 1; transform: translateY(0px) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+@keyframes trae-edit-panel-leave { 
+  0% { opacity: 1; transform: translateY(0px) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+.trae-edit-mode-active:not(.trae-edit-mode-dragging) body :not([data-trae-edit-ui]):not([data-trae-edit-ui] *) { transition: none !important; animation-play-state: paused !important; }
+.trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel), .trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel) * { pointer-events: none !important; }
+.trae-browser-inspect-overlay { position: fixed; top: 0px; left: 0px; width: 100%; height: 100%; z-index: var(--trae-layer-browser-inspect-overlay); pointer-events: auto; background: transparent; }
+.trae-browser-inspect-highlight-box { position: absolute; top: 0px; left: 0px; z-index: var(--trae-layer-browser-inspect-highlight); display: none; }
+.trae-browser-inspect-highlight-tag { position: absolute; left: 0px; top: 0px; height: 18px; padding: 0px 6px; box-sizing: border-box; border-radius: 4px; background-color: var(--trae-status-success-default); color: var(--trae-text-onaccent); font-size: 12px; font-weight: 400; display: none; align-items: center; z-index: var(--trae-layer-browser-inspect-action); }
+.trae-browser-inspect-highlight-box-show { display: flex; }
+.trae-browser-inspect-highlight-tag.trae-browser-inspect-highlight-box-show { display: none; }
+.trae-browser-inspect-select-button.trae-browser-inspect-highlight-box-show { display: block !important; }
+.trae-browser-inspect-select-button { position: absolute; top: 0px; left: 0px; display: none; z-index: var(--trae-layer-browser-inspect-action); }
+.trae-browser-inspect-select-highlight-box { background: transparent !important; }
+.trae-browser-inspect-select-highlight-box .trae-browser-inspect-highlight-tag { background-color: var(--trae-status-success-default); }
+.trae-add-to-chat-card { display: block; overflow: hidden; background: var(--trae-bg-menu); border: 1px solid var(--trae-border-l1); border-radius: 8px; box-shadow: var(--trae-floating-shadow); transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+.trae-add-to-chat-content { position: relative; width: max-content; }
+.trae-fade-exit { opacity: 0; transition: opacity 0.15s ease-out; }
+.trae-fade-enter { opacity: 1; transition: opacity 0.2s ease-in; }
+.trae-buttons-view { display: flex; align-items: center; gap: 6px; padding: 4px; background: transparent; }
+.trae-action-button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: transparent; border: none; border-radius: 4px; cursor: pointer; transform: none !important; transition: none !important; animation: auto ease 0s 1 normal none running none !important; }
+.trae-action-button:hover { background: var(--trae-bg-overlay-l2); }
+.trae-action-button:active { background: var(--trae-bg-overlay-l3); }
+.trae-action-button:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-action-button-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--trae-icon-default); flex-shrink: 0; }
+.trae-action-button-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--trae-text-default); white-space: nowrap; }
+.trae-edit-toolbar-button-active { background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important; color: var(--icon-icon-brand, #4b3fe3) !important; font-weight: bold !important; }
+.trae-edit-toolbar-button-active:hover { background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important; }
+.trae-edit-toolbar button[data-action="alignment-dropdown"]:hover, .trae-edit-toolbar button[data-action="text-align-dropdown"]:hover, .trae-edit-toolbar button[data-action="font-decrease"]:hover, .trae-edit-toolbar button[data-action="font-increase"]:hover, .trae-edit-toolbar button[data-action^="align-"]:hover { border-radius: 8px; background: var(--bg-bg-overlay-l1, rgba(115, 115, 115, 0.08)) !important; }
+.trae-edit-toolbar button[data-action="alignment-dropdown"]:active, .trae-edit-toolbar button[data-action="text-align-dropdown"]:active, .trae-edit-toolbar button[data-action="font-decrease"]:active, .trae-edit-toolbar button[data-action="font-increase"]:active, .trae-edit-toolbar button[data-action^="align-"]:active { border-radius: 8px; background: var(--bg-bg-overlay-l2, rgba(115, 115, 115, 0.12)) !important; }
+.trae-comment-input { background: transparent; color: var(--trae-text-default); caret-color: var(--trae-text-default); }
+.trae-comment-input::placeholder { color: var(--trae-text-tertiary); }
+.trae-point-edit-bar, .trae-point-comment-input-bar, .trae-comment-only-panel { transform-origin: center top; will-change: opacity, transform; }
+.trae-edit-panel:not(.trae-edit-panel-leave) { pointer-events: auto !important; }
+.trae-edit-bar-enter { animation: trae-edit-bar-enter var(--transition-normal, 0.18s cubic-bezier(0.2, 0, 0, 1)) both; }
+.trae-edit-bar-leave { pointer-events: none; animation: trae-edit-bar-leave var(--transition-fast, 0.14s ease) both; }
+.trae-edit-panel-leave { pointer-events: none; animation: trae-edit-panel-leave var(--transition-fast, 0.14s ease) both; }
+.trae-edit-panel [data-trae-tooltip] { position: relative; }
+.trae-edit-panel [data-trae-tooltip]::after { content: attr(data-trae-tooltip); position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: var(--trae-layer-edit-tooltip); padding: 6px 10px; border-radius: 6px; background: var(--trae-bg-invert, var(--bg-bg-invert)); color: var(--trae-text-onaccent, var(--text-text-onaccent)); box-shadow: var(--trae-floating-shadow); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0.039px; white-space: nowrap; pointer-events: none; box-sizing: border-box; opacity: 0; transform: translateX(-50%); visibility: hidden; }
+.trae-edit-panel [data-trae-tooltip]::before { content: ""; position: absolute; left: 50%; bottom: calc(100% + 5px); z-index: var(--trae-layer-edit-tooltip); width: 8px; height: 4px; background: var(--trae-bg-invert, var(--bg-bg-invert)); clip-path: polygon(0px 0px, 100% 0px, 50% 100%); transform: translateX(-50%); pointer-events: none; opacity: 0; visibility: hidden; }
+.trae-edit-panel [data-trae-tooltip]:hover::after, .trae-edit-panel [data-trae-tooltip]:focus-visible::after, .trae-edit-panel [data-trae-tooltip]:hover::before, .trae-edit-panel [data-trae-tooltip]:focus-visible::before { opacity: 1; visibility: visible; }
+.trae-comment-btn { justify-content: center; cursor: pointer; transition: background-color 0.15s; }
+.trae-comment-btn:disabled { cursor: not-allowed; }
+.trae-comment-btn:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-comment-btn-primary { background: var(--trae-bg-invert); color: var(--trae-text-onaccent); }
+.trae-comment-btn-primary:hover:not(:disabled) { background: var(--trae-bg-invert-hover); }
+.trae-comment-btn-primary:active:not(:disabled) { background: var(--trae-bg-invert-active); }
+.trae-comment-btn-primary:disabled { background: var(--trae-bg-invert-disabled); color: var(--trae-text-disabled); }
+.trae-comment-btn-secondary { background: var(--trae-bg-overlay-l2); color: var(--trae-text-default); }
+.trae-comment-btn-secondary:hover:not(:disabled) { background: var(--trae-bg-overlay-l3); }
+.trae-comment-btn-secondary:active:not(:disabled) { background: var(--trae-bg-overlay-l4); }
+.trae-comment-btn-secondary:disabled { background: var(--trae-bg-overlay-l2); color: var(--trae-text-disabled); }
+.trae-comment-btn-text { background: transparent; color: var(--trae-text-default); }
+.trae-comment-btn-text:hover:not(:disabled) { border-radius: 8px; background: var(--bg-bg-overlay-l1, var(--trae-bg-overlay-l1)); color: var(--trae-text-default-hover); }
+.trae-comment-btn-text:active:not(:disabled) { border-radius: 8px; background: var(--trae-bg-overlay-l2); color: var(--trae-text-default-active); }
+.trae-comment-btn-text:disabled { background: transparent; color: var(--trae-text-disabled); }
+.trae-marking-btn { justify-content: center; }
+.trae-marking-btn:hover:not(:disabled) { background: var(--trae-bg-overlay-l1) !important; }
+.trae-marking-btn-active { background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important; color: var(--icon-icon-brand, var(--trae-icon-brand)) !important; }
+.trae-marking-btn-active:hover { background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important; color: var(--icon-icon-brand, var(--trae-icon-brand)) !important; }
+.trae-marking-btn:active:not(:disabled) { background: var(--trae-bg-overlay-l2) !important; }
+.trae-marking-btn:disabled { color: var(--trae-text-disabled) !important; cursor: not-allowed !important; }
+.trae-action-button-shortcut { display: flex; align-items: center; gap: 2px; color: var(--trae-icon-secondary); flex-shrink: 0; }
+.trae-shortcut-container { display: flex; align-items: center; gap: 2px; }
+.trae-shortcut-key { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 12px; color: var(--trae-icon-secondary); }
+.trae-add-to-chat-divider { width: 2px; height: 12px; padding: 0px 6px; box-sizing: content-box; background-clip: content-box; background-color: var(--trae-border-l2); flex-shrink: 0; }
+.trae-editor-view { display: flex; flex-direction: column; width: 320px; padding: 8px; background: transparent; }
+.trae-editor-text-container { display: flex; align-items: center; padding: 8px; background: var(--trae-bg-overlay-l1); border: 1px solid var(--trae-border-l3); border-radius: 4px; gap: 8px; }
+.trae-editor-textarea { flex: 1 1 0%; padding: 0px 2px; border: none; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 400; line-height: 20px; color: var(--trae-text-default); resize: none; outline: none; overflow-y: auto; max-height: 140px; }
+.trae-editor-textarea::placeholder { color: var(--trae-text-tertiary); }
+.trae-editor-action-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; max-height: 0px; opacity: 0; overflow: hidden; transition: max-height 0.2s ease-out, opacity 0.2s ease-out, margin-top 0.2s ease-out; }
+.trae-editor-action-bar-visible { max-height: 32px; opacity: 1; margin-top: 8px; }
+.trae-editor-cancel-button { display: flex; align-items: center; justify-content: center; height: 24px; padding: 0px 4px; background: var(--trae-bg-overlay-l2); border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.15s; }
+.trae-editor-cancel-button:hover { background: var(--trae-bg-overlay-l3); }
+.trae-editor-cancel-button:active { background: var(--trae-bg-overlay-l3); }
+.trae-editor-cancel-button:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-editor-cancel-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--trae-text-default); white-space: nowrap; padding: 0px 4px; }
+.trae-editor-submit-button { display: flex; align-items: center; justify-content: center; height: 24px; padding: 0px 8px; background: var(--trae-bg-invert); border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.15s; }
+.trae-editor-submit-button:hover { background: var(--trae-bg-invert-hover); }
+.trae-editor-submit-button:active { background: var(--trae-bg-invert-active); }
+.trae-editor-submit-button:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-editor-submit-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--trae-text-onaccent); white-space: nowrap; padding: 0px 4px; }
+.trae-editor-submit-icon { display: flex; align-items: center; justify-content: center; width: 12px; height: 12px; color: var(--trae-icon-onaccent); flex-shrink: 0; }
+.trae-success-view { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0px 12px; height: 32px; white-space: nowrap; }
+.trae-success-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--trae-status-success); flex-shrink: 0; }
+.trae-success-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; font-weight: 400; line-height: 18px; color: var(--trae-text-default); user-select: none; }</style></head>
+<body>
+
+<nav class="topnav">
+  <div class="wrap">
+    <span class="brand"><span class="dot"></span>FHSS·SDR · AMD 移植手册 V3.0.1</span>
+    <a class="nl" href="#overview">移植总览</a>
+    <a class="nl" href="#decision">关键决策</a>
+    <a class="nl" href="#matrix">模块矩阵</a>
+    <a class="nl" href="#gantt">甘特与预算</a>
+    <a class="nl" href="#phases">P0′–P7′ 步骤卡</a>
+    <a class="nl" href="#amd-extra">技能包/协作记录</a>
+    <a class="nl" href="#resource">资源预算</a>
+    <a class="nl" href="#risk">风险与降级</a>
+    <a class="nl hot" href="#deadline">09-22 报名</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="kicker">AMD 自主选题赛道 · 全国大学生嵌入式芯片与系统设计竞赛 '2026 FPGA 赛道</span>
+    <h1>基于 AMD Zynq 的跳频/SDR<br><span class="grad">抗干扰通信系统 · 移植实施手册</span></h1>
+    <p class="sub">由原《高云 GW5AT-LV60 实施手册 V2.1》整体移植：<b>平台、工具链、架构叙事、交付体系</b>四大变更逐项落地。与《作品设计报告》逐模块对齐：每一步做什么、用什么做、交付什么、怎么验收。</p>
+    <div class="metarow">
+      <div class="metacard"><div class="k">文档性质</div><div class="v">移植执行手册（How-to），回答"从今天起每一天具体做什么"</div></div>
+      <div class="metacard"><div class="k">版本 / 日期</div><div class="v">V3.0.1（2026-09-15），自 V2.1 高云版迁移；步骤卡沿原编号体系加 ′ 后缀。勘误：工具链改定本队现有 Vivado 2021.2——上一版"赛道硬性要求"表述有误，指南 3.3.3.1 实为推荐（2026.1/2025.2），使用其他版本须报告声明并保证脚本可复现</div></div>
+      <div class="metacard"><div class="k">目标赛道</div><div class="v">AMD <b>3.3 自主选题赛道</b>（初级组/高级组按最高学历归组）</div></div>
+      <div class="metacard"><div class="k">适用队伍</div><div class="v">3 人本科队 + 指导教师；已完成/进行中高云版 P0–P1 的队伍</div></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n">8</div><div class="l">实施阶段 P0′–P7′</div></div>
+      <div class="stat"><div class="n">45</div><div class="l">可执行步骤卡</div></div>
+      <div class="stat"><div class="n">14+2</div><div class="l">RTL 模块（14 移植 + 2 新增）</div></div>
+      <div class="stat"><div class="n">3</div><div class="l">硬性节点 09-22 / 11-04 / 11-20</div></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============================================================ -->
+<section class="block" id="overview">
+  <div class="sechead"><span class="secnum">00</span><h2>移植总览：什么变了，什么没变</h2></div>
+  <p class="secsub">移植不是重写。本手册的第一原则是：<b>通信算法与验证方法论 100% 保留，平台相关层一次性替换</b>。先用三张表盘清家底，再动工。</p>
+
+  <h3 class="sub3">0.1 四大变更域</h3>
+  <table class="tbl">
+    <tbody><tr><th style="width:14%">变更域</th><th style="width:30%">高云版（V2.1）</th><th style="width:30%">AMD 版（V3.0）</th><th>影响</th></tr>
+    <tr><td><b>硬件平台</b></td><td>Tang Mega 60K（GW5AT-LV60）×2</td><td>XC7Z020 级 Zynq 板 ×2（推荐 PYNQ-Z2 或同级）+ AD9363 模块；兜底 ADALM-PLUTO ×2</td><td>采购清单重下，到货是 P2′ 前置关键路径</td></tr>
+    <tr><td><b>工具链</b></td><td>GOWIN FPGA Designer + iverilog/GTKWave</td><td><b>Vivado / Vitis 2021.2</b>（本队现有环境；指南 3.3.3.1 推荐 2026.1/2025.2，其他版本须报告声明并保证脚本可复现）+ xsim/iverilog</td><td>约束 .cst→.xdc、rPLL→MMCM、BSRAM→BRAM36、DSP→DSP48E1</td></tr>
+    <tr><td><b>系统架构</b></td><td>纯 PL、0 MCU（高云开放题强制）；自研 eth_mac；PC 上位机</td><td><b>PS+PL 软硬件协同</b>（AMD 鼓励且高级组考察）：以太网改用 PS 侧 GEM 硬核，控制面下沉 PS，实时链路仍 100% PL</td><td>eth_mac 模块删除（省约 5 人日）；新增 AXI 寄存器桥；创新点叙事重写</td></tr>
+    <tr><td><b>交付体系</b></td><td>设计报告 + 源码 + bitstream + 视频</td><td>新增三大硬交付：<b>大模型协作记录</b>、<b>skill/ 技能包</b>（占评分 15 分）、<b>开源仓库（英文目录 + MIT/Apache-2.0）</b>；决赛加<b>一页英文 PPT 海报</b></td><td>新增贯穿全程的记录制度与 P6′ 专项任务</td></tr>
+  </tbody></table>
+
+  <h3 class="sub3">0.2 资产盘点：高云遗产的可携带性</h3>
+  <table class="tbl">
+    <tbody><tr><th style="width:26%">资产</th><th style="width:12%">处置</th><th>说明</th></tr>
+    <tr><td>MATLAB 浮点参考链 + BER 曲线（原 P1-S6）</td><td><span class="bdg b-keep">直接复用</span></td><td>黄金参考与平台无关，是全部定点化与 RTL 比对的基准，<b>一天都不许重做</b></td></tr>
+    <tr><td>AD9363 寄存器配置表 / cfg_rom（原 P2-S1）</td><td><span class="bdg b-keep">直接复用</span></td><td>射频芯片不变，初始化序列与平台无关</td></tr>
+    <tr><td>14 个 RTL 模块源码</td><td><span class="bdg b-mod">按 §2 矩阵分级移植</span></td><td>纯逻辑模块（SPI/组帧/卷积码/同步/LFSR）近似直移；含存储器与 DSP 的模块需原语替换</td></tr>
+    <tr><td>仿真自动比对模板（PASS/FAIL 闸）</td><td><span class="bdg b-port">脚本沿用</span></td><td>testbench 方法论不变，xsim 与 iverilog 二选一，建议 xsim（与 Vivado 同环境）</td></tr>
+    <tr><td>测试方法论 T1–T10、排障速查表、风险制度</td><td><span class="bdg b-keep">沿用</span></td><td>指标定义不变；排障表增补 AMD 增量条目（§7）</td></tr>
+    <tr><td>高云专属件：.cst 约束、rPLL/BSRAM/DSP 原语、EDA 工程</td><td><span class="bdg b-del">废弃重做</span></td><td>P1′ 一次性重建；原语散落处用 P0′-S5 迁移清单逐点销项</td></tr>
+  </tbody></table>
+
+  <div class="note danger"><b>时间红线提醒（今天 2026-09-15）：</b>距 <b>09-22 报名截止仅剩 7 天</b>，距 11-04 作品提交 50 天，距 11-20 决赛 66 天。P0′ 必须本周内完成报名通道确认与硬件下单，任何论证都不要压过这两件事。</div>
+
+  <h3 class="sub3">0.3 每周固定节奏（沿用原制度，新增一条）</h3>
+  <div class="grid2">
+    <div class="panel">
+      <ul style="list-style:none;font-size:14px;color:#b9c4d4">
+        <li>▸ <b>周一 30 分钟计划会</b>：从本手册挑本周步骤编号写入看板；</li>
+        <li>▸ <b>周三自检</b>：对照阶段出口门槛，偏差 &gt;2 天即预警；</li>
+        <li>▸ <b>周五 16:00 评审会</b>：现场演示 + 问题清单 + 下周计划，纪要入 <code>doc/review/</code>；</li>
+        <li>▸ <b>周末缓冲</b>：只补进度、不开新战线。</li>
+      </ul>
+    </div>
+    <div class="panel hl2">
+      <b style="color:var(--cyan)">新增：大模型协作记录日归档制度</b>
+      <p style="font-size:13.5px;color:#b9c4d4;margin-top:6px">AMD 赛道强制提交"提示词 + 模型回答 + 自我纠错轨迹"（占评分 15 分）。移植任务（原语替换、约束翻译、IP 配置、时序排查）本身就是最佳素材。<b>规则：凡用 LLM 辅助的技术工作，当天把会话导出归档到 <code>report/llm_log/</code>，周五评审抽查。</b>事后补写的一眼假，等于白丢 15 分。</p>
+    </div>
+  </div>
+
+  <h3 class="sub3">0.4 A/B 后缀规则（沿用 V2.1）</h3>
+  <p style="font-size:14px;color:#b9c4d4">凡同时涉及仿真与板级双重验证的模块，仍拆成 <b>A 卡＝仿真验证</b>、<b>B 卡＝板级验证</b> 两张独立步骤卡；<b>A 卡未通过，B 卡禁止开工</b>。本版按此规则拆分：P2′-S3A/B（spi_master）、P2′-S4A/B（ad9363_cfg）、P4′-S2A/B（nco_hop）、P5′-S1A/B（fft_scan）。</p>
+</section>
+<!-- ============================================================ -->
+<section class="block" id="decision">
+  <div class="sechead"><span class="secnum">01</span><h2>三个关键决策（P0′ 第一天就要拍板）</h2></div>
+  <p class="secsub">以下结论均已对照 AMD 官方选题指南逐条核实，直接照做即可；如需改判，必须过周五评审会。</p>
+
+  <h3 class="sub3">D1 · 赛道与组别归属</h3>
+  <div class="panel hl">
+    <p style="font-size:14.5px"><b>结论：走 3.3 自主选题赛道。</b>AMD 赛道共设三个方向——3.1 RTL/HLS 本地智能体（用 Radeon GPU 跑本地大模型，与通信无关）、3.2 具身智能（机器人 + Ryzen AI PC）、3.3 自主选题。跳频/SDR 作品属于 3.3 明确欢迎的"传统信号处理、通信"选题。</p>
+    <table class="tbl" style="margin-top:12px">
+      <tbody><tr><th>组别</th><th>参赛资格</th><th>可用器件</th><th>考察侧重</th></tr>
+      <tr><td><b>初级组</b></td><td>大一至大三本科生</td><td>7 Series、Zynq-7000、UltraScale / UltraScale+</td><td>逻辑设计、状态机、时序约束、接口协议</td></tr>
+      <tr><td><b>高级组</b></td><td>大四本科生及在读硕士</td><td>任意 AMD FPGA / Zynq / Versal，不设资源限制</td><td>另加：软硬件协同与器件整体性能发挥</td></tr>
+    </tbody></table>
+    <p style="font-size:13.5px;color:#b9c4d4">归组规则：<b>队内含不同年级/学历者按最高者归组</b>，报名时有学生证与学历审核，违规取消资格。两组独立排名评奖，设计任务与评测权重完全一致。初级组官方推荐 PYNQ 框架，且<b>通用 PYNQ Skill 单独加分</b>——本方案硬件选型（D2）已为此留位。</p>
+  </div>
+
+  <h3 class="sub3">D2 · 硬件选型（本手册最重要的一个决定）</h3>
+  <table class="tbl">
+    <tbody><tr><th style="width:13%">方案</th><th style="width:22%">配置</th><th style="width:10%">预算（估）</th><th style="width:24%">优势</th><th style="width:19%">风险</th><th>结论</th></tr>
+    <tr>
+      <td><b>A · 主选</b></td>
+      <td><b>PYNQ-Z2 或同级 XC7Z020 板 ×2</b>（ALINX AX7020 / 米联客 MZ7020 等亦可）+ 原计划的 <b>AD9363 模块 ×2</b> 经排针/40pin 转接，CMOS 模式</td>
+      <td>¥3–5k</td>
+      <td>Z020 资源充裕（220 DSP48 / 140 BRAM36）；赛事官方教育板，初级组明确合规；可沉淀 <b>PYNQ Skill 拿单独加分</b>；与原"模块+排针"连接方式一致，机械改动最小</td>
+      <td>排针信号完整性：AD9363 CMOS DDR 接口需限采样率（建议 ≤20 MSPS，对 1 Mbps 链路绰绰有余）</td>
+      <td><span class="bdg b-keep">推荐</span></td>
+    </tr>
+    <tr>
+      <td><b>B · 兜底</b></td>
+      <td><b>ADALM-PLUTO ×2</b>（Zynq-7010 + AD9363 一体化，ADI 官方开源 HDL 参考工程）</td>
+      <td>¥4–6k</td>
+      <td>射频接口零接线风险；ADI 官方 hdl 仓库含完整 AD9363 接口与时序约束；Zynq-7010 初级组合规</td>
+      <td>XC7Z010 资源紧（80 DSP48）：FFT 需分时复用、FIR 折叠；JTAG/UART 需飞线</td>
+      <td><span class="bdg b-mod">D0 预案触发时启用</span></td>
+    </tr>
+    <tr>
+      <td><b>C · 有货则用</b></td>
+      <td>ZedBoard + AD-FMCOMMS2/3 ×2（FMC 原生，ADI 官方参考设计）</td>
+      <td>≥¥20k</td>
+      <td>最稳，参考设计全套</td>
+      <td>成本</td>
+      <td><span class="bdg b-ip">实验室已有才选</span></td>
+    </tr>
+  </tbody></table>
+  <div class="note warn"><b>注意：</b>赛事方在报名结束后提供 PYNQ-Z2 / KV260 的<b>远程</b>板卡，但远程板无法接 AD9363 做过空射频演示——<b>本项目必须自购硬件</b>，且两块板 + 备用板的到货日是整个 P2′ 的前置关键路径（P0′-S2 下单，要求 ≤09-24 到货）。</div>
+  <div class="note"><b>采购清单（方案 A）：</b>PYNQ-Z2（或同级 XC7Z020 板）×2 + 备用 1；AD9363 模块 ×2 + 备用 1（沿用原清单，无需更换型号）；40pin 排线/转接小板 ×2；SMA 全向天线 ×4、SMA 射频线、衰减器；短排针飞线备用。判断准则不变：申请未批则直接采购，<b>不等待</b>。</div>
+
+  <h3 class="sub3">D3 · 架构决策：从"0 MCU 纯硬件"到"PS/PL 控制面-数据面分离"</h3>
+  <p style="font-size:14px;color:#b9c4d4;margin-bottom:6px">高云开放题强制"FPGA 主体地位、不使用 MCU"，AMD 自主选题赛道<b>不作此限</b>，且明确"鼓励综合考虑软硬件协同，充分发挥器件整体性能"。因此架构做如下重划——<b>所有 µs 级实时路径仍在 PL，PS 只做 ms 级控制与人机交互</b>：</p>
+  <div class="arch">
+    <div class="side ps">
+      <h4>PS 侧（ARM Cortex-A9，控制面）<span class="chip" style="background:rgba(167,139,250,.15);color:var(--purple);border:1px solid rgba(167,139,250,.4)">新增/替代</span></h4>
+      <div class="box">以太网：<b>PS GEM 千兆 MAC 硬核</b>（PYNQ-Z2 网口接 PS MIO）→ 替代原自研 <span class="en">eth_mac</span>，裸机 lwIP 或 PYNQ Linux 直连 PC</div>
+      <div class="box">运行中改配下发：频率/增益/带宽/跳速档/黑名单，经 <span class="en">AXI4-Lite</span> 写 PL 寄存器</div>
+      <div class="box">状态字采集转发：BER、RSSI、同步状态、频谱峰值 → PC 上位机 GUI（原 Python GUI 保留）</div>
+      <div class="box">慢速闭环决策：干扰判定、黑名单版本管理、调制阶数切换仲裁（可 PL 先行、PS 监督）</div>
+      <div class="box">PYNQ 路线（初级组推荐）：Jupyter 组织测试流程与数据采集，PL 封装为 Overlay</div>
+    </div>
+    <div class="side pl">
+      <h4>PL 侧（可编程逻辑，数据面 100% 实时）<span class="chip" style="background:rgba(45,212,191,.12);color:var(--cyan);border:1px solid rgba(45,212,191,.4)">移植主体</span></h4>
+      <div class="box">发射链：<span class="en">frame_tx → conv_enc → blk_inter → qpsk_map → srrc_duc（NCO）</span></div>
+      <div class="box">接收链：<span class="en">ddc_rx → sync_rx（载波/位同步）→ viterbi_dec → 解交织 → 解帧</span></div>
+      <div class="box">跳频层：<span class="en">fh_ctrl（LFSR-16）→ nco_hop（相位连续）</span> + 跳同步状态机 + TOD 时基</div>
+      <div class="box">抗干扰层：<span class="en">fft_scan</span> 干扰感知 + 坏信道位图（实时判决留 PL，保证不断链）</div>
+      <div class="box">射频接口：<span class="en">spi_master + ad9363_cfg</span> 表驱动状态机（0 软件参与初始化，原创新点保留）</div>
+    </div>
+  </div>
+  <div class="bus">PS ↔ PL 接口：AXI4-Lite（寄存器/状态字）+ AXI-Stream（可选高速数据回传）· PL 四时钟域：基带（晶振→MMCM ~61.44 MHz）/ 控制面（PS FCLK_CLK0 100 MHz）/ 射频采样（AD9363 DATA_CLK=采样率）/ SPI ≤20 MHz 伪域（FCLK 分频）；PS GEM 125 MHz 在 PS/MIO 域，不进 PL xdc</div>
+  <div class="note"><b>答辩话术转变（重要）：</b>原创新点"0 MCU 纯硬件"改写为——"<b>控制面/数据面分离：全部 µs 级实时信号处理在 PL 内闭环完成，PS 仅承担慢速控制与人机交互；跳频规避链路不依赖任何软件参与，感知-决策-跳频在单芯片内闭环</b>"。射频初始化仍由 PL 硬件状态机完成（不用 PS 配置 AD9363），这条红线不动——它是与"直接用 ADI Linux 驱动"作品的差异点。</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block" id="matrix">
+  <div class="sechead"><span class="secnum">02</span><h2>模块移植矩阵：14 个模块 + 2 个新增</h2></div>
+  <p class="secsub">每个模块的迁移策略在动工前先查此表。原则：<b>创新点模块坚持自研（nco_hop 相位连续、ad9363_cfg 硬件配置），工程效率模块大胆用 AMD 免费 IP（FFT/FIR/CIC）</b>——取舍逻辑本身就是答辩素材。</p>
+  <table class="tbl">
+    <tbody><tr><th style="width:15%">模块</th><th style="width:10%">策略</th><th style="width:8%">工作量</th><th style="width:34%">移植要点</th><th>验收（沿用设计报告）</th></tr>
+    <tr><td class="mod">spi_master</td><td><span class="bdg b-port">直移</span></td><td>1d</td><td>纯逻辑，仅重做时序约束；SPI ≤20 MHz 不变</td><td>≥1000 组随机向量 0 错误</td></tr>
+    <tr><td class="mod">ad9363_cfg</td><td><span class="bdg b-port">直移</span></td><td>2d</td><td>表驱动状态机不变；cfg_rom 初始化文件格式转 Vivado <code>$readmemh</code>/coe</td><td>回读一致率 100%；20 次冷复位无卡死</td></tr>
+    <tr><td class="mod">eth_mac</td><td><span class="bdg b-del">删除</span></td><td>−5d</td><td>由 <b>PS GEM 硬核</b>替代（PYNQ-Z2 网口在 PS MIO）；PC 通信走 lwIP socket 或 PYNQ 网络栈</td><td>ping 通；吞吐满足 1 Mbps 链路余量（PS GEM 远超）</td></tr>
+    <tr><td class="mod">axi_regs <span style="color:var(--dim)">（新增）</span></td><td><span class="bdg b-new">新增</span></td><td>2d</td><td>AXI4-Lite 寄存器桥：PS 读写 PL 控制字/状态字；地址映射表入 <code>doc/regmap.md</code></td><td>PS 侧读写回环一致；改配即时生效</td></tr>
+    <tr><td class="mod">frame_tx</td><td><span class="bdg b-port">直移</span></td><td>1d</td><td>纯组合/时序逻辑</td><td>1000 随机帧比对 0 错误</td></tr>
+    <tr><td class="mod">conv_enc</td><td><span class="bdg b-port">直移</span></td><td>1d</td><td>(171,133)₈ 纯逻辑；自研保留（有叙事价值），不用 IP 替换</td><td>10⁶ bit 与 convenc 参考 0 错误</td></tr>
+    <tr><td class="mod">blk_inter</td><td><span class="bdg b-mod">改造</span></td><td>2d</td><td>BSRAM→<b>BRAM36</b>（blk_mem_gen 或 RTL 推断）；128 Kb 交织矩阵约占 4×BRAM36</td><td>还原 0 错误；突发 10 bit 打散 ≥10 码字位</td></tr>
+    <tr><td class="mod">qpsk_map</td><td><span class="bdg b-port">直移</span></td><td>0.5d</td><td>阶数寄存器可切不变</td><td>星座/EVM 与浮点参考一致</td></tr>
+    <tr><td class="mod">srrc_duc（FIR）</td><td><span class="bdg b-mod">改造</span></td><td>2d</td><td>31 抽头 SRRC：手写 DSP48E1 或 <b>FIR Compiler</b>（系数 coe 由 MATLAB 定点导出，同一文件）；<b>做一版 IP / 手写对比实验</b>，资源性能对比表进报告 §优化章节</td><td>SFDR ≤ −50 dBc</td></tr>
+    <tr><td class="mod">srrc_duc（NCO）</td><td><span class="bdg b-port">直移自研</span></td><td>1d</td><td><b>不用 DDS Compiler</b>——nco_hop 的相位连续机制建立在自研相位累加器上，是创新点红线</td><td>频点与公式一致</td></tr>
+    <tr><td class="mod">ddc_rx</td><td><span class="bdg b-mod">改造</span></td><td>3d</td><td>CIC 抽取可用 <b>CIC Compiler</b> 或手写；匹配 FIR 同 srrc 策略；48 bit 累加改 DSP48E1 级联</td><td>通带与发送 SRRC 匹配；60 dB 动态无溢出</td></tr>
+    <tr><td class="mod">sync_rx</td><td><span class="bdg b-port">直移</span></td><td>2d</td><td>Costas 环 + 早迟门纯逻辑；环路参数沿用浮点参考</td><td>±1 kHz 频偏 ≤500 符号收敛</td></tr>
+    <tr><td class="mod">viterbi_dec</td><td><span class="bdg b-mod">改造</span></td><td>4d</td><td><b>AMD 新一代器件无现成免费软判决 Viterbi IP，自研保留</b>；回溯存储 BSRAM→BRAM36（约 8 块）；5 bit 软判决、回溯 96 不变</td><td>与 vitdec BER 差 ≤0.5 dB</td></tr>
+    <tr><td class="mod">fh_ctrl</td><td><span class="bdg b-port">直移</span></td><td>1d</td><td>LFSR-16 纯逻辑；黑名单输入端口不变</td><td>10⁶ 跳比对一致；16 信道均匀</td></tr>
+    <tr><td class="mod">nco_hop</td><td><span class="bdg b-port">直移自研</span></td><td>1d</td><td>只更新 FTW、累加器不复位——原创新点 1 完整保留</td><td>3×10⁵ 跳相位无阶跃；切换 &lt;1 µs</td></tr>
+    <tr><td class="mod">fft_scan</td><td><span class="bdg b-ip">替代/自研双轨</span></td><td>2d</td><td><b>Xilinx FFT LogiCORE 免费可用</b>：1024 点流水线版即插即用；若坚持自研叙事可保留原 RTL 移植（BSRAM→BRAM）。建议：主用 IP，自研版作对比实验写入报告</td><td>峰位误差 ≤1 bin；幅值差 ≤1 dB</td></tr>
+    <tr><td class="mod">fhss_top</td><td><span class="bdg b-mod">重构</span></td><td>3d</td><td>顶层时钟/复位重建：Clocking Wizard（MMCM）出 61.44 M 等基带时钟；四时钟域 .xdc 约束；挂接 axi_regs</td><td>时序收敛；资源在 §6 预算内</td></tr>
+    <tr><td class="mod">ps_link <span style="color:var(--dim)">（新增）</span></td><td><span class="bdg b-new">新增</span></td><td>2d</td><td>PS 侧服务程序：裸机 lwIP 或 PYNQ Python，socket 转发 PL 状态字至 PC GUI；改配命令下行</td><td>GUI 刷新 ≥5 Hz；命令往返 &lt;50 ms</td></tr>
+  </tbody></table>
+  <div class="note"><b>移植工作量合计约 30 人日</b>（含新增 2 模块），比原全新开发节省约 40%——节省量主要来自 eth_mac 删除（PS GEM 替代）、FFT/FIR 可用成熟 IP、以及全部模块已有经过验证的 testbench 与黄金参考。</div>
+</section>
+<!-- ============================================================ -->
+<section class="block" id="gantt">
+  <div class="sechead"><span class="secnum">03</span><h2>总体排期：甘特图与人日预算</h2></div>
+  <p class="secsub">从今天（09-14）到决赛（11-20）共 67 天。原 P3 基带仍是最大阶段；P6′ 与 P5′ 并行不变；<b>红/黄/青竖线为三大硬节点与板卡到货关口</b>。</p>
+  <div class="gantt" id="deadline">
+    <div class="ghead"><div></div><div class="scale">
+      <span style="left:0%">09-14</span><span style="left:14.9%">09-24</span><span style="left:29.9%">10-04</span><span style="left:44.8%">10-14</span><span style="left:59.7%">10-24</span><span style="left:76.1%">11-04</span><span style="left:99%">11-20</span>
+    </div></div>
+    <div class="grow"><div class="glabel">P0′ 迁移启动<span class="d">09-14 → 09-20</span></div><div class="gtrack"><div class="gbar" style="left:0%;width:10.4%;background:#ff6b6b">12 人日</div><div class="milestone" style="left:11.9%;background:#ed1c24"><span class="ml" style="color:#ff6b6b">09-22 报名</span></div><div class="milestone" style="left:14.9%;background:#f59e0b"><span class="ml" style="color:#f59e0b;top:auto;bottom:-16px">09-24 到货</span></div></div></div>
+    <div class="grow"><div class="glabel">P1′ 平台打通<span class="d">09-21 → 09-27</span></div><div class="gtrack"><div class="gbar" style="left:10.4%;width:10.4%;background:#f59e0b">15 人日</div></div></div>
+    <div class="grow"><div class="glabel">P2′ 射频驱动移植<span class="d">09-28 → 10-04</span></div><div class="gtrack"><div class="gbar" style="left:20.9%;width:10.4%;background:#eab308">18 人日</div></div></div>
+    <div class="grow"><div class="glabel">P3′ 定频基带移植<span class="d">10-05 → 10-16</span></div><div class="gtrack"><div class="gbar" style="left:31.3%;width:17.9%;background:#2dd4bf">30 人日</div></div></div>
+    <div class="grow"><div class="glabel">P4′ 跳频子系统<span class="d">10-17 → 10-25</span></div><div class="gtrack"><div class="gbar" style="left:49.3%;width:13.4%;background:#3b82f6">24 人日</div></div></div>
+    <div class="grow"><div class="glabel">P5′ 抗干扰+全项<span class="d">10-26 → 11-01</span></div><div class="gtrack"><div class="gbar" style="left:62.7%;width:10.4%;background:#a78bfa">20 人日</div></div></div>
+    <div class="grow"><div class="glabel">P6′ 报告技能包提交<span class="d">10-27 → 11-04</span></div><div class="gtrack"><div class="gbar" style="left:64.2%;width:13.4%;background:#f472b6">18 人日</div><div class="milestone" style="left:76.1%;background:#2dd4bf"><span class="ml" style="color:#2dd4bf">11-04 提交</span></div></div></div>
+    <div class="grow"><div class="glabel">P7′ 决赛冲刺<span class="d">11-05 → 11-20</span></div><div class="gtrack"><div class="gbar" style="left:77.6%;width:22.4%;background:#ed1c24">20 人日</div><div class="milestone" style="left:100%;background:#e6edf7"><span class="ml" style="color:#e6edf7">11-20 决赛</span></div></div></div>
+  </div>
+  <h3 class="sub3">各阶段工作量预算（人日，3 人队合计 ≈137）</h3>
+  <div class="panel">
+    <div class="wl"><div class="wl-n">P0′ 迁移启动</div><div class="wl-t"><div class="wl-b" style="width:40%"></div></div><div class="wl-v">12</div></div>
+    <div class="wl"><div class="wl-n">P1′ 平台打通</div><div class="wl-t"><div class="wl-b" style="width:50%"></div></div><div class="wl-v">15</div></div>
+    <div class="wl"><div class="wl-n">P2′ 射频驱动</div><div class="wl-t"><div class="wl-b" style="width:60%"></div></div><div class="wl-v">18</div></div>
+    <div class="wl"><div class="wl-n">P3′ 定频基带</div><div class="wl-t"><div class="wl-b" style="width:100%"></div></div><div class="wl-v">30</div></div>
+    <div class="wl"><div class="wl-n">P4′ 跳频子系统</div><div class="wl-t"><div class="wl-b" style="width:80%"></div></div><div class="wl-v">24</div></div>
+    <div class="wl"><div class="wl-n">P5′ 抗干扰测试</div><div class="wl-t"><div class="wl-b" style="width:66%"></div></div><div class="wl-v">20</div></div>
+    <div class="wl"><div class="wl-n">P6′ 报告与提交</div><div class="wl-t"><div class="wl-b" style="width:60%"></div></div><div class="wl-v">18</div></div>
+    <div class="wl"><div class="wl-n">P7′ 决赛冲刺</div><div class="wl-t"><div class="wl-b" style="width:66%"></div></div><div class="wl-v">20</div></div>
+  </div>
+  <div class="note">总原则沿用：<b>先打通、再叠加、可降级</b>。任何时刻都保证存在一个"可演示的完整链路"：P3′ 结束是定频链路，P4′ 结束是跳频链路，P5′ 结束是全功能链路。</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block" id="phases">
+  <div class="sechead"><span class="secnum">04</span><h2>P0′–P7′ 阶段步骤卡</h2></div>
+  <p class="secsub">卡片四要素不变：具体操作 / 工具与材料 / 交付物 / 验证与验收。绿色框标 <b>沿用</b>（与原手册一致），青色框标 <b>改造</b>（有移植差异），红色框标 <b>新增</b>（AMD 赛道特有）。</p>
+
+  <!-- ================= P0' ================= -->
+  <div class="phase" style="--pc:#ff6b6b">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P0′</span><h3>迁移启动：报名纠偏、硬件下单、环境切换</h3><span class="pd">2026-09-14 → 09-20 · 约 12 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>赛道切换落定、报名提交、AMD 硬件下单、Vivado 环境就绪、仓库合规改造。本阶段全是事务性工作，<b>快比完美重要</b>。</p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛（全部满足才进 P1′）</span><br>① 竞赛官网 AMD 赛道报名提交成功（<b>09-22 硬节点</b>，提前 2 天完成）；② 硬件全部下单且预计到货 ≤09-24；③ 三人电脑 Vivado ML 2021.2 环境一致且空工程编译通过（现有安装，版本合规结论见 P0′-S3）；④ 仓库完成英文目录改造并公开（MIT/Apache-2.0）；⑤ LLM 协作记录制度生效。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P0′-S1</div><h4>赛道切换与报名纠偏</h4><div class="smeta">Day 1–2 · 队员 C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>核对队伍年级构成，确认归组（初级/高级组，按最高学历）</li><li>竞赛官网将赛道登记为 <b>AMD · 自主选题赛道</b>，题目不变："基于 FPGA 的跳频/SDR 抗干扰通信系统"</li><li>核对官网报名状态、校内选拔登记要求</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>报名提交成功截图存 <code>doc/admin/</code>；官网状态"已提交"，时间早于 09-22</div>
+        <div class="delta r"><b>新增：</b>赛道从"高云开放题"切换为"AMD 自主选题"，原"FPGA 主体地位/0 MCU"条款约束解除，按 §01-D3 新架构叙事</div>
+      </div>
+      <div class="scard"><div class="sid">P0′-S2</div><h4>AMD 硬件下单（关键路径）</h4><div class="smeta">Day 1–3 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>按 §01-D2 方案 A 下单：XC7Z020 级板 ×2+1 备、AD9363 模块 ×2+1 备（沿用）、40pin 排线/转接件</li><li>同步下单方案 B 兜底件（Pluto ×1 先买一块验证可行性，确认兜底路径可走通）</li><li>预约频谱仪、示波器、干扰源板档期（P5′ 测试周）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>doc/hardware.md</code> 更新 + 订单凭证；全部条目预计到货 ≤09-24</div>
+        <div class="delta r"><b>新增：</b>高云开发板申请通道不再适用；赛事方远程 PYNQ-Z2/KV260 无法做射频过空，必须自购</div>
+      </div>
+      <div class="scard"><div class="sid">P0′-S3</div><h4>Vivado / Vitis 环境统一（现有 2021.2）</h4><div class="smeta">Day 2–4 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>三机统一使用现有 <b>Vivado ML 2021.2</b>。版本决策：指南 3.3.3.1 为推荐而非强制，2021.2 合规；随之生效两项义务——设计报告"开发环境"节声明版本与理由（队内现有环境；Zynq-7000 为长生命周期器件族，本方案所用 IP 均获 2021.2 完整支持），build/ 一键 Tcl 保证脚本可复现（三机干净重建验证）</li><li>版本号、操作系统与 IP 组件清单记入 <code>doc/env.md</code>；核对本方案所用 IP（FIR/CIC Compiler、FFT、blk_mem_gen、Clocking Wizard、AXI/Zynq VIP）在 2021.2 IP 目录内可选</li><li>新建工程试选 <b>XC7Z020CLG400</b>（或实际板卡器件）确认可选，空工程编译通过</li><li>安装缆线驱动，JTAG 识别开发板</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>env.md（含 IP 版本清单）；三机空工程 bitstream 生成成功</div>
+        <div class="delta"><b>改造：</b>GOWIN Designer → Vivado；license 模型不同（WebPACK 免费版覆盖 Zynq-7000）。若日后因 xsim 性能或决赛演示机需迁 2025.2，工程经 Tcl 重建约 1 人日</div>
+      </div>
+      <div class="scard"><div class="sid">P0′-S4</div><h4>仓库合规改造与开源</h4><div class="smeta">Day 3–5 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>目录改造为赛道推荐结构（<b>纯英文小写</b>）：<code>src/ sim/ build/ board/ data/ skill/ report/</code>；原 <code>rtl/→src/</code>、<code>sw/→src/ps/</code>、<code>doc/→report/</code> 建映射说明</li><li>加 MIT 或 Apache-2.0 LICENSE；GitHub/Gitee 建仓并<b>设为公开</b></li><li>README.md 写项目简介 + 复现步骤骨架；分支与 commit 规范沿用</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>公开仓库链接；三人完成 clone→分支→提交→合入一轮</div>
+        <div class="delta r"><b>新增：</b>赛道 3.3.3.3 要求开源且允许再分发；目录/文件名禁止中文与空格</div>
+      </div>
+      <div class="scard"><div class="sid">P0′-S5</div><h4>高云资产盘点与原语迁移清单</h4><div class="smeta">Day 4–6 · 队员 A + B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>全文检索原 RTL 中的高云原语：<code>Gowin_rPLL / Gowin_SP / Gowin_DP / Gowin_DSP</code> 等，逐处登记</li><li>产出<b>迁移映射表</b>：rPLL→MMCM（Clocking Wizard）、SP/DP→BRAM36（blk_mem_gen 或推断）、DSP→DSP48E1、.cst→.xdc</li><li>标注每处替换的责任人与验收 testbench</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>report/porting_map.md</code>；清单条目数与检索命中数一致、逐条销项</div>
+        <div class="delta"><b>改造：</b>此表是 P2′–P5′ 所有移植步骤的施工图纸</div>
+      </div>
+      <div class="scard"><div class="sid">P0′-S6</div><h4>LLM 协作记录制度 + 资料共读</h4><div class="smeta">Day 5–7 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>建 <code>report/llm_log/</code> 目录与记录模板（日期/任务/提示词/关键回答/纠错轨迹/结论）</li><li>共读：AMD 选题指南 3.3 节全文、Vivado UltraFast 方法学 UG949 摘要、原设计报告</li><li>技术交底三问更新：<b>为什么迁 AMD？PS/PL 怎么划分？创新点如何重述？</b></li></ul>
+        <div class="vrfc"><b>交付/验证：</b>记录模板 + 3 份笔记；三问各有一句话标准答案</div>
+        <div class="delta r"><b>新增：</b>LLM 记录是 15 分评分项的原始素材，从第一天开始积累</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= P1' ================= -->
+  <div class="phase" style="--pc:#f59e0b">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P1′</span><h3>平台打通：Vivado 工程、PS 启动、以太网、仿真模板</h3><span class="pd">2026-09-21 → 09-27 · 约 15 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>板子点亮、PS 跑通、网口通（PS GEM）、xsim 比对模板跑通、黄金参考确认可复用。<b>板卡 09-24 未到货则先跑仿真侧任务并触发风险预案。</b></p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛</span><br>① XC7Z020 工程编译下载成功（LED 闪烁）；② PS GEM 与 PC 直连 ping 通；③ xsim 自动比对模板输出 PASS；④ MATLAB 浮点参考曲线归档确认为黄金参考；⑤ 四时钟域 .xdc 模板时序全绿。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P1′-S1</div><h4>板卡点亮与引脚映射表</h4><div class="smeta">Day 1–3 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>led_blink 移植（50/125 MHz 晶振分频），JTAG 下载验证，三块板全过一遍标坏板</li><li>对照板卡原理图整理四类引脚：AD9363 数据/时钟/SPI、40pin 排针分配、LED/按键、预留；写 <code>doc/pins.md</code> + <code>.xdc</code> 约束，改动必须走评审</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/led_blink.v</code> + bit；引脚约束语法检查通过、无冲突</div>
+        <div class="delta"><b>改造：</b>.cst→.xdc 语法；AD9363 排针引脚全部要求 3.3V LVCMOS 并加 slew/drive 约束</div>
+      </div>
+      <div class="scard"><div class="sid">P1′-S2</div><h4>PS 启动与最小系统</h4><div class="smeta">Day 1–3 · 队员 C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>路线选择：<b>PYNQ 镜像</b>（初级组推荐，加分路径）或裸机 + lwIP，二选一并写入报告"软硬件划分依据"；选 PYNQ 时首日核对镜像版本与 Vivado 2021.2 的对应关系（见排错表）</li><li>Block Design 建 Zynq PS：使能 GEM0（RGMII）、UART0、GPIO；导出硬件到 Vitis/或用 PYNQ overlay 流程</li><li>串口控制台/SSH 登录通</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>最小硬件工程（tag）；串口/SSH 可登录</div>
+        <div class="delta r"><b>新增：</b>原高云方案无 PS；此卡是 D3 架构的地基</div>
+      </div>
+      <div class="scard"><div class="sid">P1′-S3</div><h4>PS GEM 以太网打通（替代 eth_mac）</h4><div class="smeta">Day 3–5 · 队员 C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>PC 直连：PYNQ 下直接 socket；裸机下起 lwIP echo server</li><li>ping/iperf 验证吞吐；记录 PS 侧网络栈配置参数</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>ping 通；iperf ≥100 Mbps（原型余量）——<b>原 eth_mac 的 P1-S4 与 P3-S1 工作量至此全部消除</b></div>
+        <div class="delta"><b>改造：</b>自研 RGMII MAC（原 5 人日）→ PS 硬核配置（1 人日），省下的工时投入 axi_regs 与技能包</div>
+      </div>
+      <div class="scard"><div class="sid">P1′-S4</div><h4>axi_regs：PS↔PL 寄存器桥</h4><div class="smeta">Day 4–6 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>实现 AXI4-Lite 从机寄存器堆：控制字（频率/增益/带宽/跳速/黑名单版本）+ 状态字（BER/RSSI/同步态/频谱峰）</li><li>testbench 用 AXI BFM 或手写激励验证读写；PS 侧写 Python/裸机 C 读写 demo</li><li>地址映射表写入 <code>report/regmap.md</code>（后续所有联调依据）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/axi_regs.v</code> + regmap.md；PS 读写回环一致</div>
+        <div class="delta r"><b>新增：</b>替代原"网口+自定义协议"通道；PYNQ 下即 Overlay 的 register_map，沉淀为 PYNQ Skill 素材</div>
+      </div>
+      <div class="scard"><div class="sid">P1′-S5</div><h4>仿真模板迁移（xsim）</h4><div class="smeta">Day 3–5 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>原 iverilog 模板平移到 <b>xsim</b>（或保留 iverilog，团队二选一）：时钟/复位、<code>$readmemh</code> 激励、逐拍比对、PASS/FAIL 统计</li><li>一键仿真脚本改 Tcl + Vivado 批处理；用 led_blink 冒烟</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>sim/tb_template.v</code> + 一键脚本；输出 PASS</div>
+        <div class="delta"><b>改造：</b>仿真器切换；testbench 加入真实上电复位序列（对齐 Zynq PS 配置 PL 的时序）</div>
+      </div>
+      <div class="scard"><div class="sid">P1′-S6</div><h4>黄金参考确认 + 时序约束模板 + P1′ 评审</h4><div class="smeta">Day 5–7 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>重跑 MATLAB 浮点链（卷积(171,133)/交织10/QPSK/SRRC0.35/AWGN/同步/译码），BER 曲线与归档版逐点一致 → 确认为黄金参考</li><li><code>src/constraints/fhss_zynq_timing.xdc</code>：时钟域 create_clock + 异步 set_clock_groups（时序/引脚双文件结构，时序跨板复用）；立规矩：每次实现后必看时序报告，违例不过夜</li><li>周五评审逐条过出口门槛</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>工程模板 v3.0（tag）+ 评审纪要；出口门槛 5 项全过</div>
+        <div class="delta"><b>改造：</b>约束语法与时序分析器切换；黄金参考本身零改动</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= P2' ================= -->
+  <div class="phase" style="--pc:#eab308">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P2′</span><h3>AD9363 射频驱动移植（PL 硬件配置，0 软件参与）</h3><span class="pd">2026-09-28 → 10-04 · 约 18 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>AD9363 仍由 PL 硬件状态机完成全部配置（不用 PS/ADI 驱动），三级验证不变。<b>本阶段新增排针信号完整性判定——D0 兜底决策点。</b></p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛</span><br>① 关键寄存器回读一致率 100%；② 频谱仪可见预期单载波且可切换；③ 运行中改配生效；④ <b>排针 SI 判定通过</b>（数字环回误码 ≤1e-7，数据接口时序裕量充足）——未通过即触发 D0 转 Pluto 兜底。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P2′-S1</div><h4>cfg_rom 沿用与格式转换</h4><div class="smeta">Day 1 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>原 (地址,数据,延时) 三元组配置表直接沿用；生成脚本改输出 Vivado coe/hex 格式</li><li>ROM 用 blk_mem_gen 或分布式 ROM 推断</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>cfg_rom + 生成脚本；条目数与源序列一致、逐条比对通过</div>
+        <div class="delta"><b>改造：</b>仅存储器初始化格式转换，逻辑零改动</div>
+      </div>
+      <div class="scard"><div class="sid">P2′-S2</div><h4>spi_master 移植 + 仿真验证（A 卡）</h4><div class="smeta">Day 1–2 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>RTL 直移；原 ≥1000 组随机向量 testbench 直接复用</li><li>逐拍断言 SCLK 极性/相位、CSB 建立保持、位序</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/spi_master.v</code> + 仿真日志（<code>sim/spi/</code>）；1000 组 0 错误</div>
+        <div class="delta"><b>改造：</b>仅重新时序约束；先 1 MHz 调通再提速 20 MHz 的顺序不变</div>
+      </div>
+      <div class="scard"><div class="sid">P2′-S3A/B</div><h4>ad9363_cfg 状态机移植（仿真 A / 板级 B）</h4><div class="smeta">Day 2–4 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>表驱动状态机（IDLE→取表→SPI 写→延时→下一项）直移；暂停/恢复与超时保护不变</li><li>A 卡：SPI 从机模型 + ≥5 类异常注入全过；B 卡：真机初始化 + 关键寄存器回读比对 + 20 次冷复位</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/ad9363_cfg.v</code> + 回读比对表；回读一致率 100%、无死锁</div>
+        <div class="delta"><b>改造：</b>A 未过 B 禁开；状态字经 axi_regs 上 PS（原为经网口）</div>
+      </div>
+      <div class="scard"><div class="sid">P2′-S4</div><h4>一级验证：数字环回 + 排针 SI 判定</h4><div class="smeta">Day 3–5 · 队员 B + A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>AD9363 数字环回模式，FPGA 内发自收 PRBS</li><li><b>SI 判定</b>：ILA 抓数据/时钟眼图质量，逐级降采样率（20→10→5 MSPS）找稳定工作点；记录时序裕量</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>环回误码 ≤1e-7；SI 判定报告（<code>report/si_check.md</code>）——<b>不过则触发 D0</b></div>
+        <div class="delta r"><b>新增：</b>排针互连 SI 是方案 A 的最大技术风险，本卡是它的正式判定闸</div>
+      </div>
+      <div class="scard"><div class="sid">P2′-S5</div><h4>二级验证：单载波发射与频率切换</h4><div class="smeta">Day 5–6 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>433 MHz 单载波（ISM，功率合规），频谱仪观测；运行中改配 433↔915 MHz 切换</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>频谱截图归档；中心频率偏差 ≤1%，两频点可切换</div>
+        <div class="delta"><b>改造：</b>改配通道由 axi_regs 触发（原经自研网口协议）</div>
+      </div>
+      <div class="scard"><div class="sid">P2′-S6</div><h4>三级验证：双板过空单载波</h4><div class="smeta">Day 6–7 · 队员 B + C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>两板天线间距 1–3 m：A 发 B 收读 RSSI；记录距离/增益曲线作 AGC 初值依据</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>过空测试日志；预期频点收信、RSSI 随距离单调</div>
+        <div class="delta"><b>改造：</b>无（方法论沿用）</div>
+      </div>
+    </div>
+  </div>
+  <!-- ================= P3' ================= -->
+  <div class="phase" style="--pc:#2dd4bf">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P3′</span><h3>定频基带链路移植（工作量最大阶段）</h3><span class="pd">2026-10-05 → 10-16 · 约 30 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>9 个基带模块按 §02 矩阵移植并集成为定频过空链路：≥1 Mbps、BER&lt;1e-5。<b>执行铁律不变：每个模块先在仿真里与黄金参考比特真比对，通过后才允许上板。</b></p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛</span><br>① 双板过空文件传输 ≥1 Mbps（T1）；② BER&lt;1e-5（CRC 统计 ≥1e7 bit，T2）；③ TX→RX RTL 环回比特真通过；④ FIR/CIC 的 IP 版与手写版对比数据入报告。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P3′-S1</div><h4>frame_tx + conv_enc 直移</h4><div class="smeta">Day 1–3 · 队员 C / A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>组帧（32bit Gold 同步字 + 帧头 + 256B + CRC16）与卷积编码 (171,133)₈ 直移</li><li>原 Python/MATLAB 参考与随机比对 testbench 直接复用</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/frame_tx.v</code>、<code>src/conv_enc.v</code>；1000 随机帧 + 10⁶ bit 比对 0 错误</div>
+        <div class="delta"><b>改造：</b>零逻辑改动，仅纳入 Vivado 工程</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S2</div><h4>blk_inter：BSRAM→BRAM36 改造</h4><div class="smeta">Day 3–5 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>128 Kb 交织矩阵改用 BRAM36（blk_mem_gen 或 RTL 推断），写行读列地址生成器不变</li><li>突发错误打散验证沿用</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/blk_inter.v</code>；还原 0 错误；突发 10 bit 打散到 ≥10 个码字位</div>
+        <div class="delta"><b>改造：</b>首个存储器迁移样板，沉淀进 <code>skill/</code> 迁移清单</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S3</div><h4>qpsk_map + SRRC 成形（IP/手写对比实验）</h4><div class="smeta">Day 4–7 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>映射直移；31 抽头 SRRC 做<b>两版</b>：FIR Compiler（系数 coe 同源）与手写 DSP48E1 对称折叠</li><li>对比两版资源/时序/EVM，产出对比表（报告"优化过程"章节的直接素材）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>两版 <code>srrc_fir</code> + 对比表；定点星座与浮点参考偏差在量化误差量级内；SFDR ≤ −50 dBc</div>
+        <div class="delta r"><b>新增：</b>IP vs 自研对比实验——对应评测权重"性能与资源优化 20 分"</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S4</div><h4>NCO 数字上变频（自研直移）</h4><div class="smeta">Day 7–8 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>32bit 相位累加器 + 正交混频直移，<b>不用 DDS Compiler</b>（为 P4′ 相位连续跳频留改造点）</li><li>频率控制字计算文档沿用</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/srrc_duc.v</code>；SFDR ≤ −50 dBc；频点与公式一致</div>
+        <div class="delta"><b>改造：</b>查找表 ROM 转 BRAM/分布式 ROM</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S5</div><h4>ddc_rx：CIC + 匹配滤波 + AGC</h4><div class="smeta">Day 7–10 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>CIC 抽取（CIC Compiler 或手写）+ 匹配 FIR（同 S3 策略）；48bit 累加改 DSP48E1 级联</li><li>数字 AGC 档位寄存器接入 axi_regs</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/ddc_rx.v</code>；通带与发送谱匹配；60 dB 动态无溢出</div>
+        <div class="delta"><b>改造：</b>DSP 原语级联方式变化（GW DSP→DSP48E1），注意流水级对齐</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S6</div><h4>sync_rx：载波环与位同步直移</h4><div class="smeta">Day 9–12 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>二阶 Costas + 早迟门直移；注入 ±1 kHz 频偏/随机相偏/±20 ppm 符号率偏差</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/sync_rx.v</code>；±1 kHz 频偏 ≤500 符号收敛，稳态抖动记录</div>
+        <div class="delta"><b>改造：</b>无逻辑改动</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S7</div><h4>viterbi_dec：BRAM 改造（自研保留）</h4><div class="smeta">Day 10–13 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>64 状态、5bit 软判决、回溯 96 直移；路径度量与回溯存储 BSRAM→BRAM36</li><li>与 MATLAB vitdec 同序列比对 BER 曲线</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/viterbi_dec.v</code>；与浮点参考 BER 差 ≤0.5 dB；高 SNR 无误码平底</div>
+        <div class="delta"><b>改造：</b>AMD 无现成免费软判决 Viterbi IP，自研是正确选择——写入报告决策依据</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S8</div><h4>TX→RX RTL 全环回（上板前大闸）</h4><div class="smeta">Day 12–14 · 队员 A + B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>testbench 对接 TX/RX，信道=时延+频偏+AWGN；灌 10⁸ bit 逐比特比对，RTL BER 与浮点叠图</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>环回 tb + BER 对比图；RTL 与浮点差 ≤0.5 dB。<b>仿真不过，禁止上板</b></div>
+        <div class="delta"><b>改造：</b>无（方法论沿用）</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S9</div><h4>上板联调：定频过空链路 + PS 集成</h4><div class="smeta">Day 13–18 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>集成 fhss_top 定频版（含 axi_regs + P2′ 射频驱动）；联调顺序：BPSK 低速→QPSK→提速</li><li>排障维度沿用：ADC 削顶（直方图）、频偏（星座旋转）、增益（RSSI）</li><li>PC GUI v1 经 PS 转发链路联通：文件收发、BER 统计、星座显示</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>定频版 bitstream（tag）+ GUI v1；T1 ≥1 Mbps；T2 BER&lt;1e-5</div>
+        <div class="delta"><b>改造：</b>状态字/文件数据通路从"PL 自研网口"变为"PL→AXI→PS→GEM"</div>
+      </div>
+      <div class="scard"><div class="sid">P3′-S10</div><h4>时序收敛与资源核对（并行）</h4><div class="smeta">Day 8–18 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>每次实现后核对时序全绿；LUT/DSP48/BRAM36 占用对照 §06 预算</li><li>资源周报自动化脚本（产出即技能包素材）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>资源周报（每周五）；占用在预算内、时序无违例</div>
+        <div class="delta"><b>改造：</b>预算表按 XC7Z020 重算（§06），DSP 红线从 75% 放宽至 60%（Z020 有 220 个）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= P4' ================= -->
+  <div class="phase" style="--pc:#3b82f6">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P4′</span><h3>跳频子系统与跳同步（核心创新层）</h3><span class="pd">2026-10-17 → 10-25 · 约 24 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>链路从定频升级为跳频，100–1000 hop/s 稳定通信，捕获 &lt;1 s、重捕 &lt;2 s。<b>本阶段产出即作品第一创新点，排期只许提前不许拖后。</b></p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛</span><br>① 100/500/1000 hop/s 三档稳定通信且 BER 与定频基线一致；② 捕获 &lt;1 s（50 次平均）、重捕 &lt;2 s（20 次断链）；③ GUI 实时显示跳频图案与当前频点。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P4′-S1</div><h4>fh_ctrl：LFSR-16 图案生成直移</h4><div class="smeta">Day 1–2 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>LFSR-16 本原多项式、种子寄存器、≥16 信道映射、黑名单输入端口全部直移</li><li>收发同种子逐跳比对 + 驻留均匀性统计</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/fh_ctrl.v</code>；10⁶ 跳一致；16 信道驻留偏差 &lt;±10%</div>
+        <div class="delta"><b>改造：</b>无逻辑改动</div>
+      </div>
+      <div class="scard"><div class="sid">P4′-S2A/B</div><h4>nco_hop 相位连续跳频（仿真 A / 板级 B）</h4><div class="smeta">Day 2–5 · 队员 A (+B)</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>每跳仅更新 FTW、<b>相位累加器不复位</b>（创新点红线）；FTW 表查 ROM、换频路径全组合</li><li>A 卡：相位轨迹断言连续，3×10⁵ 跳无阶跃，FTW 生效延迟 &lt;1 µs；B 卡：频谱仪全景三档图案实测</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/nco_hop.v</code> + 相位轨迹图 + 三档频谱截图；跳频集 ≥16 信道、频点偏差 ≤1%、跳变无频谱扩散</div>
+        <div class="delta"><b>改造：</b>无逻辑改动；创新点 1 完整保留</div>
+      </div>
+      <div class="scard"><div class="sid">P4′-S3</div><h4>TOD 时基与跳沿对齐</h4><div class="smeta">Day 4–6 · 队员 C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>1 ms tick TOD 计数器；帧头携 TOD 外推下一跳沿；仿真验证对齐误差在保护间隔内</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>tod 模块；跳沿对齐误差 ≤±0.25 跳周期</div>
+        <div class="delta"><b>改造：</b>TOD 校准可走 PS（PPS 或 NTP 软校准），比纯 PL 方案更灵活</div>
+      </div>
+      <div class="scard"><div class="sid">P4′-S4</div><h4>同步字相关捕获</h4><div class="smeta">Day 5–8 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>32bit Gold 滑动相关器（DSP48 实现）；恒虚警门限（噪声估计 × 系数）；M/N 判决规则</li><li>仿真统计检测/虚警概率随 SNR 曲线</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>相关器 + 门限逻辑；检测概率 ≥99%、虚警 ≤1e-6</div>
+        <div class="delta"><b>改造：</b>无逻辑改动</div>
+      </div>
+      <div class="scard"><div class="sid">P4′-S5</div><h4>跳同步状态机（扫描→捕获→跟踪→重捕）</h4><div class="smeta">Day 7–10 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>四态状态机直移；失步判据（连续 N 帧 CRC 错）与超时兜底不变</li><li>仿真强制遍历全部迁移边；状态字经 axi_regs→PS→GUI 显示</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>状态机 RTL + 迁移覆盖报告；无死锁</div>
+        <div class="delta"><b>改造：</b>状态字上报通道换 AXI</div>
+      </div>
+      <div class="scard"><div class="sid">P4′-S6</div><h4>跳频联调三档 + 捕获/重捕计时</h4><div class="smeta">Day 9–14 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>集成跳频版 fhss_top；跳速寄存器三档；先 100 hop/s 打通再逐档提速</li><li>按 T4/T5：捕获 50 次平均、断链重捕 20 次（关发板/拔天线），数据直接入测试表</li><li>GUI v2：当前频点、图案瀑布、状态机状态、BER 滚动曲线（答辩主画面）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>跳频版 bitstream（tag）+ GUI v2 + T4/T5 原始数据；T3 三档稳定、BER 与定频基线差 ≤0.5 dB；捕获 &lt;1 s、重捕 &lt;2 s</div>
+        <div class="delta"><b>改造：</b>无（方法论沿用）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= P5' ================= -->
+  <div class="phase" style="--pc:#a78bfa">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P5′</span><h3>抗干扰增强与全项测试</h3><span class="pd">2026-10-26 → 11-01 · 约 20 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>完成"感知—决策—跳频"片上闭环，产出 BER-JSR 曲线族，T1–T10 全项测试回填设计报告。</p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛</span><br>① T1–T10 全部达标并双人签字；② JSR 0 dB 时跳频较定频 BER 改善 ≥1 个数量级（T6）；③ 24 h 连续运行无宕机（T9 初赛档）。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P5′-S1A/B</div><h4>fft_scan：Xilinx FFT IP 集成（仿真 A / 板级 B）</h4><div class="smeta">Day 1–3 · 队员 A (+B)</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>1024 点流水线 FFT LogiCORE（免费）+ 加窗 + 多帧累积平均；AXI-Stream 对接</li><li>A 卡：单音/多音 + AWGN 与浮点 FFT 逐 bin 比对；B 卡：信号源注入干扰，峰位与信号源/频谱仪三方核对，30 min 连续运行</li><li>可选：自研 FFT 移植版作对比（资源/精度/开发量对比入报告）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>src/fft_scan.v</code>（IP 封装）；峰位误差 ≤1 bin、幅值差 ≤1 dB、更新率 ≥10 次/s</div>
+        <div class="delta"><b>改造：</b>IP 替代为主（省约 4 人日）；对比实验为报告加分素材</div>
+      </div>
+      <div class="scard"><div class="sid">P5′-S2</div><h4>坏信道黑名单与动态剔除（片上闭环）</h4><div class="smeta">Day 3–5 · 队员 A + B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>门限判决（噪底+余量）生成黑名单位图——<b>实时判决在 PL 完成</b>，PS 只做版本管理与展示（片上闭环卖点）</li><li>帧头携黑名单版本号，收发同步更新跳频集；注入单频干扰验证剔除-保持-恢复</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>黑名单逻辑；T7 剔除生效且链路零中断</div>
+        <div class="delta r"><b>新增：</b>"感知-决策-跳频不离开单芯片"——替换原"0 MCU"成为创新点 2 的核心表述</div>
+      </div>
+      <div class="scard"><div class="sid">P5′-S3</div><h4>调制自适应（QPSK↔BPSK）</h4><div class="smeta">Day 4–6 · 队员 C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>CRC 错误率/信噪比估计驱动阶数切换，迟滞防抖，帧边界生效；渐增干扰观察降阶与回升</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>自适应控制逻辑；T8 切换成功率 ≥99%、切换期不丢帧</div>
+        <div class="delta"><b>改造：</b>无（方法论沿用）</div>
+      </div>
+      <div class="scard"><div class="sid">P5′-S4</div><h4>可复现干扰环境 + 四配置对照实验</h4><div class="smeta">Day 2–9 · 队员 B → 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>第三块板/信号源做干扰机：单频/扫频/部分频带；标定 JSR 0/5/10 dB 写入 <code>report/test/jamming.md</code></li><li>四配置对照：① 定频无 FEC ② 定频+FEC ③ 跳频+FEC+交织 ④ 全功能；绘 BER-JSR 曲线族</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>曲线族 + 原始数据；T6 改善 ≥1 个数量级；JSR 标定偏差 ≤1 dB</div>
+        <div class="delta"><b>改造：</b>无（方法论沿用）</div>
+      </div>
+      <div class="scard"><div class="sid">P5′-S5</div><h4>T1–T10 全项测试与 24 h 可靠性</h4><div class="smeta">Day 8–14 · 队员 C 主导 / 全员轮值</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>按设计报告 §6.2 逐项执行，双人记录签字；原始日志归档 <code>report/test/p5/</code></li><li>24 h 连续文件传输 + 跳频 + 间歇干扰；排查：电源纹波、温升、异步 FIFO 溢出、看门狗</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>T1–T10 完整记录 + 24 h 日志；每项有方法/数据/结论；无宕机或异常自恢复</div>
+        <div class="delta"><b>改造：</b>新增 PS 侧稳定性维度（Linux/lwIP 长稳、内存泄漏监控）</div>
+      </div>
+    </div>
+  </div>
+  <!-- ================= P6' ================= -->
+  <div class="phase" style="--pc:#f472b6">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P6′</span><h3>报告、技能包与提交（与 P5′ 并行）</h3><span class="pd">2026-10-27 → 11-04 · 约 18 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>设计报告回填实测数据；<b>技能包与 LLM 协作记录成册（15 分）</b>；开源仓库合规；11-04 前提交。队员 C 主笔，A/B 供数据与审稿。</p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛</span><br>① 提交包通过指导教师评审；② 11-04 前完成提交并留存回执；③ 报告每项指标可追溯到原始日志；④ <code>skill/</code> 与 <code>report/llm_log/</code> 齐备且经"陌生队伍视角"走查。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P6′-S1</div><h4>实测数据回填与报告终稿</h4><div class="smeta">Day 1–6 · 队员 C + 全员审稿</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>P4′/P5′ 数据回填：§6 测试表实测列、BER-JSR 曲线族、摘要指标核对；不符处如实分析</li><li>报告必须含 AMD 赛道专属章节：<b>软硬件划分依据</b>、<b>优化前后性能/资源对比表</b>（IP vs 自研）、<b>大模型协作与技能包提炼过程</b>、<b>复现说明</b></li><li>创新点重述：① 基带 NCO 相位连续跳频 ② 感知-决策-跳频单芯片闭环（PS/PL 控制面-数据面分离）③ PL 硬件状态机配置射频（0 软件参与）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>报告终稿 PDF；每个实测数字在 <code>report/test/</code> 有出处；三个创新点各有一图一表一数据</div>
+        <div class="delta"><b>改造：</b>报告结构按 AMD 3.3.5.3 要求增改</div>
+      </div>
+      <div class="scard"><div class="sid">P6′-S2</div><h4>LLM 协作记录成册</h4><div class="smeta">Day 2–5 · 队员 C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>从 <code>report/llm_log/</code> 选 5–8 段代表性协作（原语迁移、约束翻译、时序排查、IP 配置决策），整理为：提示词 → 模型回答 → 纠错轨迹 → 最终结论</li><li>诚实呈现模型出错的案例与人工修正过程（评审看重真实性与纠错能力）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>协作记录章节/PDF；每段记录含"模型贡献 + 人工纠错"双视角</div>
+        <div class="delta r"><b>新增：</b>占评分 15 分（与技能包合计）；事后补写 = 白丢分</div>
+      </div>
+      <div class="scard"><div class="sid">P6′-S3</div><h4>skill/ 技能包五项打磨</h4><div class="smeta">Day 3–7 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>按 §05 清单交付 5 项技能包，每项写明：适用场景、使用方法、已验证效果、失效条件、来源（从哪些失败/观察中总结）</li><li>请外队同学做"陌生队伍走查"：只看 README 能否直接用</li><li>若走 PYNQ 路线：通用 Overlay 寄存器映射 Skill 单独成册（<b>单独加分项</b>）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b><code>skill/README.md</code> + 5 项内容；走查人盲测通过</div>
+        <div class="delta r"><b>新增：</b>评价标准是可复用性，不与本队题目绑定</div>
+      </div>
+      <div class="scard"><div class="sid">P6′-S4</div><h4>开源合规与可复现构建</h4><div class="smeta">Day 4–6 · 队员 A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>GitHub/Gitee 仓库最终合规检查：LICENSE、英文目录、无中文文件名、无大体积 bitstream 临时件</li><li><code>build/</code> 提供一键 Tcl 重建脚本（Vivado 批处理从源码到 bitstream）；<code>board/</code> 提供上板运行脚本与实测输出样例</li><li>邀请非本队同学按 README 从零复现一次（文档质量与可复现性 15 分的直接证据）</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>复现走查记录；陌生环境脚本重建成功</div>
+        <div class="delta r"><b>新增：</b>对应"文档质量与可复现性 15 分"</div>
+      </div>
+      <div class="scard"><div class="sid">P6′-S5</div><h4>演示视频（3–5 分钟）</h4><div class="smeta">Day 4–7 · 队员 C + A</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>四段脚本不变：架构 30s → 定频/跳频切换 60s → <b>干扰开/关对比 90s（最有冲击力）</b>→ 指标字幕 60s</li><li>实拍 + GUI 录屏合成</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>mp4；干扰对比镜头 BER 变化清晰可见</div>
+        <div class="delta"><b>改造：</b>无（沿用）</div>
+      </div>
+      <div class="scard"><div class="sid">P6′-S6</div><h4>清单化打包与提交</h4><div class="smeta">Day 6–9 · 全员 + 教师</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>清单打勾：报告 PDF、源码快照（Git tag）、bitstream、视频、报名表、<b>技能包</b>、<b>LLM 协作记录</b>、复现说明</li><li>教师终审 + 三人交叉校对；提交后回执截图存档</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>提交回执；官网状态"已提交"，早于 11-04</div>
+        <div class="delta"><b>改造：</b>清单新增两项 AMD 特有交付</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= P7' ================= -->
+  <div class="phase" style="--pc:#ed1c24">
+    <div class="phase-head">
+      <div class="prow"><span class="pchip">P7′</span><h3>决赛冲刺</h3><span class="pd">2026-11-05 → 11-20 · 约 20 人日</span></div>
+      <p class="pgoal"><b>阶段目标：</b>现场活演示 + 8 分钟答辩 + <b>英文海报</b>。决赛评审流程以承办方通知为准。</p>
+    </div>
+    <div class="gate"><span class="gk">出口门槛</span><br>① 现场演示彩排 ≥3 次零失败；② 72 h 可靠性运行通过；③ 模拟答辩 ≥2 轮、题库全覆盖；④ <b>英文 PPT 海报按 AMD 模板完成并 A4 彩打</b>。</div>
+    <div class="cards">
+      <div class="scard"><div class="sid">P7′-S1</div><h4>现场演示脚本与彩排</h4><div class="smeta">Day 1–5 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>核心桥段不变：干扰机开机 → 定频链路 BER 飙升中断 → 切跳频+感知模式 → 链路保持畅通，GUI 大屏可见</li><li>备份：P6′ 视频兜底；设备独立供电、备件到场、有线演示退路</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>演示脚本 + 设备清单；彩排 3 次零失败</div>
+        <div class="delta"><b>改造：</b>无（沿用）</div>
+      </div>
+      <div class="scard"><div class="sid">P7′-S2</div><h4>英文 PPT 海报（AMD 模板）</h4><div class="smeta">Day 1–4 · 队员 C</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>按 AMD 提供的 PPT 模板制作<b>一页英文海报</b>：作品简介、架构图、关键指标、创新点</li><li>海报<b>不含队伍信息</b>，A4 彩色打印带至决赛现场</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>海报 PDF + 彩打实物；教师审读一遍英文表述</div>
+        <div class="delta r"><b>新增：</b>AMD 赛道强制要求，遗漏将影响决赛资格材料完整性</div>
+      </div>
+      <div class="scard"><div class="sid">P7′-S3</div><h4>答辩 PPT 与题库（含迁移题）</h4><div class="smeta">Day 3–10 · 全员</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>PPT 结构不变：背景 1min → 架构 1.5min → 三大创新点配实测数据 4min → 总结展望 1.5min；BER-JSR 曲线族与资源占用表必上</li><li>题库在原 20 题基础上新增 AMD 题（见 §10）；每题主答人 30 秒标准答案</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>PPT 试讲 8–10 min；随机抽题 30 秒内作答</div>
+        <div class="delta"><b>改造：</b>新增 §10 迁移与平台题</div>
+      </div>
+      <div class="scard"><div class="sid">P7′-S4</div><h4>72 h 可靠性强化与版本冻结</h4><div class="smeta">Day 5–12 · 队员 B</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>决赛档 72 h 连续运行；回归 P5′ 异常修复；此后只修 bug 不加功能</li><li>含 PS 侧：Linux 长稳、网络重连、PL 看门狗联动</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>72 h 日志 + 冻结版 tag；无宕机、异常自恢复</div>
+        <div class="delta"><b>改造：</b>增加 PS 侧长稳维度</div>
+      </div>
+      <div class="scard"><div class="sid">P7′-S5</div><h4>模拟答辩与出征检查</h4><div class="smeta">Day 12–14 · 全员 + 教师</div>
+        <div class="slbl">具体操作</div>
+        <ul><li>教师 + 外队评委 2 轮模拟答辩，录像复盘</li><li>出征清单：设备、备件、电源插排、网线、<b>英文海报打印件 ×3</b>、视频备份、PPT 双格式、证件</li></ul>
+        <div class="vrfc"><b>交付/验证：</b>复盘纪要；清单 100% 打勾出发</div>
+        <div class="delta"><b>改造：</b>清单新增海报</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block" id="amd-extra">
+  <div class="sechead"><span class="secnum">05</span><h2>AMD 特有交付体系（15 分 + 加分项）</h2></div>
+  <p class="secsub">以下三项是原高云方案完全没有的内容，对应评测权重中"大模型协作与技能包 15 分"，以及 PYNQ Skill 单独加分。</p>
+  <h3 class="sub3">5.1 skill/ 技能包清单（五项）</h3>
+  <table class="tbl">
+    <tbody><tr><th style="width:24%">技能包</th><th style="width:12%">类型</th><th>内容要点与可复用性论证（换题目/换板卡仍可用）</th></tr>
+    <tr><td><b>gowin2amd-porting</b></td><td>踩坑清单 + 映射表</td><td>高云→AMD 原语/约束迁移映射（rPLL→MMCM、BSRAM→BRAM36、DSP→DSP48E1、.cst→.xdc），含每类替换的验证方法与时序注意点；适用任何跨厂商 FPGA 移植</td></tr>
+    <tr><td><b>golden-ref-compare</b></td><td>校验脚本</td><td>黄金参考自动比对框架：testbench 输出 vs MATLAB/Python 参考的逐拍比对、BER 曲线叠图自动生成报告；适用任何通信/信号处理 RTL 验证</td></tr>
+    <tr><td><b>ad936x-reg-check</b></td><td>校验脚本</td><td>AD936x 寄存器回读自动校验与初始化耗时统计；适用任何使用 AD9361/63/64 的 SDR 项目（不限 FPGA 厂商）</td></tr>
+    <tr><td><b>vivado-timing-triage</b></td><td>提示词工作流 + 清单</td><td>从时序报告定位违例的结构化排查流程 + 提示词模板：如何向 LLM 描述违例路径以获得有效修复建议；含 CDC 检查清单</td></tr>
+    <tr><td><b>pynq-overlay-regs</b>（PYNQ 路线时提交）</td><td>案例模板</td><td>通用 Overlay 寄存器映射范式：register_map 设计、PS 读写封装、状态字轮询与推送；换板卡换题目均可用——<b>单独加分项</b></td></tr>
+  </tbody></table>
+  <h3 class="sub3">5.2 大模型协作记录规范</h3>
+  <div class="panel">
+    <ul style="list-style:none;font-size:14px;color:#b9c4d4">
+      <li>▸ <b>记录时机</b>：凡 LLM 参与的技术决策/排障/代码生成，当天归档 <code>report/llm_log/YYYYMMDD_topic.md</code></li>
+      <li>▸ <b>必备字段</b>：任务背景 / 提示词原文 / 模型回答要点 / 出错与纠错轨迹 / 最终采纳结论 / 验证方式</li>
+      <li>▸ <b>选题建议</b>：原语迁移映射、约束翻译、FIR Compiler 参数配置、时序违例分析、跳同步状态机审查——都是天然的优质素材</li>
+      <li>▸ <b>红线</b>：诚实呈现模型错误；禁止提交前突击伪造（评审有辨别力）</li>
+    </ul>
+  </div>
+  <h3 class="sub3">5.3 开源与目录合规</h3>
+  <div class="panel">
+    <ul style="list-style:none;font-size:14px;color:#b9c4d4">
+      <li>▸ 协议：MIT 或 Apache-2.0；仓库公开（GitHub 或 Gitee）</li>
+      <li>▸ 目录：<code>src/ sim/ build/ board/ data/ skill/ report/</code>，全英文小写，无空格无特殊字符；中文只出现在文件正文</li>
+      <li>▸ 提交物：完整工程源码、仿真/验证结果、综合与实现报告（资源/时钟/性能）、上板工程与实测比对、<b>可复现构建脚本</b></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block" id="resource">
+  <div class="sechead"><span class="secnum">06</span><h2>资源预算（XC7Z020）</h2></div>
+  <p class="secsub">以下为<b>估算值</b>，P3′-S10 起每周用实现报告校准。XC7Z020 总量：53,200 LUT / 106,400 FF / 220 DSP48E1 / 140 BRAM36。</p>
+  <table class="tbl">
+    <tbody><tr><th>模块群</th><th>LUT（估）</th><th>DSP48（估）</th><th>BRAM36（估）</th><th>说明</th></tr>
+    <tr><td>发射链（frame/enc/inter/map/srrc）</td><td>~9k</td><td>~20</td><td>~8</td><td>SRRC 对称折叠；交织 4 块</td></tr>
+    <tr><td>接收链（ddc/sync/viterbi/解交织）</td><td>~14k</td><td>~28</td><td>~16</td><td>Viterbi 回溯约 8 块 BRAM</td></tr>
+    <tr><td>跳频层（fh_ctrl/nco_hop/同步机/TOD）</td><td>~3k</td><td>~6</td><td>~2</td><td>NCO 查找表可用分布式 ROM</td></tr>
+    <tr><td>抗干扰层（fft_scan/黑名单）</td><td>~4k</td><td>~8</td><td>~8</td><td>Xilinx FFT 1024 点流水线版</td></tr>
+    <tr><td>接口与集成（axi_regs/spi/cfg/CDC）</td><td>~4k</td><td>0</td><td>~6</td><td>含状态 FIFO 与 ILA（调试后移除）</td></tr>
+    <tr><td><b>合计 / 占比</b></td><td><b>~34k / 64%</b></td><td><b>~62 / 28%</b></td><td><b>~40 / 29%</b></td><td>余量健康；DSP 红线设 60%（132 个）</td></tr>
+  </tbody></table>
+  <div class="note warn"><b>兜底件（Pluto / XC7Z010）预算紧：</b>仅 80 DSP48 / 60 BRAM36。启用 D0 预案时同步执行裁剪：FFT 降 512 点并分时复用、FIR 全折叠、Viterbi 回溯深度 96→64、ILA 移除。</div>
+</section>
+<!-- ============================================================ -->
+<section class="block" id="trouble">
+  <div class="sechead"><span class="secnum">07</span><h2>排障速查表（AMD 增量）</h2></div>
+  <p class="secsub">原手册 §9 的通信链路排障条目全部沿用；下表只列<b>移植后新增</b>的平台相关问题。铁律不变：30 分钟无法定位就升级到全员评审。</p>
+  <table class="tbl">
+    <tbody><tr><th style="width:22%">现象</th><th style="width:26%">高概率原因</th><th style="width:36%">处置动作</th><th>关联步骤</th></tr>
+    <tr><td>Vivado 报器件/板卡不匹配</td><td>Board Files 未安装；part 选错</td><td>安装对应板卡文件或改用手动 part（XC7Z020CLG400-1）；核对与实物丝印一致</td><td>P0′-S3 / P1′-S1</td></tr>
+    <tr><td>JTAG 识别不到 Zynq</td><td>启动模式跳线在 SD/QSPI；驱动缺失</td><td>切 JTAG 启动模式；重装 cable driver；LED 例程验证最小系统</td><td>P1′-S1</td></tr>
+    <tr><td>PS 起来但访问 PL 寄存器死机</td><td>PL 未配置（bitstream 未加载）；AXI 地址越界；FCLK 未使能</td><td>确认先加载 bit 再跑 PS 程序；核对 regmap 地址；Block Design 中使能 FCLK_CLK0</td><td>P1′-S2/S4</td></tr>
+    <tr><td>PYNQ 加载 Overlay 报错</td><td>bit/hwh 文件不匹配；版本不一致</td><td>bit 与 hwh 同一工程导出、同名放置；2021.2 应选最接近的 PYNQ-Z2 官方镜像并实机验证 overlay 加载</td><td>P1′-S2 / P6′-S4</td></tr>
+    <tr><td>排针接 AD9363 数据误码高</td><td>排线过长/无地回流；采样率过高；输入延迟未约束</td><td>排线 &lt;10 cm 且隔针接地；降采样率找稳定点；.xdc 补 set_input_delay；仍不过 → 触发 D0</td><td>P2′-S4</td></tr>
+    <tr><td>ILA 触发不到信号</td><td>调试核时钟域跨域；标记信号被优化</td><td>ILA 时钟与被测信号同域；信号加 <code>(* keep = "true" *)</code> 或 MARK_DEBUG</td><td>P2′–P5′ 通用</td></tr>
+    <tr><td>实现后时序违例</td><td>约束缺失；CDC 未同步；MMCM 配置错</td><td>按 template.xdc 补齐 create_clock；report_cdc 排查；违例不过夜</td><td>P1′-S6 / P3′-S10</td></tr>
+    <tr><td>xsim 与上板行为不一致</td><td>testbench 复位序列与 Zynq 实际上电不同</td><td>tb 模拟 PS 配置 PL 后的复位释放顺序；ILA 抓上电初期信号</td><td>P1′-S5</td></tr>
+    <tr><td>PS 侧长稳后网络掉线</td><td>lwIP 内存泄漏；PHY 链路抖动</td><td>心跳监控 + 自动重连；记录内存水位；必要时看门狗复位 PS 服务</td><td>P5′-S5 / P7′-S4</td></tr>
+  </tbody></table>
+</section>
+
+<!-- ============================================================ -->
+<section class="block" id="risk">
+  <div class="sechead"><span class="secnum">08</span><h2>风险管控与降级预案（AMD 版）</h2></div>
+  <p class="secsub">原则不变：每个风险有 owner，每个降级有触发条件，周五评审会固定过一遍。</p>
+  <table class="tbl">
+    <tbody><tr><th>风险</th><th style="width:8%">概率</th><th style="width:8%">影响</th><th style="width:40%">预防与缓解</th><th>Owner</th></tr>
+    <tr><td>报名通道切换遗漏（09-22）</td><td>低</td><td>致命</td><td>P0′-S1 当周完成；硬节点写入看板并提前 3 天提醒</td><td>队员 C</td></tr>
+    <tr><td>AMD 板卡物流延误（09-24 关口）</td><td>中</td><td>高</td><td>双渠道下单 + Pluto 现货兜底；延误期间先做仿真侧任务（P1′-S5、模块移植可在无板状态下推进）</td><td>队员 B</td></tr>
+    <tr><td>排针 SI 不达标（方案 A 最大技术风险）</td><td>中</td><td>高</td><td>P2′-S4 正式判定闸；降采样率预案；不过即触发 D0 转 Pluto</td><td>队员 B</td></tr>
+    <tr><td>Vivado/Zynq 学习曲线超期</td><td>中</td><td>中</td><td>P1′ 压缩至 1 周突击；用足官方 XUP 教程与 LLM 辅助；eth_mac 删除已对冲工作量</td><td>全员</td></tr>
+    <tr><td>P3′ 基带移植超期（最大阶段）</td><td>高</td><td>高</td><td>每周核对模块矩阵完成度；周末只补进度；必要时降速率档保链路</td><td>队员 A</td></tr>
+    <tr><td>LLM 记录/技能包缺失（15 分白丢）</td><td>中</td><td>高</td><td>日归档制度 + 周五抽查；P6′-S2/S3 专项收尾；陌生队伍走查</td><td>队员 C</td></tr>
+    <tr><td>跳同步捕获指标不达标</td><td>中</td><td>中</td><td>10-23 中期检查未达标即触发 D1/D2</td><td>队员 B</td></tr>
+    <tr><td>决赛现场演示失败</td><td>中</td><td>高</td><td>视频兜底 + 备件到场 + 有线演示退路</td><td>全员</td></tr>
+  </tbody></table>
+  <h3 class="sub3">四级降级预案</h3>
+  <div class="grid2">
+    <div class="panel hl"><b style="color:var(--amd2)">D0 · 排针 SI 失败</b>（触发点：P2′-S4，10-04 前判定）<p style="font-size:13.5px;color:#b9c4d4;margin-top:6px">切换到 Pluto 兜底平台：启用 §06 裁剪预算（FFT 512 点分时复用、FIR 全折叠、Viterbi 回溯 64）；ADI 官方 hdl 参考工程提供接口与时序约束；RTL 模块平移不变。整体进度损失控制在 3–4 天。</p></div>
+    <div class="panel"><b style="color:var(--amber)">D1 · 跳同步未按期收敛</b>（触发点：10-23 仍未稳定捕获）<p style="font-size:13.5px;color:#b9c4d4;margin-top:6px">保留定频链路 + 手动频点切换 + 干扰感知提示，"检测—规避"闭环完整；报告如实说明自动跳同步为后续工作。<b>宁可交真实的定频系统，不交演示翻车的跳频系统。</b></p></div>
+    <div class="panel"><b style="color:var(--amber)">D2 · FFT 干扰感知未达标</b>（触发点：10-29 检测概率不满足）<p style="font-size:13.5px;color:#b9c4d4;margin-top:6px">静态跳频图案 + 预置黑名单完成演示，感知模块作"在研增强"展示仿真结果；测试重心转向跳频本身抗干扰增益曲线。</p></div>
+    <div class="panel"><b style="color:var(--amber)">D3 · 过空链路不稳定</b>（触发点：提交前 72 h 复测仍偶发断链）<p style="font-size:13.5px;color:#b9c4d4;margin-top:6px">演示改有线 + 衰减器；视频与报告保留过空数据并说明环境限制。评委更认可"诚实 + 数据完整"。</p></div>
+  </div>
+  <h3 class="sub3">四条红线</h3>
+  <div class="panel hl">
+    <ul style="list-style:none;font-size:14px;color:#e8d9be">
+      <li>▸ <b>09-22 报名（AMD 通道）不可错</b>——提前 2 天完成，回执截图存档；</li>
+      <li>▸ <b>10-26 之后不加新功能</b>——只修 bug 与补测试；</li>
+      <li>▸ <b>11-01 之后只改文档</b>——RTL 冻结，精力全转报告/视频/技能包；</li>
+      <li>▸ <b>LLM 记录日归档</b>——周五评审抽查，缺失当周补齐。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block" id="evalmap">
+  <div class="sechead"><span class="secnum">09</span><h2>评测权重 → 行动映射</h2></div>
+  <table class="tbl">
+    <tbody><tr><th style="width:26%">评测项（权重）</th><th>本方案的对应动作</th></tr>
+    <tr><td><b>创新性与应用价值（30）</b></td><td>三大创新点重述（§01-D3 / P6′-S1）；战术数据链等应用场景论证；与 2025 高云杯 SDR 作品差异化（跳频 + 干扰感知主线不丢）</td></tr>
+    <tr><td><b>性能与资源优化效果（20）</b></td><td>P3′-S3 IP vs 自研对比实验；§06 资源预算与周报；优化前后对比表进报告</td></tr>
+    <tr><td><b>功能正确性与设计完整性（20）</b></td><td>T1–T10 全项实测；仿真不过禁上板铁律；黄金参考比特真比对</td></tr>
+    <tr><td><b>大模型协作与技能包（15）</b></td><td>§05 五项技能包 + LLM 记录日归档 + 陌生队伍走查；PYNQ Skill 单独加分</td></tr>
+    <tr><td><b>文档质量与可复现性（15）</b></td><td>英文目录开源仓库 + 一键构建脚本 + 复现说明 + 外队复现走查（P6′-S4）</td></tr>
+  </tbody></table>
+</section>
+
+<!-- ============================================================ -->
+<section class="block" id="qa">
+  <div class="sechead"><span class="secnum">10</span><h2>答辩题库 · AMD 增量题</h2></div>
+  <div class="panel">
+    <ul style="list-style:none;font-size:14px;color:#b9c4d4">
+      <li>▸ <b>为什么从高云迁移到 AMD？</b>——赛道策略 + Zynq 片上闭环架构价值 + Vivado 生态 IP 成熟度；</li>
+      <li>▸ <b>PS/PL 划分依据是什么？</b>——实时性阈值：µs 级路径全在 PL，ms 级控制与人机交互在 PS；量化说明各路径时延预算；</li>
+      <li>▸ <b>为什么 NCO 自研而 FFT 用 IP？</b>——创新点保护 vs 工程效率的取舍逻辑；IP/自研对比实验数据；</li>
+      <li>▸ <b>大模型在移植中帮了什么、在哪出错？</b>——用 llm_log 实证：原语映射加速 ×，时序建议纠错 ×；</li>
+      <li>▸ <b>技能包的通用性体现在哪？</b>——gowin2amd 映射表换厂商可用，golden-ref-compare 换算法可用；</li>
+      <li>▸ <b>与高云版相比，AMD 平台带来的实质收益？</b>——PS GEM 省去自研 MAC、片上闭环、DSP48 余量 3 倍。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block refs">
+  <div class="sechead"><span class="secnum">11</span><h2>参考来源</h2></div>
+  <ol>
+    <li>FPGA 创新设计赛道官网（报名与时间节点）：http://www.fpgachina.cn/?type=0</li>
+    <li>AMD，全国大学生嵌入式芯片与系统设计竞赛 '2026 FPGA 赛道选题指南（3.3 自主选题赛道；工具版本；提交内容；评测权重；板卡获取；英文海报要求）：用户上传文档</li>
+    <li>AMD PYNQ-Z2 官方文档：https://pynq.readthedocs.io/en/latest/index.html</li>
+    <li>Analog Devices，AD9363 产品页（70 MHz–6 GHz 捷变收发器）：https://www.analog.com/cn/products/ad9363.html</li>
+    <li>Analog Devices，ADALM-PLUTO / 开源 HDL 参考工程（兜底平台）：https://github.com/analogdevicesinc/hdl</li>
+    <li>AMD Vivado 用户指南：UG901（综合）/ UG904（实现）/ UG949（UltraFast 方法学）/ UG1399（Vitis HLS）</li>
+    <li>原《基于 FPGA 的跳频/SDR 抗干扰通信系统 · 实施执行手册 V2.1》（高云版）：用户上传文档，本手册的移植基线</li>
+    <li>GitHub，CIRRADIO 战术跳频电台（卷积码与交织参数参考）：https://github.com/mangobanaani/cirradio/</li>
+    <li>AMD 赛道竞赛问题咨询：fpgacamp.cn@outlook.com；QQ 群 1087309750</li>
+  </ol>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <b>FHSS·SDR 抗干扰通信系统 · AMD 移植实施手册 V3.0.1</b> · 2026-09-15 ·
+    自高云版 V2.1 移植：平台（GW5AT→Zynq-7000）、工具链（GOWIN→Vivado 2021.2，本队现有）、架构（纯 PL→PS/PL 协同）、交付（+技能包/协作记录/开源/英文海报）四大变更逐项落地 ·
+    三大硬节点：09-22 报名 / 11-04 提交 / 11-20 决赛
+  </div>
+</footer>
+</main>
+
+
+<div data-trae-edit-ui="true" class="trae-image-download-btn" title="Download image" style="position: fixed; display: none; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: var(--trae-bg-menu, #222427); border: 1px solid var(--trae-border-l2, rgba(255,255,255,0.12)); box-shadow: var(--trae-floating-shadow, 0px 2px 8px 0px rgba(0,0,0,0.2)); color: var(--trae-icon-default, #f5f9fe); cursor: pointer; z-index: 89990; transition: background 0.15s; pointer-events: auto;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 2v8m0 0L5 7m3 3l3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></div></body></html>

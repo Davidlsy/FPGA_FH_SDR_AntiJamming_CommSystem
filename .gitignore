@@ -1,29 +1,93 @@
 # ==========================================================
 # FPGA_FH_SDR_AntiJamming_CommSystem 仓库 .gitignore
+# 适配 AMD（Xilinx）Vivado / Vitis / Vitis HLS
 # ==========================================================
 
-# ============ Gowin EDA ============
-# *.gprj 工程文件要提交，只忽略用户级临时配置
-*.gprj.user
-impl/                  # 综合/布局布线输出目录（gwsynthesis、pnr、temp）
-simulate/              # IDE 仿真输出目录
-.temp/
-*.bit                  # 比特流：大二进制，不入库；归档见文末 releases 规则
-*.bin
-*.fs
-*.pnr
-*.srr
-*.pao
-*.pr
+# ============ Vivado 工程 ============
+# *.xpr 工程文件建议提交（或用 Tcl 重建）；忽略用户级与运行产物
+*.xpr.user
+*.xpr
+*.cache/               # 综合缓存（可重建，体积大）
+*.hw/                  # 硬件管理器会话
+*.sim/                 # 仿真相关工程目录
+*.runs/                # 综合 / 实现运行目录（synth_1、impl_1 等）
+*.ip_user_files/       # IP 用户文件（可重建）
+*.gen/                 # 生成源目录（可重建）
+*.managed_ip_project/  # 独立 IP 工程
+*.jou                  # Vivado 会话 journal
+*.log
+*.str
+*.pb
+*.wdb                  # 波形数据库
+*.vcd                  # 通用波形
+webtalk*.html
+webtalk*.xml
+webtalk*.csv
+usage_statistics*
+hs_err_pid*.log
+*.zip                  # 运行导出压缩包（勿与源码归档混淆）
+.Xil/                  # Vivado 临时目录
 
-# ============ 仿真产物（Icarus / ModelSim / Verilator） ============
+# 检查点与比特流：大二进制，不入库；归档见文末 releases 规则
+*.dcp                  # design checkpoint
+*.bit
+*.bin
+*.mcs
+*.ltx
+*.pdi
+*.cfg                  # 若仅用于烧写配置且体积大，可按需放开
+
+# ============ Vitis / Vitis Unified ============
+.vitis/                # Vitis 临时
+.ade/                  # Vitis IDE
+_ide/
+.sdk/                  # 经典 SDK 工作区
+.sdk/.*
+*.xsa                  # 硬件导出（可由 Vivado 重新导出）
+*.hdf
+export/
+platforms/
+.xpfm                  # 平台描述（若由脚本生成）
+
+# 软件/应用构建产物
+*.elf
+*.map
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.out
+*.hex
+*.axf
+RemoteSystemsTempFiles/
+
+# Vitis HLS / Vivado HLS
+*_hls/
+*.autopilot/
+*.zynq/                # HLS 部分中间目录
+*.prj/                 # HLS 工程运行目录
+*.aocx
+*.xo
+*.xclbin
+csim/
+cosim/
+syn/
+impl/
+hls.app
+
+# ============ 仿真产物（Icarus / ModelSim / Verilator / xsim） ============
 *.vvp                  # iverilog 编译产物
-*.vcd                  # 波形（动辄上百 MB，必须忽略）
 *.fst
-*.wlf                  # ModelSim 波形
+*.wlf                  # ModelSim / Questa 波形
 vsim.lock
 transcript             # ModelSim 会话日志
 work/                  # ModelSim 编译库
+xsim.dir/
+xsim.log
+xvhdl.log
+xvlog.log
+xelab.log
 obj_dir/               # Verilator 输出
 
 # ============ Python 上位机（sw/） ============
@@ -50,6 +114,7 @@ dist/
 Thumbs.db
 *.swp
 .idea/
+.vscode/
 
 # ============ 大数据 ============
 # 原始射频捕获不入库；doc/ 下测试数据 CSV 为交付物，正常提交
@@ -58,3 +123,4 @@ raw_capture/
 
 # 如需归档提交版比特流：把 bitstream 放入 releases/ 并取消下行注释
 # !releases/*.bit
+# !releases/*.mcs

@@ -1,32 +1,11 @@
-# FPGA_FH_SDR_AntiJamming_CommSystem
-仓库名称：FPGA_FH_SDR_AntiJamming_CommSystem
-仓库描述
-English Description
-An FPGA-based Frequency Hopping / Software-Defined Radio (SDR) anti-jamming communication system. Implemented on the Sipeed Tang development board with Gowin FPGA, featuring spread-spectrum frequency hopping and SDR architecture for reliable wireless communication in hostile electromagnetic environments.
-中文描述
-基于高云FPGA的跳频/软件定义无线电（SDR）抗干扰通信系统。利用Sipeed Tang系列开发板实现跳频扩频通信与软件无线电架构，具备抗干扰、抗截获能力，适用于复杂电磁环境下的可靠无线通信。
-
-## 工程结构
-```
 FPGA_FH_SDR_AntiJamming_CommSystem/
-├── docs/
-├── rtl/
+├── src/      # 源码
+├── sim/      # 仿真
+├── build/    # 构建产物/工程文件
+├── board/    # 板级约束、引脚
+├── data/     # 数据/激励/参考结果
+├── skill/    # 技能/脚本/工具说明
+└── report/   # 报告、评审材料
+## License
 
-└── README.MD
-```
-
-项目目录说明
-四个顶层目录：`rtl/`（源码）、`sim/`（testbench 与参考数据）、`sw/`（上位机 Python）、`doc/`（报告/评审/测试记录）；
-
-Git仓库提交说明
-commit 格式：`模块名: 变更摘要`
-
-AI生成代码说明
-.gitignore 文件部分代码
-.gitattributes 文件部分代码
-
-env.md
-软件版本：
-- GOWIN FPGA Designer V1.9.11.03 Education build(81398)
-
-项目概述、目录结构、分支模型（main/develop/feat-xxx）、提交规范、每周节奏等等。
+This project is licensed under the [MIT License](LICENSE).

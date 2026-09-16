@@ -1,0 +1,1706 @@
+<html lang="zh-CN" data-trae-theme="light"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AMD Zynq FHSS/SDR 抗干扰通信系统 · 纯仿真实现方案（无板级验证版）</title>
+
+  <style>
+    /* === 系统字体栈（零外部字体依赖） === */
+  </style>
+
+  <style>
+    :root {
+      /* Page / report tokens — Business Blue */
+      --page-bg: #FFFFFF;
+      --page-surface: #F7F9FB;
+      --page-surface-muted: #EEF2F6;
+      --page-text: #1C2128;
+      --page-text-secondary: #3F4750;
+      --page-text-muted: #59636E;
+      --page-text-disabled: #8C959F;
+      --page-border: #D8DEE4;
+      --page-brand: #0969DA;
+      --page-brand-hover: #0550AE;
+      --page-brand-active: #033D8B;
+      --page-brand-soft: #E7F0FB;
+      --page-brand-soft-strong: #D3E2F4;
+      --page-brand-text: #033D8B;
+
+      /* Backward-compatible report variables */
+      --bg: #FFFFFF;
+      --bg2: #F7F9FB;
+      --rule: #D8DEE4;
+      --ink: #1C2128;
+      --muted: #59636E;
+      --text-secondary: #3F4750;
+      --text-disabled: #8C959F;
+      --accent: #0969DA;
+      --accent-hover: #0550AE;
+      --accent-active: #033D8B;
+      --accent-soft: #E7F0FB;
+      --accent2: #8250DF;
+
+      /* Chart / data tokens */
+      --chart-series-1: #0969DA;
+      --chart-series-2: #8250DF;
+      --chart-series-3: #06B6D4;
+      --chart-series-4: #BF3989;
+      --chart-other: #D8DEE4;
+      --chart-accent: #0969DA;
+      --chart-accent-2: #8250DF;
+      --chart-positive: #1A7F37;
+      --chart-warning: #BF8700;
+      --chart-negative: #CF222E;
+      --chart-grid: rgba(28, 33, 40, 0.10);
+      --chart-axis: #59636E;
+      --chart-label: #59636E;
+      --chart-tooltip-bg: #FFFFFF;
+
+      /* Semantic compatibility tokens */
+      --success: #1A7F37;
+      --info: #0969DA;
+      --reminder: #BC4C00;
+      --warning: #BF8700;
+      --danger: #CF222E;
+      --positive: #1A7F37;
+      --negative: #CF222E;
+    }
+
+    /* === Structural variables === */
+    :root {
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --space-8: 64px;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-pill: 999px;
+      --font-sans: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+      --font-serif: Georgia, 'Times New Roman', serif;
+      --font-mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+      --font-metric: var(--font-sans);
+      --max: 960px;
+    }
+
+    /* === Base styles === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.7;
+      font-size: 14px;
+      padding: 2rem 0;
+    }
+    article.page { width: 100%; }
+    .page__content,
+    .report-intro__surface {
+      width: calc(100% - 2rem);
+      max-width: var(--max);
+      margin: 0 auto;
+    }
+    code {
+      font-family: var(--font-mono);
+      font-size: .88em;
+      background: var(--page-surface-muted);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-sm);
+      padding: 1px 5px;
+      color: var(--page-brand-active);
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* === Intro (contained) === */
+    .report-intro { margin-bottom: var(--space-7); }
+    .report-intro__surface {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      color: var(--page-brand-text);
+      background: var(--page-brand-soft);
+      border-radius: var(--radius-lg);
+      padding: var(--space-7);
+    }
+    .report-intro__content { position: relative; z-index: 1; max-width: 780px; }
+    .report-intro__surface::before,
+    .report-intro__surface::after {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .report-intro__surface::before {
+      width: 180px; height: 180px;
+      top: -72px; right: -48px;
+      border-radius: 50%;
+      background: var(--page-brand-soft-strong);
+      opacity: 0.72;
+    }
+    .report-intro__surface::after {
+      width: 136px; height: 96px;
+      right: 96px; bottom: -36px;
+      border-radius: var(--radius-lg);
+      background: var(--page-surface);
+      opacity: 0.58;
+      transform: rotate(-8deg);
+    }
+    .report-intro__kicker {
+      font-size: 12px; font-weight: 600; letter-spacing: .06em;
+      color: var(--page-brand);
+      margin-bottom: var(--space-3);
+    }
+    .report-intro h1 { font-size: 26px; line-height: 1.3; overflow-wrap: anywhere; }
+    .report-intro__summary {
+      max-width: 72ch;
+      margin-top: var(--space-3);
+      color: var(--page-text-secondary);
+      font-size: 15px;
+    }
+    .report-intro__meta {
+      margin-top: var(--space-4);
+      font-size: 12px;
+      color: var(--page-text-muted);
+      display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
+    }
+    @media (max-width: 768px) {
+      body { padding: 1rem 0; }
+      .report-intro__surface { padding: var(--space-5); }
+      .report-intro__surface::before { width: 124px; height: 124px; top: -44px; right: -52px; opacity: .38; }
+      .report-intro__surface::after { display: none; }
+      .report-intro h1 { font-size: 21px; }
+    }
+    @media print, (forced-colors: active) {
+      .report-intro__surface::before, .report-intro__surface::after { display: none; }
+    }
+
+    /* === Sections === */
+    section { margin-bottom: var(--space-7); }
+    h2 { font-size: 20px; line-height: 1.35; margin-bottom: var(--space-3); }
+    h3 { font-size: 16px; line-height: 1.4; margin: var(--space-5) 0 var(--space-2); }
+    p { margin-bottom: var(--space-3); color: var(--text-secondary); }
+    section > p { max-width: none; }
+    ul.flat { list-style: none; margin: var(--space-2) 0 var(--space-4); }
+    ul.flat li { padding-left: 1.1em; position: relative; margin: 5px 0; color: var(--text-secondary); }
+    ul.flat li::before { content: "–"; position: absolute; left: 0; color: var(--page-brand); }
+    strong { color: var(--ink); }
+
+    /* === Tables === */
+    figure.tablefig { margin: var(--space-4) 0 var(--space-5); }
+    figcaption {
+      font-size: 13px; font-weight: 600; color: var(--ink);
+      margin-bottom: var(--space-2);
+    }
+    .table-note { font-size: 12px; color: var(--page-text-muted); margin-top: var(--space-2); }
+    table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 13.5px; }
+    th, td {
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--rule);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    thead th { background: var(--page-surface); color: var(--ink); font-weight: 600; border-bottom: 1.5px solid var(--page-border); }
+    tbody tr:hover td { background: var(--page-surface); }
+    td .mod { font-family: var(--font-mono); font-size: 12.5px; color: var(--page-brand-active); }
+
+    /* === Tags === */
+    .tag {
+      display: inline-block; font-size: 11.5px; font-weight: 600;
+      padding: 1px 9px; border-radius: var(--radius-pill);
+      border: 1px solid var(--page-border); color: var(--text-secondary);
+      background: var(--page-surface); white-space: nowrap;
+    }
+    .tag--ok { color: var(--success); border-color: rgba(26,127,55,.45); background: rgba(26,127,55,.07); }
+    .tag--warn { color: var(--warning); border-color: rgba(191,135,0,.5); background: rgba(191,135,0,.08); }
+    .tag--need { color: var(--danger); border-color: rgba(207,34,46,.45); background: rgba(207,34,46,.07); }
+
+    /* === Callouts === */
+    .callout {
+      border: 1px solid var(--page-border);
+      background: var(--page-surface);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      margin: var(--space-4) 0;
+      font-size: 13.5px;
+    }
+    .callout__label { font-weight: 700; font-size: 12px; letter-spacing: .05em; margin-bottom: 4px; }
+    .callout--risk .callout__label { color: var(--danger); }
+    .callout--note .callout__label { color: var(--info); }
+    .callout--warn .callout__label { color: var(--warning); }
+    .callout p:last-child { margin-bottom: 0; }
+
+    /* === Step cards === */
+    .step {
+      border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg);
+      background: var(--page-surface);
+      padding: var(--space-5);
+      margin: var(--space-4) 0;
+    }
+    .step__head { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
+    .step__id { font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--page-brand); }
+    .step__title { font-size: 16px; font-weight: 700; color: var(--ink); }
+    .step__meta { font-size: 12px; color: var(--page-text-muted); margin-left: auto; font-family: var(--font-mono); }
+    .step__grid { display: grid; grid-template-columns: 96px 1fr; gap: 4px var(--space-3); font-size: 13.5px; margin-top: var(--space-3); }
+    .step__grid dt { font-weight: 600; color: var(--page-text-muted); font-size: 12.5px; padding-top: 1px; }
+    .step__grid dd { color: var(--text-secondary); }
+    .step__grid dd ul { list-style: none; }
+    .step__grid dd ul li { padding-left: 1em; position: relative; margin: 3px 0; }
+    .step__grid dd ul li::before { content: "·"; position: absolute; left: .2em; font-weight: 700; color: var(--page-brand); }
+    .step__board {
+      margin-top: var(--space-3);
+      font-size: 13px;
+      border: 1px dashed var(--page-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
+      color: var(--text-secondary);
+      background: var(--page-bg);
+    }
+    .step__board b { color: var(--ink); }
+    @media (max-width: 640px) {
+      .step__grid { grid-template-columns: 1fr; gap: 2px; }
+      .step__grid dt { margin-top: var(--space-2); }
+      .step__meta { margin-left: 0; width: 100%; }
+    }
+
+    /* === Flow strip (CSS-only, no diagram lib) === */
+    .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: var(--space-3) 0 var(--space-5); }
+    .flow__node {
+      font-size: 12.5px; font-weight: 600;
+      border: 1px solid var(--page-border); background: var(--page-surface);
+      border-radius: var(--radius-md); padding: 4px 10px; color: var(--ink);
+    }
+    .flow__node--key { border-color: var(--page-brand); color: var(--page-brand-active); background: var(--page-brand-soft); }
+    .flow__arrow { color: var(--page-text-disabled); font-size: 13px; }
+
+    /* === Metric cards === */
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin: var(--space-4) 0; }
+    .metric {
+      border: 1px solid var(--page-border); border-radius: var(--radius-lg);
+      background: var(--page-surface); padding: var(--space-4);
+    }
+    .metric__v { font-family: var(--font-metric); font-size: 24px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .metric__l { font-size: 12px; color: var(--page-text-muted); margin-top: 2px; }
+    @media (max-width: 768px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+
+    /* === Sources / footer === */
+    footer { border-top: 1px solid var(--rule); padding-top: var(--space-5); margin-top: var(--space-7); }
+    footer h2 { font-size: 15px; }
+    .sources ol { padding-left: 1.4em; font-size: 12.5px; color: var(--page-text-muted); }
+    .sources li { margin: 4px 0; overflow-wrap: anywhere; }
+    sup a { font-size: .75em; }
+
+    @media print {
+      body { padding: 0; font-size: 12px; }
+      .step, .callout, .metric { break-inside: avoid; }
+    }
+  </style>
+<style data-trae-edit-ui="true" id="trae-previewer-tools-styles">:root {
+  --trae-layer-image-download: 89990;
+  --trae-layer-browser-inspect-overlay: 90000;
+  --trae-layer-browser-inspect-highlight: 90010;
+  --trae-layer-browser-inspect-action: 90020;
+  --trae-layer-text-selection-action: 90030;
+  --trae-layer-edit-tooltip: 100095;
+}
+:root,
+[data-trae-theme='dark'] {
+  --trae-bg-base-default: #171717;
+  --trae-bg-menu: #222427;
+  --trae-bg-overlay-l1: rgba(255, 255, 255, 0.04);
+  --trae-bg-overlay-l2: rgba(255, 255, 255, 0.08);
+  --trae-bg-overlay-l3: rgba(255, 255, 255, 0.12);
+  --trae-bg-overlay-l4: rgba(255, 255, 255, 0.16);
+  --trae-bg-invert: #f5f9fe;
+  --trae-bg-invert-hover: #e8ecf0;
+  --trae-bg-invert-active: #dce0e4;
+  --trae-bg-invert-disabled: rgba(224, 226, 242, 0.12);
+  --bg-bg-brand-disabled: rgba(75, 63, 227, 0.35);
+  --bg-bg-brand-popup: rgba(106, 111, 255, 0.15);
+  --trae-border-l1: #e0e2f217;
+  --trae-border-l2: rgba(255, 255, 255, 0.12);
+  --trae-border-l3: rgba(255, 255, 255, 0.08);
+  --trae-border-neutral-l3: rgba(229, 229, 229, 0.20);
+  --trae-border-brand: #6a6fff;
+  --trae-text-default: #f5f9fe;
+  --trae-text-default-hover: #f5f9fe;
+  --trae-text-default-active: #f5f9fe;
+  --trae-text-secondary: rgba(245, 249, 254, 0.5);
+  --trae-text-tertiary: rgba(245, 249, 254, 0.4);
+  --trae-text-disabled: #666b75;
+  --trae-text-onaccent: #222427;
+  --trae-icon-default: #f5f9fe;
+  --trae-icon-secondary: rgba(245, 249, 254, 0.5);
+  --trae-icon-brand: #6a6fff;
+  --icon-icon-brand: var(--trae-icon-brand);
+  --trae-icon-onaccent: #222427;
+  --trae-status-success: #22c55e;
+  --trae-status-primary: #3b82f6;
+  --trae-status-primary-default: #387bff;
+  --trae-status-primary-surface-l1: rgba(53, 121, 255, 0.18);
+  --trae-status-success-default: #33c192;
+  --trae-status-success-surface-l1: rgba(0, 165, 110, 0.18);
+  --trae-status-error-default: #f65a5a;
+  --trae-status-error-surface-l1: rgba(246, 70, 70, 0.18);
+  --trae-annotation-marker-bg: #4b3fe3;
+  --trae-annotation-marker-text: #ffffff;
+  --trae-annotation-region-border: var(--trae-status-primary-default);
+  --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.32);
+  --trae-panel-shadow: 0px 6px 24px -1px rgba(0, 0, 0, 0.16);
+  --trae-floating-shadow: 0px 2px 8px 0px rgba(0, 0, 0, 0.2);
+  --trae-shadow-elevation-50: 0 1px 2px -1px rgba(0, 0, 0, 0.45);
+  --text-text-default: var(--trae-text-default);
+  --text-text-onaccent: var(--trae-text-onaccent);
+  --bg-bg-menu: var(--trae-bg-menu);
+  --bg-bg-white: var(--trae-bg-menu);
+  --bg-bg-invert: var(--trae-bg-invert);
+  --bg-bg-invert-disabled: var(--trae-bg-invert-disabled);
+  --bg-bg-overlay-l1: var(--trae-bg-overlay-l1);
+  --bg-bg-overlay-l2: var(--trae-bg-overlay-l2);
+  --bg-bg-overlay-l3: var(--trae-bg-overlay-l3);
+  --border-border-neutral-l1: var(--trae-border-l1);
+  --border-border-brand: var(--trae-border-brand);
+  --border-border-brand-half: rgba(106, 111, 255, 0.4);
+  --status-error-default: var(--trae-status-error-default);
+  --status-error-surface-l1: var(--trae-status-error-surface-l1);
+  --radius-radius-md-12: 12px;
+  --spacers-spacer-0: 0;
+  --spacers-spacer-6: 6px;
+}
+
+[data-trae-theme='light'] {
+  --trae-bg-base-default: #fafafa;
+  --trae-bg-menu: #ffffff;
+  --trae-bg-overlay-l1: rgba(0, 0, 0, 0.04);
+  --trae-bg-overlay-l2: rgba(0, 0, 0, 0.06);
+  --trae-bg-overlay-l3: rgba(0, 0, 0, 0.08);
+  --trae-bg-overlay-l4: rgba(0, 0, 0, 0.12);
+  --trae-bg-invert: #1f2328;
+  --trae-bg-invert-hover: #32383f;
+  --trae-bg-invert-active: #444d56;
+  --trae-bg-invert-disabled: rgba(115, 115, 115, 0.20);
+  --bg-bg-brand-disabled: rgba(75, 63, 227, 0.22);
+  --bg-bg-brand-popup: rgba(170, 183, 255, 0.36);
+  --trae-border-l1: rgba(0, 0, 0, 0.1);
+  --trae-border-l2: rgba(0, 0, 0, 0.12);
+  --trae-border-l3: rgba(0, 0, 0, 0.08);
+  --trae-border-neutral-l3: rgba(115, 115, 115, 0.36);
+  --trae-border-brand: #4b3fe3;
+  --trae-text-default: #1f2328;
+  --trae-text-default-hover: #111214;
+  --trae-text-default-active: #111214;
+  --trae-text-secondary: rgba(31, 35, 40, 0.5);
+  --trae-text-tertiary: rgba(31, 35, 40, 0.4);
+  --trae-text-disabled: #a1a1a1;
+  --trae-text-onaccent: #ffffff;
+  --trae-icon-default: #1f2328;
+  --trae-icon-secondary: rgba(31, 35, 40, 0.5);
+  --trae-icon-brand: #4b3fe3;
+  --icon-icon-brand: var(--trae-icon-brand);
+  --trae-icon-onaccent: #ffffff;
+  --trae-status-success: #22c55e;
+  --trae-status-primary: #3b82f6;
+  --trae-status-primary-default: #2f74ff;
+  --trae-status-primary-surface-l1: rgba(47, 116, 255, 0.12);
+  --trae-status-success-default: #15a877;
+  --trae-status-success-surface-l1: rgba(64, 176, 139, 0.12);
+  --trae-status-error-default: #e8463a;
+  --trae-status-error-surface-l1: rgba(232, 70, 58, 0.12);
+  --trae-annotation-marker-bg: #4b3fe3;
+  --trae-annotation-marker-text: #ffffff;
+  --trae-annotation-region-border: var(--trae-status-primary-default);
+  --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.18);
+  --trae-panel-shadow: 0px 6px 24px -1px rgba(24, 24, 24, 0.06);
+  --trae-floating-shadow: 0px 2px 8px 0px rgba(24, 24, 24, 0.2);
+  --trae-shadow-elevation-50: 0 1px 2px -1px rgba(24, 24, 24, 0.08);
+  --text-text-default: var(--trae-text-default);
+  --text-text-onaccent: var(--trae-text-onaccent);
+  --bg-bg-menu: var(--trae-bg-menu);
+  --bg-bg-white: var(--trae-bg-menu);
+  --bg-bg-invert: var(--trae-bg-invert);
+  --bg-bg-invert-disabled: var(--trae-bg-invert-disabled);
+  --bg-bg-overlay-l1: var(--trae-bg-overlay-l1);
+  --bg-bg-overlay-l2: var(--trae-bg-overlay-l2);
+  --bg-bg-overlay-l3: var(--trae-bg-overlay-l3);
+  --border-border-neutral-l1: var(--trae-border-l1);
+  --border-border-brand: var(--trae-border-brand);
+  --border-border-brand-half: rgba(75, 63, 227, 0.4);
+  --status-error-default: var(--trae-status-error-default);
+  --status-error-surface-l1: var(--trae-status-error-surface-l1);
+  --radius-radius-md-12: 12px;
+  --spacers-spacer-0: 0;
+  --spacers-spacer-6: 6px;
+}
+
+@keyframes trae-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes trae-edit-bar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes trae-edit-bar-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes trae-edit-panel-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.trae-edit-mode-active:not(.trae-edit-mode-dragging) body *:not([data-trae-edit-ui]):not([data-trae-edit-ui] *) {
+  transition: none !important;
+  animation-play-state: paused !important;
+}
+
+.trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel),
+.trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel) * {
+  pointer-events: none !important;
+}
+
+.trae-browser-inspect-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--trae-layer-browser-inspect-overlay);
+  pointer-events: auto;
+  background: transparent;
+}
+
+.trae-browser-inspect-highlight-box {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--trae-layer-browser-inspect-highlight);
+  display: none;
+}
+
+.trae-browser-inspect-highlight-tag {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  height: 18px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 4px;
+  background-color: var(--trae-status-success-default);
+  color: var(--trae-text-onaccent);
+  font-size: 12px;
+  font-weight: 400;
+  display: none;
+  align-items: center;
+  z-index: var(--trae-layer-browser-inspect-action);
+}
+
+.trae-browser-inspect-highlight-box-show {
+  display: flex;
+}
+
+.trae-browser-inspect-highlight-tag.trae-browser-inspect-highlight-box-show {
+  display: none;
+}
+
+.trae-browser-inspect-select-button.trae-browser-inspect-highlight-box-show {
+  display: block !important;
+}
+
+.trae-browser-inspect-select-button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  z-index: var(--trae-layer-browser-inspect-action);
+}
+
+.trae-browser-inspect-select-highlight-box {
+  background: transparent !important;
+}
+
+.trae-browser-inspect-select-highlight-box .trae-browser-inspect-highlight-tag {
+  background-color: var(--trae-status-success-default);
+}
+
+.trae-add-to-chat-card {
+  display: block;
+  overflow: hidden;
+  background: var(--trae-bg-menu);
+  border: 1px solid var(--trae-border-l1);
+  border-radius: 8px;
+  box-shadow: var(--trae-floating-shadow);
+  transition:
+    width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.trae-add-to-chat-content {
+  position: relative;
+  width: max-content;
+}
+
+.trae-fade-exit {
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.trae-fade-enter {
+  opacity: 1;
+  transition: opacity 0.2s ease-in;
+}
+
+.trae-buttons-view {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: transparent;
+}
+
+.trae-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+.trae-action-button:hover {
+  background: var(--trae-bg-overlay-l2);
+}
+
+.trae-action-button:active {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-action-button:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-action-button-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--trae-icon-default);
+  flex-shrink: 0;
+}
+
+.trae-action-button-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--trae-text-default);
+  white-space: nowrap;
+}
+
+.trae-edit-toolbar-button-active {
+  background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important;
+  color: var(--icon-icon-brand, #4b3fe3) !important;
+  font-weight: bold !important;
+}
+
+.trae-edit-toolbar-button-active:hover {
+  background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important;
+}
+
+.trae-edit-toolbar button[data-action='alignment-dropdown']:hover,
+.trae-edit-toolbar button[data-action='text-align-dropdown']:hover,
+.trae-edit-toolbar button[data-action='font-decrease']:hover,
+.trae-edit-toolbar button[data-action='font-increase']:hover,
+.trae-edit-toolbar button[data-action^='align-']:hover {
+  border-radius: 8px;
+  background: var(--bg-bg-overlay-l1, rgba(115, 115, 115, 0.08)) !important;
+}
+
+.trae-edit-toolbar button[data-action='alignment-dropdown']:active,
+.trae-edit-toolbar button[data-action='text-align-dropdown']:active,
+.trae-edit-toolbar button[data-action='font-decrease']:active,
+.trae-edit-toolbar button[data-action='font-increase']:active,
+.trae-edit-toolbar button[data-action^='align-']:active {
+  border-radius: 8px;
+  background: var(--bg-bg-overlay-l2, rgba(115, 115, 115, 0.12)) !important;
+}
+
+.trae-comment-input {
+  background: transparent;
+  color: var(--trae-text-default);
+  caret-color: var(--trae-text-default);
+}
+
+.trae-comment-input::placeholder {
+  color: var(--trae-text-tertiary);
+}
+
+.trae-point-edit-bar,
+.trae-point-comment-input-bar,
+.trae-comment-only-panel {
+  transform-origin: top center;
+  will-change: opacity, transform;
+}
+
+.trae-edit-panel:not(.trae-edit-panel-leave) {
+  pointer-events: auto !important;
+}
+
+.trae-edit-bar-enter {
+  animation: trae-edit-bar-enter var(--transition-normal, 0.18s cubic-bezier(0.2, 0, 0, 1)) both;
+}
+
+.trae-edit-bar-leave {
+  pointer-events: none;
+  animation: trae-edit-bar-leave var(--transition-fast, 0.14s ease) both;
+}
+
+.trae-edit-panel-leave {
+  pointer-events: none;
+  animation: trae-edit-panel-leave var(--transition-fast, 0.14s ease) both;
+}
+
+.trae-edit-panel [data-trae-tooltip] {
+  position: relative;
+}
+
+.trae-edit-panel [data-trae-tooltip]::after {
+  content: attr(data-trae-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: var(--trae-layer-edit-tooltip);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--trae-bg-invert, var(--bg-bg-invert));
+  color: var(--trae-text-onaccent, var(--text-text-onaccent));
+  box-shadow: var(--trae-floating-shadow);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.039px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-sizing: border-box;
+  opacity: 0;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+
+.trae-edit-panel [data-trae-tooltip]::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 5px);
+  z-index: var(--trae-layer-edit-tooltip);
+  width: 8px;
+  height: 4px;
+  background: var(--trae-bg-invert, var(--bg-bg-invert));
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.trae-edit-panel [data-trae-tooltip]:hover::after,
+.trae-edit-panel [data-trae-tooltip]:focus-visible::after,
+.trae-edit-panel [data-trae-tooltip]:hover::before,
+.trae-edit-panel [data-trae-tooltip]:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+.trae-comment-btn {
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trae-comment-btn:disabled {
+  cursor: not-allowed;
+}
+
+.trae-comment-btn:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-comment-btn-primary {
+  background: var(--trae-bg-invert);
+  color: var(--trae-text-onaccent);
+}
+
+.trae-comment-btn-primary:hover:not(:disabled) {
+  background: var(--trae-bg-invert-hover);
+}
+
+.trae-comment-btn-primary:active:not(:disabled) {
+  background: var(--trae-bg-invert-active);
+}
+
+.trae-comment-btn-primary:disabled {
+  background: var(--trae-bg-invert-disabled);
+  color: var(--trae-text-disabled);
+}
+
+.trae-comment-btn-secondary {
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-default);
+}
+
+.trae-comment-btn-secondary:hover:not(:disabled) {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-comment-btn-secondary:active:not(:disabled) {
+  background: var(--trae-bg-overlay-l4);
+}
+
+.trae-comment-btn-secondary:disabled {
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-disabled);
+}
+
+.trae-comment-btn-text {
+  background: transparent;
+  color: var(--trae-text-default);
+}
+
+.trae-comment-btn-text:hover:not(:disabled) {
+  border-radius: 8px;
+  background: var(--bg-bg-overlay-l1, var(--trae-bg-overlay-l1));
+  color: var(--trae-text-default-hover);
+}
+
+.trae-comment-btn-text:active:not(:disabled) {
+  border-radius: 8px;
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-default-active);
+}
+
+.trae-comment-btn-text:disabled {
+  background: transparent;
+  color: var(--trae-text-disabled);
+}
+
+.trae-marking-btn {
+  justify-content: center;
+}
+
+.trae-marking-btn:hover:not(:disabled) {
+  background: var(--trae-bg-overlay-l1) !important;
+}
+
+.trae-marking-btn-active {
+  background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important;
+  color: var(--icon-icon-brand, var(--trae-icon-brand)) !important;
+}
+
+.trae-marking-btn-active:hover {
+  background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important;
+  color: var(--icon-icon-brand, var(--trae-icon-brand)) !important;
+}
+
+.trae-marking-btn:active:not(:disabled) {
+  background: var(--trae-bg-overlay-l2) !important;
+}
+
+.trae-marking-btn:disabled {
+  color: var(--trae-text-disabled) !important;
+  cursor: not-allowed !important;
+}
+
+.trae-action-button-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--trae-icon-secondary);
+  flex-shrink: 0;
+}
+
+.trae-shortcut-container {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.trae-shortcut-key {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 12px;
+  color: var(--trae-icon-secondary);
+}
+
+.trae-add-to-chat-divider {
+  width: 2px;
+  height: 12px;
+  padding: 0 6px;
+  box-sizing: content-box;
+  background-clip: content-box;
+  background-color: var(--trae-border-l2);
+  flex-shrink: 0;
+}
+
+.trae-editor-view {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  padding: 8px;
+  background: transparent;
+}
+
+.trae-editor-text-container {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background: var(--trae-bg-overlay-l1);
+  border: 1px solid var(--trae-border-l3);
+  border-radius: 4px;
+  gap: 8px;
+}
+
+.trae-editor-textarea {
+  flex: 1;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--trae-text-default);
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  max-height: 140px;
+}
+
+.trae-editor-textarea::placeholder {
+  color: var(--trae-text-tertiary);
+}
+
+.trae-editor-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 0.2s ease-out,
+    opacity 0.2s ease-out,
+    margin-top 0.2s ease-out;
+}
+
+.trae-editor-action-bar-visible {
+  max-height: 32px;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+.trae-editor-cancel-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 4px;
+  background: var(--trae-bg-overlay-l2);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trae-editor-cancel-button:hover {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-editor-cancel-button:active {
+  background: var(--trae-bg-overlay-l3);
+}
+
+.trae-editor-cancel-button:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-editor-cancel-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--trae-text-default);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.trae-editor-submit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--trae-bg-invert);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trae-editor-submit-button:hover {
+  background: var(--trae-bg-invert-hover);
+}
+
+.trae-editor-submit-button:active {
+  background: var(--trae-bg-invert-active);
+}
+
+.trae-editor-submit-button:focus-visible {
+  outline: 2px solid var(--trae-status-primary);
+  outline-offset: 1px;
+}
+
+.trae-editor-submit-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--trae-text-onaccent);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.trae-editor-submit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  color: var(--trae-icon-onaccent);
+  flex-shrink: 0;
+}
+
+.trae-success-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 32px;
+  white-space: nowrap;
+}
+
+.trae-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--trae-status-success);
+  flex-shrink: 0;
+}
+
+.trae-success-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--trae-text-default);
+  user-select: none;
+}
+</style><style data-trae-pptx-captured-css="true">:root { --page-bg: #FFFFFF; --page-surface: #F7F9FB; --page-surface-muted: #EEF2F6; --page-text: #1C2128; --page-text-secondary: #3F4750; --page-text-muted: #59636E; --page-text-disabled: #8C959F; --page-border: #D8DEE4; --page-brand: #0969DA; --page-brand-hover: #0550AE; --page-brand-active: #033D8B; --page-brand-soft: #E7F0FB; --page-brand-soft-strong: #D3E2F4; --page-brand-text: #033D8B; --bg: #FFFFFF; --bg2: #F7F9FB; --rule: #D8DEE4; --ink: #1C2128; --muted: #59636E; --text-secondary: #3F4750; --text-disabled: #8C959F; --accent: #0969DA; --accent-hover: #0550AE; --accent-active: #033D8B; --accent-soft: #E7F0FB; --accent2: #8250DF; --chart-series-1: #0969DA; --chart-series-2: #8250DF; --chart-series-3: #06B6D4; --chart-series-4: #BF3989; --chart-other: #D8DEE4; --chart-accent: #0969DA; --chart-accent-2: #8250DF; --chart-positive: #1A7F37; --chart-warning: #BF8700; --chart-negative: #CF222E; --chart-grid: rgba(28, 33, 40, 0.10); --chart-axis: #59636E; --chart-label: #59636E; --chart-tooltip-bg: #FFFFFF; --success: #1A7F37; --info: #0969DA; --reminder: #BC4C00; --warning: #BF8700; --danger: #CF222E; --positive: #1A7F37; --negative: #CF222E; }
+:root { --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px; --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 999px; --font-sans: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif; --font-serif: Georgia, 'Times New Roman', serif; --font-mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Courier New', monospace; --font-metric: var(--font-sans); --max: 960px; }
+*, ::before, ::after { box-sizing: border-box; margin: 0px; padding: 0px; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body { font-family: var(--font-sans); color: var(--ink); background: var(--bg); line-height: 1.7; font-size: 14px; padding: 2rem 0px; }
+article.page { width: 100%; }
+.page__content, .report-intro__surface { width: calc(100% - 2rem); max-width: var(--max); margin: 0px auto; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--page-surface-muted); border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: 1px 5px; color: var(--page-brand-active); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.report-intro { margin-bottom: var(--space-7); }
+.report-intro__surface { position: relative; isolation: isolate; overflow: hidden; color: var(--page-brand-text); background: var(--page-brand-soft); border-radius: var(--radius-lg); padding: var(--space-7); }
+.report-intro__content { position: relative; z-index: 1; max-width: 780px; }
+.report-intro__surface::before, .report-intro__surface::after { content: ""; position: absolute; z-index: 0; pointer-events: none; }
+.report-intro__surface::before { width: 180px; height: 180px; top: -72px; right: -48px; border-radius: 50%; background: var(--page-brand-soft-strong); opacity: 0.72; }
+.report-intro__surface::after { width: 136px; height: 96px; right: 96px; bottom: -36px; border-radius: var(--radius-lg); background: var(--page-surface); opacity: 0.58; transform: rotate(-8deg); }
+.report-intro__kicker { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--page-brand); margin-bottom: var(--space-3); }
+.report-intro h1 { font-size: 26px; line-height: 1.3; overflow-wrap: anywhere; }
+.report-intro__summary { max-width: 72ch; margin-top: var(--space-3); color: var(--page-text-secondary); font-size: 15px; }
+.report-intro__meta { margin-top: var(--space-4); font-size: 12px; color: var(--page-text-muted); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+@media (max-width: 768px) {
+  body { padding: 1rem 0px; }
+  .report-intro__surface { padding: var(--space-5); }
+  .report-intro__surface::before { width: 124px; height: 124px; top: -44px; right: -52px; opacity: 0.38; }
+  .report-intro__surface::after { display: none; }
+  .report-intro h1 { font-size: 21px; }
+}
+@media print, (forced-colors: active) {
+  .report-intro__surface::before, .report-intro__surface::after { display: none; }
+}
+section { margin-bottom: var(--space-7); }
+h2 { font-size: 20px; line-height: 1.35; margin-bottom: var(--space-3); }
+h3 { font-size: 16px; line-height: 1.4; margin: var(--space-5) 0 var(--space-2); }
+p { margin-bottom: var(--space-3); color: var(--text-secondary); }
+section > p { max-width: none; }
+ul.flat { list-style: none; margin: var(--space-2) 0 var(--space-4); }
+ul.flat li { padding-left: 1.1em; position: relative; margin: 5px 0px; color: var(--text-secondary); }
+ul.flat li::before { content: "–"; position: absolute; left: 0px; color: var(--page-brand); }
+strong { color: var(--ink); }
+figure.tablefig { margin: var(--space-4) 0 var(--space-5); }
+figcaption { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: var(--space-2); }
+.table-note { font-size: 12px; color: var(--page-text-muted); margin-top: var(--space-2); }
+table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 13.5px; }
+th, td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+thead th { background: var(--page-surface); color: var(--ink); font-weight: 600; border-bottom: 1.5px solid var(--page-border); }
+tbody tr:hover td { background: var(--page-surface); }
+td .mod { font-family: var(--font-mono); font-size: 12.5px; color: var(--page-brand-active); }
+.tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 9px; border-radius: var(--radius-pill); border: 1px solid var(--page-border); color: var(--text-secondary); background: var(--page-surface); white-space: nowrap; }
+.tag--ok { color: var(--success); border-color: rgba(26, 127, 55, 0.45); background: rgba(26, 127, 55, 0.07); }
+.tag--warn { color: var(--warning); border-color: rgba(191, 135, 0, 0.5); background: rgba(191, 135, 0, 0.08); }
+.tag--need { color: var(--danger); border-color: rgba(207, 34, 46, 0.45); background: rgba(207, 34, 46, 0.07); }
+.callout { border: 1px solid var(--page-border); background: var(--page-surface); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin: var(--space-4) 0; font-size: 13.5px; }
+.callout__label { font-weight: 700; font-size: 12px; letter-spacing: 0.05em; margin-bottom: 4px; }
+.callout--risk .callout__label { color: var(--danger); }
+.callout--note .callout__label { color: var(--info); }
+.callout--warn .callout__label { color: var(--warning); }
+.callout p:last-child { margin-bottom: 0px; }
+.step { border: 1px solid var(--page-border); border-radius: var(--radius-lg); background: var(--page-surface); padding: var(--space-5); margin: var(--space-4) 0; }
+.step__head { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
+.step__id { font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--page-brand); }
+.step__title { font-size: 16px; font-weight: 700; color: var(--ink); }
+.step__meta { font-size: 12px; color: var(--page-text-muted); margin-left: auto; font-family: var(--font-mono); }
+.step__grid { display: grid; grid-template-columns: 96px 1fr; gap: 4px var(--space-3); font-size: 13.5px; margin-top: var(--space-3); }
+.step__grid dt { font-weight: 600; color: var(--page-text-muted); font-size: 12.5px; padding-top: 1px; }
+.step__grid dd { color: var(--text-secondary); }
+.step__grid dd ul { list-style: none; }
+.step__grid dd ul li { padding-left: 1em; position: relative; margin: 3px 0px; }
+.step__grid dd ul li::before { content: "·"; position: absolute; left: 0.2em; font-weight: 700; color: var(--page-brand); }
+.step__board { margin-top: var(--space-3); font-size: 13px; border: 1px dashed var(--page-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-secondary); background: var(--page-bg); }
+.step__board b { color: var(--ink); }
+@media (max-width: 640px) {
+  .step__grid { grid-template-columns: 1fr; gap: 2px; }
+  .step__grid dt { margin-top: var(--space-2); }
+  .step__meta { margin-left: 0px; width: 100%; }
+}
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: var(--space-3) 0 var(--space-5); }
+.flow__node { font-size: 12.5px; font-weight: 600; border: 1px solid var(--page-border); background: var(--page-surface); border-radius: var(--radius-md); padding: 4px 10px; color: var(--ink); }
+.flow__node--key { border-color: var(--page-brand); color: var(--page-brand-active); background: var(--page-brand-soft); }
+.flow__arrow { color: var(--page-text-disabled); font-size: 13px; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin: var(--space-4) 0; }
+.metric { border: 1px solid var(--page-border); border-radius: var(--radius-lg); background: var(--page-surface); padding: var(--space-4); }
+.metric__v { font-family: var(--font-metric); font-size: 24px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.metric__l { font-size: 12px; color: var(--page-text-muted); margin-top: 2px; }
+@media (max-width: 768px) {
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+}
+footer { border-top: 1px solid var(--rule); padding-top: var(--space-5); margin-top: var(--space-7); }
+footer h2 { font-size: 15px; }
+.sources ol { padding-left: 1.4em; font-size: 12.5px; color: var(--page-text-muted); }
+.sources li { margin: 4px 0px; overflow-wrap: anywhere; }
+sup a { font-size: 0.75em; }
+@media print {
+  body { padding: 0px; font-size: 12px; }
+  .step, .callout, .metric { break-inside: avoid; }
+}
+:root { --trae-layer-image-download: 89990; --trae-layer-browser-inspect-overlay: 90000; --trae-layer-browser-inspect-highlight: 90010; --trae-layer-browser-inspect-action: 90020; --trae-layer-text-selection-action: 90030; --trae-layer-edit-tooltip: 100095; }
+:root, [data-trae-theme="dark"] { --trae-bg-base-default: #171717; --trae-bg-menu: #222427; --trae-bg-overlay-l1: rgba(255, 255, 255, 0.04); --trae-bg-overlay-l2: rgba(255, 255, 255, 0.08); --trae-bg-overlay-l3: rgba(255, 255, 255, 0.12); --trae-bg-overlay-l4: rgba(255, 255, 255, 0.16); --trae-bg-invert: #f5f9fe; --trae-bg-invert-hover: #e8ecf0; --trae-bg-invert-active: #dce0e4; --trae-bg-invert-disabled: rgba(224, 226, 242, 0.12); --bg-bg-brand-disabled: rgba(75, 63, 227, 0.35); --bg-bg-brand-popup: rgba(106, 111, 255, 0.15); --trae-border-l1: #e0e2f217; --trae-border-l2: rgba(255, 255, 255, 0.12); --trae-border-l3: rgba(255, 255, 255, 0.08); --trae-border-neutral-l3: rgba(229, 229, 229, 0.20); --trae-border-brand: #6a6fff; --trae-text-default: #f5f9fe; --trae-text-default-hover: #f5f9fe; --trae-text-default-active: #f5f9fe; --trae-text-secondary: rgba(245, 249, 254, 0.5); --trae-text-tertiary: rgba(245, 249, 254, 0.4); --trae-text-disabled: #666b75; --trae-text-onaccent: #222427; --trae-icon-default: #f5f9fe; --trae-icon-secondary: rgba(245, 249, 254, 0.5); --trae-icon-brand: #6a6fff; --icon-icon-brand: var(--trae-icon-brand); --trae-icon-onaccent: #222427; --trae-status-success: #22c55e; --trae-status-primary: #3b82f6; --trae-status-primary-default: #387bff; --trae-status-primary-surface-l1: rgba(53, 121, 255, 0.18); --trae-status-success-default: #33c192; --trae-status-success-surface-l1: rgba(0, 165, 110, 0.18); --trae-status-error-default: #f65a5a; --trae-status-error-surface-l1: rgba(246, 70, 70, 0.18); --trae-annotation-marker-bg: #4b3fe3; --trae-annotation-marker-text: #ffffff; --trae-annotation-region-border: var(--trae-status-primary-default); --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.32); --trae-panel-shadow: 0px 6px 24px -1px rgba(0, 0, 0, 0.16); --trae-floating-shadow: 0px 2px 8px 0px rgba(0, 0, 0, 0.2); --trae-shadow-elevation-50: 0 1px 2px -1px rgba(0, 0, 0, 0.45); --text-text-default: var(--trae-text-default); --text-text-onaccent: var(--trae-text-onaccent); --bg-bg-menu: var(--trae-bg-menu); --bg-bg-white: var(--trae-bg-menu); --bg-bg-invert: var(--trae-bg-invert); --bg-bg-invert-disabled: var(--trae-bg-invert-disabled); --bg-bg-overlay-l1: var(--trae-bg-overlay-l1); --bg-bg-overlay-l2: var(--trae-bg-overlay-l2); --bg-bg-overlay-l3: var(--trae-bg-overlay-l3); --border-border-neutral-l1: var(--trae-border-l1); --border-border-brand: var(--trae-border-brand); --border-border-brand-half: rgba(106, 111, 255, 0.4); --status-error-default: var(--trae-status-error-default); --status-error-surface-l1: var(--trae-status-error-surface-l1); --radius-radius-md-12: 12px; --spacers-spacer-0: 0; --spacers-spacer-6: 6px; }
+[data-trae-theme="light"] { --trae-bg-base-default: #fafafa; --trae-bg-menu: #ffffff; --trae-bg-overlay-l1: rgba(0, 0, 0, 0.04); --trae-bg-overlay-l2: rgba(0, 0, 0, 0.06); --trae-bg-overlay-l3: rgba(0, 0, 0, 0.08); --trae-bg-overlay-l4: rgba(0, 0, 0, 0.12); --trae-bg-invert: #1f2328; --trae-bg-invert-hover: #32383f; --trae-bg-invert-active: #444d56; --trae-bg-invert-disabled: rgba(115, 115, 115, 0.20); --bg-bg-brand-disabled: rgba(75, 63, 227, 0.22); --bg-bg-brand-popup: rgba(170, 183, 255, 0.36); --trae-border-l1: rgba(0, 0, 0, 0.1); --trae-border-l2: rgba(0, 0, 0, 0.12); --trae-border-l3: rgba(0, 0, 0, 0.08); --trae-border-neutral-l3: rgba(115, 115, 115, 0.36); --trae-border-brand: #4b3fe3; --trae-text-default: #1f2328; --trae-text-default-hover: #111214; --trae-text-default-active: #111214; --trae-text-secondary: rgba(31, 35, 40, 0.5); --trae-text-tertiary: rgba(31, 35, 40, 0.4); --trae-text-disabled: #a1a1a1; --trae-text-onaccent: #ffffff; --trae-icon-default: #1f2328; --trae-icon-secondary: rgba(31, 35, 40, 0.5); --trae-icon-brand: #4b3fe3; --icon-icon-brand: var(--trae-icon-brand); --trae-icon-onaccent: #ffffff; --trae-status-success: #22c55e; --trae-status-primary: #3b82f6; --trae-status-primary-default: #2f74ff; --trae-status-primary-surface-l1: rgba(47, 116, 255, 0.12); --trae-status-success-default: #15a877; --trae-status-success-surface-l1: rgba(64, 176, 139, 0.12); --trae-status-error-default: #e8463a; --trae-status-error-surface-l1: rgba(232, 70, 58, 0.12); --trae-annotation-marker-bg: #4b3fe3; --trae-annotation-marker-text: #ffffff; --trae-annotation-region-border: var(--trae-status-primary-default); --trae-region-outside-mask-bg: rgba(0, 0, 0, 0.18); --trae-panel-shadow: 0px 6px 24px -1px rgba(24, 24, 24, 0.06); --trae-floating-shadow: 0px 2px 8px 0px rgba(24, 24, 24, 0.2); --trae-shadow-elevation-50: 0 1px 2px -1px rgba(24, 24, 24, 0.08); --text-text-default: var(--trae-text-default); --text-text-onaccent: var(--trae-text-onaccent); --bg-bg-menu: var(--trae-bg-menu); --bg-bg-white: var(--trae-bg-menu); --bg-bg-invert: var(--trae-bg-invert); --bg-bg-invert-disabled: var(--trae-bg-invert-disabled); --bg-bg-overlay-l1: var(--trae-bg-overlay-l1); --bg-bg-overlay-l2: var(--trae-bg-overlay-l2); --bg-bg-overlay-l3: var(--trae-bg-overlay-l3); --border-border-neutral-l1: var(--trae-border-l1); --border-border-brand: var(--trae-border-brand); --border-border-brand-half: rgba(75, 63, 227, 0.4); --status-error-default: var(--trae-status-error-default); --status-error-surface-l1: var(--trae-status-error-surface-l1); --radius-radius-md-12: 12px; --spacers-spacer-0: 0; --spacers-spacer-6: 6px; }
+@keyframes trae-spin { 
+  100% { transform: rotate(360deg); }
+}
+@keyframes trae-edit-bar-enter { 
+  0% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0px) scale(1); }
+}
+@keyframes trae-edit-bar-leave { 
+  0% { opacity: 1; transform: translateY(0px) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+@keyframes trae-edit-panel-leave { 
+  0% { opacity: 1; transform: translateY(0px) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+.trae-edit-mode-active:not(.trae-edit-mode-dragging) body :not([data-trae-edit-ui]):not([data-trae-edit-ui] *) { transition: none !important; animation-play-state: paused !important; }
+.trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel), .trae-edit-mode-reorder-hit-test [data-trae-edit-ui]:not(.trae-edit-pointer-shield):not(.trae-edit-panel) * { pointer-events: none !important; }
+.trae-browser-inspect-overlay { position: fixed; top: 0px; left: 0px; width: 100%; height: 100%; z-index: var(--trae-layer-browser-inspect-overlay); pointer-events: auto; background: transparent; }
+.trae-browser-inspect-highlight-box { position: absolute; top: 0px; left: 0px; z-index: var(--trae-layer-browser-inspect-highlight); display: none; }
+.trae-browser-inspect-highlight-tag { position: absolute; left: 0px; top: 0px; height: 18px; padding: 0px 6px; box-sizing: border-box; border-radius: 4px; background-color: var(--trae-status-success-default); color: var(--trae-text-onaccent); font-size: 12px; font-weight: 400; display: none; align-items: center; z-index: var(--trae-layer-browser-inspect-action); }
+.trae-browser-inspect-highlight-box-show { display: flex; }
+.trae-browser-inspect-highlight-tag.trae-browser-inspect-highlight-box-show { display: none; }
+.trae-browser-inspect-select-button.trae-browser-inspect-highlight-box-show { display: block !important; }
+.trae-browser-inspect-select-button { position: absolute; top: 0px; left: 0px; display: none; z-index: var(--trae-layer-browser-inspect-action); }
+.trae-browser-inspect-select-highlight-box { background: transparent !important; }
+.trae-browser-inspect-select-highlight-box .trae-browser-inspect-highlight-tag { background-color: var(--trae-status-success-default); }
+.trae-add-to-chat-card { display: block; overflow: hidden; background: var(--trae-bg-menu); border: 1px solid var(--trae-border-l1); border-radius: 8px; box-shadow: var(--trae-floating-shadow); transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+.trae-add-to-chat-content { position: relative; width: max-content; }
+.trae-fade-exit { opacity: 0; transition: opacity 0.15s ease-out; }
+.trae-fade-enter { opacity: 1; transition: opacity 0.2s ease-in; }
+.trae-buttons-view { display: flex; align-items: center; gap: 6px; padding: 4px; background: transparent; }
+.trae-action-button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: transparent; border: none; border-radius: 4px; cursor: pointer; transform: none !important; transition: none !important; animation: auto ease 0s 1 normal none running none !important; }
+.trae-action-button:hover { background: var(--trae-bg-overlay-l2); }
+.trae-action-button:active { background: var(--trae-bg-overlay-l3); }
+.trae-action-button:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-action-button-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--trae-icon-default); flex-shrink: 0; }
+.trae-action-button-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--trae-text-default); white-space: nowrap; }
+.trae-edit-toolbar-button-active { background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important; color: var(--icon-icon-brand, #4b3fe3) !important; font-weight: bold !important; }
+.trae-edit-toolbar-button-active:hover { background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important; }
+.trae-edit-toolbar button[data-action="alignment-dropdown"]:hover, .trae-edit-toolbar button[data-action="text-align-dropdown"]:hover, .trae-edit-toolbar button[data-action="font-decrease"]:hover, .trae-edit-toolbar button[data-action="font-increase"]:hover, .trae-edit-toolbar button[data-action^="align-"]:hover { border-radius: 8px; background: var(--bg-bg-overlay-l1, rgba(115, 115, 115, 0.08)) !important; }
+.trae-edit-toolbar button[data-action="alignment-dropdown"]:active, .trae-edit-toolbar button[data-action="text-align-dropdown"]:active, .trae-edit-toolbar button[data-action="font-decrease"]:active, .trae-edit-toolbar button[data-action="font-increase"]:active, .trae-edit-toolbar button[data-action^="align-"]:active { border-radius: 8px; background: var(--bg-bg-overlay-l2, rgba(115, 115, 115, 0.12)) !important; }
+.trae-comment-input { background: transparent; color: var(--trae-text-default); caret-color: var(--trae-text-default); }
+.trae-comment-input::placeholder { color: var(--trae-text-tertiary); }
+.trae-point-edit-bar, .trae-point-comment-input-bar, .trae-comment-only-panel { transform-origin: center top; will-change: opacity, transform; }
+.trae-edit-panel:not(.trae-edit-panel-leave) { pointer-events: auto !important; }
+.trae-edit-bar-enter { animation: trae-edit-bar-enter var(--transition-normal, 0.18s cubic-bezier(0.2, 0, 0, 1)) both; }
+.trae-edit-bar-leave { pointer-events: none; animation: trae-edit-bar-leave var(--transition-fast, 0.14s ease) both; }
+.trae-edit-panel-leave { pointer-events: none; animation: trae-edit-panel-leave var(--transition-fast, 0.14s ease) both; }
+.trae-edit-panel [data-trae-tooltip] { position: relative; }
+.trae-edit-panel [data-trae-tooltip]::after { content: attr(data-trae-tooltip); position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: var(--trae-layer-edit-tooltip); padding: 6px 10px; border-radius: 6px; background: var(--trae-bg-invert, var(--bg-bg-invert)); color: var(--trae-text-onaccent, var(--text-text-onaccent)); box-shadow: var(--trae-floating-shadow); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0.039px; white-space: nowrap; pointer-events: none; box-sizing: border-box; opacity: 0; transform: translateX(-50%); visibility: hidden; }
+.trae-edit-panel [data-trae-tooltip]::before { content: ""; position: absolute; left: 50%; bottom: calc(100% + 5px); z-index: var(--trae-layer-edit-tooltip); width: 8px; height: 4px; background: var(--trae-bg-invert, var(--bg-bg-invert)); clip-path: polygon(0px 0px, 100% 0px, 50% 100%); transform: translateX(-50%); pointer-events: none; opacity: 0; visibility: hidden; }
+.trae-edit-panel [data-trae-tooltip]:hover::after, .trae-edit-panel [data-trae-tooltip]:focus-visible::after, .trae-edit-panel [data-trae-tooltip]:hover::before, .trae-edit-panel [data-trae-tooltip]:focus-visible::before { opacity: 1; visibility: visible; }
+.trae-comment-btn { justify-content: center; cursor: pointer; transition: background-color 0.15s; }
+.trae-comment-btn:disabled { cursor: not-allowed; }
+.trae-comment-btn:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-comment-btn-primary { background: var(--trae-bg-invert); color: var(--trae-text-onaccent); }
+.trae-comment-btn-primary:hover:not(:disabled) { background: var(--trae-bg-invert-hover); }
+.trae-comment-btn-primary:active:not(:disabled) { background: var(--trae-bg-invert-active); }
+.trae-comment-btn-primary:disabled { background: var(--trae-bg-invert-disabled); color: var(--trae-text-disabled); }
+.trae-comment-btn-secondary { background: var(--trae-bg-overlay-l2); color: var(--trae-text-default); }
+.trae-comment-btn-secondary:hover:not(:disabled) { background: var(--trae-bg-overlay-l3); }
+.trae-comment-btn-secondary:active:not(:disabled) { background: var(--trae-bg-overlay-l4); }
+.trae-comment-btn-secondary:disabled { background: var(--trae-bg-overlay-l2); color: var(--trae-text-disabled); }
+.trae-comment-btn-text { background: transparent; color: var(--trae-text-default); }
+.trae-comment-btn-text:hover:not(:disabled) { border-radius: 8px; background: var(--bg-bg-overlay-l1, var(--trae-bg-overlay-l1)); color: var(--trae-text-default-hover); }
+.trae-comment-btn-text:active:not(:disabled) { border-radius: 8px; background: var(--trae-bg-overlay-l2); color: var(--trae-text-default-active); }
+.trae-comment-btn-text:disabled { background: transparent; color: var(--trae-text-disabled); }
+.trae-marking-btn { justify-content: center; }
+.trae-marking-btn:hover:not(:disabled) { background: var(--trae-bg-overlay-l1) !important; }
+.trae-marking-btn-active { background: var(--bg-bg-brand-disabled, rgba(75, 63, 227, 0.22)) !important; color: var(--icon-icon-brand, var(--trae-icon-brand)) !important; }
+.trae-marking-btn-active:hover { background: var(--bg-bg-brand-popup, rgba(170, 183, 255, 0.36)) !important; color: var(--icon-icon-brand, var(--trae-icon-brand)) !important; }
+.trae-marking-btn:active:not(:disabled) { background: var(--trae-bg-overlay-l2) !important; }
+.trae-marking-btn:disabled { color: var(--trae-text-disabled) !important; cursor: not-allowed !important; }
+.trae-action-button-shortcut { display: flex; align-items: center; gap: 2px; color: var(--trae-icon-secondary); flex-shrink: 0; }
+.trae-shortcut-container { display: flex; align-items: center; gap: 2px; }
+.trae-shortcut-key { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 12px; color: var(--trae-icon-secondary); }
+.trae-add-to-chat-divider { width: 2px; height: 12px; padding: 0px 6px; box-sizing: content-box; background-clip: content-box; background-color: var(--trae-border-l2); flex-shrink: 0; }
+.trae-editor-view { display: flex; flex-direction: column; width: 320px; padding: 8px; background: transparent; }
+.trae-editor-text-container { display: flex; align-items: center; padding: 8px; background: var(--trae-bg-overlay-l1); border: 1px solid var(--trae-border-l3); border-radius: 4px; gap: 8px; }
+.trae-editor-textarea { flex: 1 1 0%; padding: 0px 2px; border: none; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 400; line-height: 20px; color: var(--trae-text-default); resize: none; outline: none; overflow-y: auto; max-height: 140px; }
+.trae-editor-textarea::placeholder { color: var(--trae-text-tertiary); }
+.trae-editor-action-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; max-height: 0px; opacity: 0; overflow: hidden; transition: max-height 0.2s ease-out, opacity 0.2s ease-out, margin-top 0.2s ease-out; }
+.trae-editor-action-bar-visible { max-height: 32px; opacity: 1; margin-top: 8px; }
+.trae-editor-cancel-button { display: flex; align-items: center; justify-content: center; height: 24px; padding: 0px 4px; background: var(--trae-bg-overlay-l2); border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.15s; }
+.trae-editor-cancel-button:hover { background: var(--trae-bg-overlay-l3); }
+.trae-editor-cancel-button:active { background: var(--trae-bg-overlay-l3); }
+.trae-editor-cancel-button:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-editor-cancel-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--trae-text-default); white-space: nowrap; padding: 0px 4px; }
+.trae-editor-submit-button { display: flex; align-items: center; justify-content: center; height: 24px; padding: 0px 8px; background: var(--trae-bg-invert); border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.15s; }
+.trae-editor-submit-button:hover { background: var(--trae-bg-invert-hover); }
+.trae-editor-submit-button:active { background: var(--trae-bg-invert-active); }
+.trae-editor-submit-button:focus-visible { outline: 2px solid var(--trae-status-primary); outline-offset: 1px; }
+.trae-editor-submit-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--trae-text-onaccent); white-space: nowrap; padding: 0px 4px; }
+.trae-editor-submit-icon { display: flex; align-items: center; justify-content: center; width: 12px; height: 12px; color: var(--trae-icon-onaccent); flex-shrink: 0; }
+.trae-success-view { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0px 12px; height: 32px; white-space: nowrap; }
+.trae-success-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--trae-status-success); flex-shrink: 0; }
+.trae-success-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; font-weight: 400; line-height: 18px; color: var(--trae-text-default); user-select: none; }</style></head>
+<body>
+  <article class="page">
+    <header class="report-intro">
+      <div class="report-intro__surface">
+        <div class="report-intro__content">
+          <div class="report-intro__kicker">AMD 自主选题赛道 · 纯仿真路线 · 实施手册 V3.0 的裁剪分支</div>
+          <h1>AMD Zynq 跳频/SDR 抗干扰通信系统<br>分步骤实现方案（无板级验证版）</h1>
+          <p class="report-intro__summary">全部 RTL 设计、模块级位真验证、全链路环回、PS/PL 协同仿真、综合实现与时序收敛均可在<strong>零硬件</strong>条件下完成；但射频配置真实行为、排针信号完整性、过空链路、真实干扰环境、跳同步实测与长期稳定性六类验证点<strong>物理上离不开板卡</strong>——本方案对每一处给出仿真替代手段、可信度上限，以及将来补做板级验证的最小入口。</p>
+          <div class="report-intro__meta">
+            <span>版本 V3.0-SIM</span>
+            <span>日期 2026-09-15</span>
+            <span>目标器件 XC7Z020（Zynq-7000）</span>
+            <span>工具链 Vivado / Vitis 2021.2（本队现有环境，版本决策见 S0）</span>
+            <span>验证基线 MATLAB 浮点黄金参考</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="page__content">
+      <main>
+        <!-- ============================== §1 边界 ============================== -->
+        <section id="boundary">
+          <h2>1. 方案边界：纯仿真能证明什么，不能证明什么</h2>
+          <p>本方案是《AMD 移植实施手册 V3.0》的<strong>裁剪分支</strong>：所有涉及开发板、AD9363 实物、频谱仪、过空测试的步骤全部移出执行路径，验证手段统一收敛为四级仿真（浮点参考 → 模块位真 → 链路环回 → 协同仿真）加工具链静态报告（综合、时序、功耗）。通信算法的功能正确性、定点化损失、跳频逻辑、抗干扰闭环的逻辑行为，均可在仿真域内达到与板级等价的<strong>比特级</strong>置信度。</p>
+          <p>必须诚实面对的部分：仿真模型是"理想化世界"。凡涉及<strong>物理层真实行为</strong>的结论（射频芯片内部校准、走线信号完整性、真实信道、器件温漂、软件长稳），仿真只能验证"协议/逻辑对不对"，无法验证"物理上通不通"。这些点在第 4 章逐条列明。</p>
+
+          <div class="metrics">
+            <div class="metric"><div class="metric__v">11</div><div class="metric__l">执行步骤 S0–S10（全部纯软件可完成）</div></div>
+            <div class="metric"><div class="metric__v">14+2</div><div class="metric__l">RTL 模块（14 移植 + axi_regs / ps_link 新增）</div></div>
+            <div class="metric"><div class="metric__v">10</div><div class="metric__l">板级验证依赖点 BV-01–BV-10（第 4 章）</div></div>
+            <div class="metric"><div class="metric__v">≈95</div><div class="metric__l">总人日（较含板级版约省 30%）</div></div>
+          </div>
+
+          <h3>验证金字塔与置信度分层</h3>
+          <div class="flow">
+            <span class="flow__node">L0 浮点黄金参考</span><span class="flow__arrow">→</span>
+            <span class="flow__node">L1 定点模型</span><span class="flow__arrow">→</span>
+            <span class="flow__node flow__node--key">L2 模块位真比对</span><span class="flow__arrow">→</span>
+            <span class="flow__node flow__node--key">L3 全链路 RTL 环回</span><span class="flow__arrow">→</span>
+            <span class="flow__node">L4 PS/PL 协同仿真</span><span class="flow__arrow">→</span>
+            <span class="flow__node">L5 综合/时序/功耗报告</span><span class="flow__arrow">→</span>
+            <span class="flow__node flow__node--key">L6 板级实测（本方案不执行）</span>
+          </div>
+          <figure class="tablefig">
+            <figcaption>表 1 · 置信度声明：每类结论在纯仿真路线下的可靠程度</figcaption>
+            <table>
+              <thead><tr><th style="width:24%">结论类型</th><th style="width:14%">置信度</th><th>依据</th></tr></thead>
+              <tbody>
+                <tr><td>算法功能正确性（编译码、同步、跳频、感知逻辑）</td><td><span class="tag tag--ok">可信</span></td><td>L2/L3 与黄金参考逐比特比对，覆盖 10⁶–10⁸ 样本与异常注入</td></tr>
+                <tr><td>定点化性能损失（BER 相对浮点差 ≤0.5 dB）</td><td><span class="tag tag--ok">可信</span></td><td>L3 环回 BER 曲线与浮点叠图，仿真域内结论完整</td></tr>
+                <tr><td>时序收敛（61.44 MHz 基带等全部时钟域）</td><td><span class="tag tag--ok">可信</span></td><td>Vivado 静态时序分析（STA）本身就是签收级验证，不依赖上板<sup><a href="#cite-3">[3]</a></sup></td></tr>
+                <tr><td>资源占用（LUT/DSP48/BRAM36）</td><td><span class="tag tag--ok">可信</span></td><td>实现报告 report_utilization 为确定性数据</td></tr>
+                <tr><td>PS/PL 寄存器接口逻辑</td><td><span class="tag tag--ok">可信</span></td><td>Zynq VIP + AXI VIP 在仿真中运行真实 PS 软件读写<sup><a href="#cite-3">[3]</a></sup></td></tr>
+                <tr><td>AD9363 协议层正确性（SPI 时序、寄存器序列）</td><td><span class="tag tag--warn">降一级</span></td><td>行为模型验证协议；芯片内部校准/锁定行为不可仿真（BV-01）</td></tr>
+                <tr><td>功耗、温升、长期稳定性</td><td><span class="tag tag--need">不可下结论</span></td><td>仅有估算值；实测依赖板级（BV-08/BV-09）</td></tr>
+                <tr><td>过空链路指标（真实 BER、捕获时间、抗干扰增益）</td><td><span class="tag tag--need">不可下结论</span></td><td>仿真信道为理想化模型；T1–T10 实测列空缺（BV-04/05/06）</td></tr>
+              </tbody>
+            </table>
+          </figure>
+
+          <div class="callout callout--warn">
+            <div class="callout__label">对竞赛提交的直接影响（先想清楚再走这条路）</div>
+            <p>AMD 赛道 3.3.5.2 要求提交"上板工程与实测结果比对"，评测权重中"功能正确性与设计完整性（20 分）"默认以实测为准<sup><a href="#cite-1">[1]</a></sup>。纯仿真路线下该项只能以"仿真域验证报告"替代，<strong>会损失相当分数</strong>。本方案适用于三种情形：① 板卡未到货前的并行推进；② 课程设计/预研性质交付；③ 后续有补做板级验证的计划（第 4 章给出每项的最小补做入口）。若以竞赛评奖为唯一目标，请按 V3.0 主手册执行。</p>
+          </div>
+        </section>
+
+        <!-- ============================== §2 总览 ============================== -->
+        <section id="overview">
+          <h2>2. 步骤总览与板级依赖一览</h2>
+          <p>十一个步骤线性推进，其中 S2（验证基础设施）是本方案相对 V3.0 新增的<strong>关键前置</strong>：没有板卡，就必须先把"板卡的仿真替身"建出来——AD9363 行为模型、信道模型、干扰注入源、PS 侧 VIP 环境。依赖标记含义：<span class="tag tag--ok">纯仿真闭环</span> 该步结论在仿真域内完整；<span class="tag tag--warn">仿真替代·降级</span> 仿真可覆盖逻辑但置信度降一级；<span class="tag tag--need">遗留板级闸</span> 该步产出的结论必须经板级复核才生效。</p>
+          <figure class="tablefig">
+            <figcaption>表 2 · 步骤总览（工期为 3 人队合计人日）</figcaption>
+            <table>
+              <thead><tr><th style="width:8%">步骤</th><th style="width:26%">内容</th><th style="width:12%">工期</th><th style="width:16%">板级依赖</th><th>核心交付物</th></tr></thead>
+              <tbody>
+                <tr><td><strong>S0</strong></td><td>环境、仓库与约束模板</td><td>4 人日</td><td><span class="tag tag--ok">纯仿真闭环</span></td><td>Vivado 工程模板、.xdc 约束模板、仓库骨架</td></tr>
+                <tr><td><strong>S1</strong></td><td>浮点黄金参考与定点化</td><td>8 人日</td><td><span class="tag tag--ok">纯仿真闭环</span></td><td>MATLAB 参考链、定点规格书、BER 基线曲线</td></tr>
+                <tr><td><strong>S2</strong></td><td>验证基础设施（本方案新增的关键前置）</td><td>10 人日</td><td><span class="tag tag--ok">纯仿真闭环</span></td><td>AD9363 行为模型、信道模型库、干扰注入源、VIP 环境</td></tr>
+                <tr><td><strong>S3</strong></td><td>射频配置模块 spi_master + ad9363_cfg</td><td>6 人日</td><td><span class="tag tag--need">遗留板级闸 BV-01</span></td><td>RTL + 协议级仿真报告</td></tr>
+                <tr><td><strong>S4</strong></td><td>发射链 5 模块</td><td>10 人日</td><td><span class="tag tag--ok">纯仿真闭环</span></td><td>5 模块 RTL + 位真比对报告</td></tr>
+                <tr><td><strong>S5</strong></td><td>接收链 3 模块</td><td>14 人日</td><td><span class="tag tag--ok">纯仿真闭环</span></td><td>3 模块 RTL + 位真比对报告</td></tr>
+                <tr><td><strong>S6</strong></td><td>跳频层（fh_ctrl / nco_hop / TOD / 捕获 / 同步状态机）</td><td>12 人日</td><td><span class="tag tag--warn">仿真替代·降级 BV-05</span></td><td>跳频层 RTL + 相位连续性断言报告</td></tr>
+                <tr><td><strong>S7</strong></td><td>抗干扰层（fft_scan + 黑名单判决）</td><td>8 人日</td><td><span class="tag tag--warn">仿真替代·降级 BV-06</span></td><td>感知闭环 RTL + 注入干扰验证报告</td></tr>
+                <tr><td><strong>S8</strong></td><td>全链路 RTL 环回（TX→RX 比特真）</td><td>10 人日</td><td><span class="tag tag--warn">仿真替代·降级 BV-04</span></td><td>仿真域 BER 曲线族、四配置对照数据</td></tr>
+                <tr><td><strong>S9</strong></td><td>PS/PL 协同仿真（axi_regs / ps_link）</td><td>8 人日</td><td><span class="tag tag--warn">仿真替代·降级 BV-08</span></td><td>寄存器映射表、PS 驱动逻辑验证报告</td></tr>
+                <tr><td><strong>S10</strong></td><td>顶层集成、实现、时序收敛、文档</td><td>15 人日</td><td><span class="tag tag--ok">纯仿真闭环</span></td><td>fhss_top、实现报告、设计报告验证章节</td></tr>
+              </tbody>
+            </table>
+            <div class="table-note">合计约 95 人日。S3–S7 为模块并行段，可按 A/B/C 三人分工重叠执行；关键路径为 S1 → S2 → S5 → S8。</div>
+          </figure>
+        </section>
+        <!-- ============================== §3 分步骤详述 ============================== -->
+        <section id="steps">
+          <h2>3. 分步骤实现方案（S0–S10）</h2>
+          <p>每张步骤卡含六个固定字段：目标 / 具体操作 / 工具与材料 / 交付物 / 验证方法 / 出口门槛。卡末"板级遗留"栏明确该步哪些结论悬置、对应第 4 章哪个 BV 条目。模块清单与移植策略与 V3.0 §02 矩阵完全一致，此处不重复，只写仿真路线下的执行差异。</p>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S0</span><span class="step__title">环境、仓库与约束模板</span><span class="step__meta">4 人日 · 全员</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>三人环境一致，空工程可综合可实现，仿真一键脚本跑通。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li>三人环境统一使用现有 <strong>Vivado ML 2021.2</strong>，版本号、操作系统与 IP 组件清单记入 <code>report/env.md</code>——版本合规结论与随之生效的两条纪律见下方"版本决策"<sup><a href="#cite-1">[1]</a></sup>；</li>
+                <li>新建空工程选定 XC7Z020CLG400 器件，跑通 综合→实现→bitstream 全流程；</li>
+                <li>仓库按赛道规范建英文目录 <code>src/ sim/ build/ board/ data/ skill/ report/</code>，MIT 或 Apache-2.0 协议，GitHub/Gitee 公开；</li>
+                <li>编写四时钟域 <code>.xdc</code> 约束模板（基带域：板载晶振→MMCM ~61.44 MHz / 控制面域：PS FCLK_CLK0 100 MHz / 射频采样域：AD9363 DATA_CLK=采样率 / SPI ≤20 MHz 伪域——SCLK 为 FCLK 分频输出，非独立 fabric 时钟），异步分组用 <code>set_clock_groups</code>（优于逐条 set_false_path：双向生效、自动覆盖派生时钟）。<b>勘误：</b>PS GEM 125 MHz 在 PS/MIO 域（PHY 挂 MIO，选板硬条件 C2），不进 PL xdc。模板已落地：<code>src/constraints/fhss_zynq_timing.xdc</code>（时序，跨板复用）+ <code>board/ax7020/fhss_zynq_pins.xdc</code>（引脚，每板一份）。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>Vivado / Vitis 2021.2（现有安装）、xsim、Git。</dd>
+              <dt>交付物</dt><dd>工程模板 tag v0.1、<code>src/constraints/fhss_zynq_timing.xdc</code> + <code>board/ax7020/fhss_zynq_pins.xdc</code>（引脚占位待原理图填入）、env.md。</dd>
+              <dt>验证方法</dt><dd>空工程实现通过；<code>report_timing_summary</code> 无未约束路径。</dd>
+              <dt>出口门槛</dt><dd>三机各自独立完成模板工程全流程；全部 IP 锁定 2021.2 版本号并记入 env.md；约束模板经评审冻结。</dd>
+            </dl>
+            <div class="callout callout--note">
+              <div class="callout__label">版本决策：使用现有 Vivado 2021.2，合规且代价可控</div>
+              <p>指南 3.3.3.1「工具限制」原文为"Vivado / Vitis 2026.1（推荐）或 2025.2。如使用其他版本需在报告中说明并保证脚本可复现"<sup><a href="#cite-1">[1]</a></sup>——是<strong>推荐而非强制</strong>，现有 2021.2 合规，代价是两项义务：① <strong>报告声明</strong>——设计报告"开发环境"节写明 Vivado ML 2021.2 并说明理由（队内现有环境；Zynq-7000 为长生命周期器件族，XC7Z020 与本方案所用全部 IP 均获 2021.2 完整支持）；② <strong>脚本可复现</strong>——build/ 一键 Tcl 三机干净重建验证（本就是 S0 交付物，此处升格为指南义务）。技术上 2021.2 完整承载本方案：AXI VIP、FIR Compiler、CIC Compiler、FFT LogiCORE、blk_mem_gen、Clocking Wizard 均在 2021.2 IP 目录内，S9 所需 Zynq-7000 PS VIP 同样可用。两个长期注意：日后若在 2025.2/2026.1 环境打开工程（如决赛演示机），逐项核对 IP 升级报告并重跑 S8 环回比对确认行为一致；若 S8 的 10⁸ bit 规模环回出现 xsim 性能不足，再评估升级 2025.2（工程经 Tcl 迁移约 1 人日）。</p>
+            </div>
+            <div class="step__board"><b>板级遗留：</b>无。JTAG 下载、引脚实测均不在本步范围；引脚表先按目标板原理图编制并评审，真实性留待 BV-02 复核。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S1</span><span class="step__title">浮点黄金参考与定点化</span><span class="step__meta">8 人日 · 队员 A 主导</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>产出全系统唯一的正确性基准：浮点参考链 + 各模块定点接口规格。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li>直接沿用 V2.1/V3.0 已归档的 MATLAB 浮点链（卷积 (171,133)₈ / 交织 10 / QPSK / SRRC α=0.35 / AWGN / 同步 / 译码），重跑并确认 BER 曲线与归档版逐点一致；</li>
+                <li>逐模块定点化：位宽、量化方式、溢出策略写入《定点规格书》，关键节点（SRRC 输出、CIC 各级、Viterbi 度量）导出定点 vs 浮点 SNR 损失表；</li>
+                <li>生成全链路定点参考模型，作为 L3 环回的比对基准。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>MATLAB（或 Python：numpy/scipy/commpy 备选）。</dd>
+              <dt>交付物</dt><dd>参考链工程、定点规格书、BER 基线曲线图。</dd>
+              <dt>验证方法</dt><dd>浮点链与归档曲线一致；定点链相对浮点 BER 损失 ≤0.5 dB（Eb/N0 0–8 dB 扫描）。</dd>
+              <dt>出口门槛</dt><dd>定点规格书经全员评审冻结——后续每个模块的位真比对都以它为准，改动必须走变更流程。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b>无。黄金参考与平台无关，是纯仿真路线里最坚固的锚点。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S2</span><span class="step__title">验证基础设施：板卡的仿真替身</span><span class="step__meta">10 人日 · 全员（本方案关键前置）</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>建成四个可复用的仿真基础设施，使后续所有模块不依赖任何硬件即可完成验证。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li><strong>AD9363 SPI 行为模型</strong>：寄存器数组 + 读写状态机 + 回读校验，支持异常注入（超时、错误回读、复位中断）；寄存器默认值按 ADI 数据手册/参考配置表填写<sup><a href="#cite-4">[4]</a></sup>；</li>
+                <li><strong>信道模型库</strong>（testbench 内）：AWGN、载波频偏 CFO、采样率偏差 SFO、可选多径（瑞利/莱斯），参数全部可配置；</li>
+                <li><strong>干扰注入源</strong>：DDS 生成单音/多音/扫频/部分频带干扰，JSR 可标定，供 S7/S8 使用；</li>
+                <li><strong>PS/PL 协同仿真环境</strong>：Zynq VIP（Processing System VIP）+ AXI VIP 搭建，能在 xsim 中执行 PS 侧软件对 PL 寄存器的真实读写序列<sup><a href="#cite-3">[3]</a></sup>；</li>
+                <li><strong>自动比对框架</strong>：testbench 输出 vs MATLAB 参考逐拍比对、PASS/FAIL 统计、BER 曲线自动生成脚本（此框架本身即技能包素材）。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim、SystemVerilog、Zynq/AXI VIP、Python 后处理脚本。</dd>
+              <dt>交付物</dt><dd><code>sim/models/</code>（行为模型与信道库）、<code>sim/vip/</code>、比对框架脚本集。</dd>
+              <dt>验证方法</dt><dd>行为模型自测（写入-回读一致性）；信道模型输出与 MATLAB 同参数模型统计特性比对（均值/方差/频谱）；VIP 环境跑通最小读写 demo。</dd>
+              <dt>出口门槛</dt><dd>四件套全部通过自测并写 README；任意成员 10 分钟内可用模板起一个新模块 testbench。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b>AD9363 行为模型只覆盖<strong>数字接口协议</strong>，芯片内部校准状态机、BB PLL/RF PLL 锁定、ENSM 真实迁移时序无从仿真——见 BV-01。模型的寄存器语义正确性最终要靠真机回读背书。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S3</span><span class="step__title">射频配置模块：spi_master + ad9363_cfg</span><span class="step__meta">6 人日 · 队员 B</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>PL 硬件状态机配置 AD9363 的完整逻辑在仿真域验证完毕（0 软件参与的卖点保留）。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li><code>spi_master</code> 直移：≥1000 组随机向量，逐拍断言 SCLK 极性/相位、CSB 建立保持、位序；</li>
+                <li><code>ad9363_cfg</code> 表驱动状态机直移，cfg_rom 初始化转 Vivado coe/<code>$readmemh</code> 格式；</li>
+                <li>对接 S2 的 SPI 行为模型跑全量初始化序列：逐条比对（地址,数据,延时）三元组、回读路径、暂停/恢复、超时保护；</li>
+                <li>异常注入 ≥5 类：SPI 无应答、错误回读、中途复位、表项损坏、重复上电。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim + S2 行为模型。</dd>
+              <dt>交付物</dt><dd>两模块 RTL、仿真日志、异常注入覆盖报告。</dd>
+              <dt>验证方法</dt><dd>初始化序列逐条比对 100% 一致；异常注入下状态机可恢复或安全报错，无死锁（形式化角度：全部状态可达、无锁死环）。</dd>
+              <dt>出口门槛</dt><dd>仿真报告评审通过。<strong>注意：此门槛只证明"协议与逻辑正确"，不证明"真芯片能初始化"。</strong></dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b><strong>BV-01（强依赖）</strong>——真实 AD9363 的回读一致率、校准完成标志、PLL 锁定、20 次冷复位无卡死，必须真机复核。补做入口：V3.0 P2′-S3B/S4，半天可完成。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S4</span><span class="step__title">发射链：frame_tx / conv_enc / blk_inter / qpsk_map / srrc_duc</span><span class="step__meta">10 人日 · 队员 C + A</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>发射链五模块位真验证通过，且完成 FIR 的 IP vs 手写对比实验。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li><code>frame_tx</code>（Gold 同步字+帧头+256B+CRC16）、<code>conv_enc</code>（171,133）₈、<code>qpsk_map</code> 直移，纯逻辑零改动；</li>
+                <li><code>blk_inter</code> 存储 BSRAM→BRAM36（blk_mem_gen 或 RTL 推断），写行读列地址生成器不变；</li>
+                <li><code>srrc_duc</code> 中 31 抽头 SRRC 做两版：FIR Compiler（系数 coe 同源）与手写 DSP48E1 对称折叠；NCO 自研保留（为 S6 相位连续跳频留改造点，不用 DDS Compiler）；</li>
+                <li>IP vs 手写对比实验：资源/时序/输出误差三栏表，作为报告"性能与资源优化"章节素材。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim、FIR Compiler、blk_mem_gen、MATLAB 比对脚本。</dd>
+              <dt>交付物</dt><dd>5 模块 RTL、各模块位真比对报告、IP/自研对比表。</dd>
+              <dt>验证方法</dt><dd>frame_tx 1000 随机帧 0 错误；conv_enc 10⁶ bit 与参考 0 错误；blk_inter 还原 0 错误且突发 10 bit 打散 ≥10 码字位；SRRC 两版输出与定点参考逐拍一致、SFDR 仿真 ≤ −50 dBc。</dd>
+              <dt>出口门槛</dt><dd>五模块比对全过；对比表数据完整可入报告。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b>无实质性遗留。频谱 SFDR 在仿真中用理想 DAC 模型评估，真实发射频谱（含 AD9363 模拟链路）见 BV-03。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S5</span><span class="step__title">接收链：ddc_rx / sync_rx / viterbi_dec</span><span class="step__meta">14 人日 · 队员 B + A（关键路径）</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>接收链三模块位真验证通过，同步环参数冻结。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li><code>ddc_rx</code>：CIC 抽取（CIC Compiler 或手写）+ 匹配 FIR（同 S4 双轨策略）；48bit 累加改 DSP48E1 级联，注意流水级对齐；</li>
+                <li><code>sync_rx</code>：二阶 Costas + 早迟门直移；testbench 注入 ±1 kHz 频偏 / 随机相偏 / ±20 ppm 符号率偏差；</li>
+                <li><code>viterbi_dec</code>：64 状态、5bit 软判决、回溯 96 直移，回溯存储 BSRAM→BRAM36（约 8 块）；AMD 无免费软判决 Viterbi IP，自研是既定决策；</li>
+                <li>与 MATLAB <code>vitdec</code> 同序列 BER 曲线叠图。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim、CIC Compiler、MATLAB 比对脚本。</dd>
+              <dt>交付物</dt><dd>3 模块 RTL、同步收敛报告、Viterbi BER 对比图。</dd>
+              <dt>验证方法</dt><dd>ddc 通带与发送 SRRC 匹配、60 dB 动态仿真无溢出；同步在 ±1 kHz 频偏下 ≤500 符号收敛；Viterbi 与浮点参考 BER 差 ≤0.5 dB、高 SNR 无误码平底。</dd>
+              <dt>出口门槛</dt><dd>三模块全过；环路参数写入定点规格书修订版。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b>无实质性遗留（接收链算法验证在仿真域完整）。真实 ADC 数据中的器件噪声、IQ 不平衡等模拟非理想因素见 BV-03/BV-04。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S6</span><span class="step__title">跳频层：fh_ctrl / nco_hop / TOD / 捕获 / 跳同步状态机</span><span class="step__meta">12 人日 · 队员 A + B</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>跳频子系统全部逻辑在仿真域闭环：图案正确、相位连续、同步状态机全覆盖。这是作品第一创新点。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li><code>fh_ctrl</code>：LFSR-16 直移，收发同种子 10⁶ 跳逐跳比对，16 信道驻留均匀性统计（偏差 &lt;±10%）；</li>
+                <li><code>nco_hop</code>：每跳仅更新 FTW、相位累加器不复位——testbench 用断言连续监测相位轨迹，3×10⁵ 跳无阶跃，FTW 生效延迟 &lt;1 µs；</li>
+                <li>TOD 时基：1 ms tick + 帧头携 TOD 外推跳沿，仿真验证对齐误差 ≤±0.25 跳周期；</li>
+                <li>同步字捕获：32bit Gold 滑动相关 + 恒虚警门限（噪声估计 × 系数）+ M/N 判决，统计检测概率 ≥99%、虚警 ≤1e-6 的 SNR 曲线；</li>
+                <li>跳同步状态机（扫描→捕获→跟踪→重捕）：强制遍历全部迁移边，证明无死锁。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim、SystemVerilog 断言（SVA）、Python 统计脚本。</dd>
+              <dt>交付物</dt><dd>跳频层全部 RTL、相位连续性断言报告、捕获性能曲线、状态机迁移覆盖报告。</dd>
+              <dt>验证方法</dt><dd>上述全部断言与统计在 100/500/1000 hop/s 三档下分别通过。</dd>
+              <dt>出口门槛</dt><dd>三档仿真全绿；创新点 1（相位连续跳频）有断言报告 + 相位轨迹图双证据。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b><strong>BV-05（降级）</strong>——仿真中收发共用理想时钟，真实系统的捕获 &lt;1 s / 重捕 &lt;2 s 指标受双方晶振 ppm 漂移、温漂与上电瞬态影响，仿真只能给"逻辑正确 + 理想时钟下的理论值"。补做入口：V3.0 P4′-S6，T4/T5 计时实测。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S7</span><span class="step__title">抗干扰层：fft_scan + 黑名单闭环</span><span class="step__meta">8 人日 · 队员 A + B</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>"感知—决策—跳频"片上闭环在仿真域完整演示：注入干扰 → 峰检 → 黑名单 → 跳频集剔除 → 链路保持。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li><code>fft_scan</code>：Xilinx FFT LogiCORE（1024 点流水线，免费）+ 加窗 + 多帧累积；IP 自带行为模型直接在 xsim 中验证；与浮点 FFT 逐 bin 比对（峰位误差 ≤1 bin、幅值差 ≤1 dB）；</li>
+                <li>可选对照：自研 FFT 移植版做资源/精度/开发量对比（报告加分素材）；</li>
+                <li>用 S2 干扰注入源施加单音/多音/扫频/部分频带干扰，JSR 0/5/10 dB 标定；</li>
+                <li>黑名单判决（噪底+余量门限）→ 位图 → 帧头版本号同步 → 跳频集剔除，全链路仿真观察"剔除-保持-干扰消失后恢复"全过程。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim、FFT LogiCORE、S2 干扰注入源。</dd>
+              <dt>交付物</dt><dd>感知闭环 RTL、注入干扰验证报告、四配置对照的仿真域数据（供 S8 成图）。</dd>
+              <dt>验证方法</dt><dd>干扰注入后 N 帧内黑名单生效且链路 BER 回落至基线；更新率 ≥10 次/s。</dd>
+              <dt>出口门槛</dt><dd>四类干扰场景闭环仿真全过；创新点 2（单芯片感知-决策-跳频闭环）有端到端仿真录像/波形证据。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b><strong>BV-06（降级）</strong>——注入干扰是"已知参数的合规干扰"，真实电磁环境中的干扰形态（非平稳、脉冲式、邻道泄漏）与标定手段（干扰机+频谱仪三方核对）无法仿真。补做入口：V3.0 P5′-S4，需第三块板/信号源与频谱仪档期。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S8</span><span class="step__title">全链路 RTL 环回与仿真域 BER 曲线族</span><span class="step__meta">10 人日 · 全员</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>TX→RX 完整 RTL 在信道模型下比特真贯通，产出本方案的核心证据资产：仿真域 BER 曲线族。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li>环回 testbench：发射链 → 信道模型（AWGN+CFO+SFO+多径）→ 接收链，灌 10⁸ bit 逐比特比对；</li>
+                <li>四配置对照实验：① 定频无 FEC ② 定频+FEC ③ 跳频+FEC+交织 ④ 全功能（+感知黑名单），在 JSR 0/5/10 dB 下各跑一轮；</li>
+                <li>RTL BER 与 S1 浮点/定点参考叠图，逐点偏差 ≤0.5 dB；</li>
+                <li>跳频模式下叠加 S7 干扰注入，验证端到端抗干扰增益。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim（10⁸ bit 规模建议批处理夜间跑）、Python 成图脚本。</dd>
+              <dt>交付物</dt><dd>环回 tb、仿真域 BER-JSR 曲线族 + 原始数据（<code>data/sim_ber/</code>）、四配置对照表。</dd>
+              <dt>验证方法</dt><dd>曲线族形态符合理论预期（跳频+FEC+交织较定频无 FEC 在 JSR 0 dB 改善 ≥1 个数量级——<strong>仿真域结论</strong>）。</dd>
+              <dt>出口门槛</dt><dd>四配置 × 三档 JSR 共 12 组数据齐全；与参考叠图偏差达标。此卡是"仿真不过禁上板"铁律的等价物：本方案里它就是终审。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b><strong>BV-04（降级）</strong>——曲线族是"理想信道下的理论性能"。真实过空链路的 T1（≥1 Mbps）、T2（BER&lt;1e-5）指标必须用双板实测回填。报告引用本曲线族时须标注"仿真域"。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S9</span><span class="step__title">PS/PL 协同仿真：axi_regs + ps_link</span><span class="step__meta">8 人日 · 队员 C</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>PS↔PL 寄存器通道与 PS 侧软件逻辑在无硬件条件下验证完毕。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li><code>axi_regs</code>：AXI4-Lite 从机寄存器堆（控制字：频率/增益/带宽/跳速/黑名单版本；状态字：BER/RSSI/同步态/频谱峰）；</li>
+                <li>用 S2 的 Zynq VIP 在仿真中执行真实 PS 软件序列：上电初始化 → 读状态字轮询 → 写控制字 → 验证 PL 行为即时响应；</li>
+                <li><code>ps_link</code> 的协议逻辑（socket 帧格式、状态字打包、命令解析）在 PS 侧用单元测试 + VIP 回路验证；</li>
+                <li>地址映射表写入 <code>report/regmap.md</code> 并冻结。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>xsim、Zynq VIP、AXI VIP、Vitis（编译 PS 测试程序）。</dd>
+              <dt>交付物</dt><dd>axi_regs RTL、regmap.md、协同仿真报告、PS 侧软件源码。</dd>
+              <dt>验证方法</dt><dd>VIP 环境下读写回环一致；非法地址/越界访问有确定行为；改配命令到 PL 生效的延迟在仿真中量测记录。</dd>
+              <dt>出口门槛</dt><dd>协同仿真报告通过；regmap 与 RTL、PS 软件三方一致。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b><strong>BV-08（降级）</strong>——VIP 验证的是"软件逻辑与接口时序"，真实 PYNQ/Linux 下的吞吐、内存水位、长稳、网络栈行为（lwIP 泄漏、PHY 抖动）只能在板上跑出来。另注意常见坑：PS 访问 PL 寄存器前必须先加载 bitstream 并使能 FCLK，此问题在 VIP 仿真中不会暴露。</div>
+          </div>
+
+          <div class="step">
+            <div class="step__head"><span class="step__id">S10</span><span class="step__title">顶层集成、实现收敛与文档交付</span><span class="step__meta">15 人日 · 全员</span></div>
+            <dl class="step__grid">
+              <dt>目标</dt><dd>fhss_top 全系统集成，实现报告数据齐备，产出纯仿真路线的全部交付物。</dd>
+              <dt>具体操作</dt><dd><ul>
+                <li>fhss_top 重构集成：Clocking Wizard（MMCM）出基带时钟，四时钟域约束全绿，挂接 axi_regs；</li>
+                <li>综合→实现迭代至时序收敛（违例不过夜，report_cdc 排查跨时钟域）；</li>
+                <li>产出资源表（LUT/DSP48/BRAM36 对照 V3.0 §06 预算）与功耗估算（report_power，标注为估算值）；</li>
+                <li>设计报告撰写：验证章节以 S8 曲线族 + S3–S9 各报告为证据，<strong>每项指标明确标注"仿真域"</strong>；</li>
+                <li>LLM 协作记录与技能包（golden-ref-compare、gowin2amd-porting、vivado-timing-triage 等）整理入 <code>skill/</code> 与 <code>report/llm_log/</code>；</li>
+                <li><code>build/</code> 一键 Tcl 重建脚本，请非本队同学从零复现一次。</li>
+              </ul></dd>
+              <dt>工具材料</dt><dd>Vivado 全流程、Git。</dd>
+              <dt>交付物</dt><dd>完整工程源码、仿真/验证结果集、综合与实现报告、设计报告、技能包、开源仓库。</dd>
+              <dt>验证方法</dt><dd>时序全绿 + 资源在预算内 + 陌生环境复现成功。</dd>
+              <dt>出口门槛</dt><dd>表 2 全部交付物齐备；报告中无"实测"字样的仿真结论（防止评审误判证据等级）。</dd>
+            </dl>
+            <div class="step__board"><b>板级遗留：</b>STA 时序与资源报告是签收级可信的；但"真实硬件上的时序余量行为"（工艺角/温度/电压下的实际 margin、异步接口的毛刺观测）只有 ILA 上板后才能看到——见 BV-07。bitstream 本身可正常生成，只是本方案不执行下载。</div>
+          </div>
+        </section>
+        <!-- ============================== §4 板级验证清单 ============================== -->
+        <section id="board-verification">
+          <h2>4. 需要板级验证的地方（BV-01 – BV-10）</h2>
+          <p>这是本方案的核心约束清单。每一项给出四栏信息：<strong>为什么仿真不够</strong>（物理原因）、<strong>本方案中的仿真替代</strong>（能做到什么程度）、<strong>可信度上限</strong>（剩余风险是什么）、<strong>最小补做入口</strong>（将来有板卡时，接到哪一步、需要什么设备、预计工时）。凡标注"影响竞赛指标"的条目，直接对应 V3.0 中 T1–T10 的实测列。</p>
+
+          <figure class="tablefig">
+            <figcaption>表 3 · 板级验证依赖点详表</figcaption>
+            <table>
+              <thead><tr>
+                <th style="width:9%">编号</th><th style="width:20%">验证点</th><th style="width:24%">为什么仿真不够</th><th style="width:22%">仿真替代与可信度上限</th><th>最小补做入口（设备 / 工时）</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><strong>BV-01</strong></td>
+                  <td><span class="tag tag--need">强依赖</span> AD9363 真实初始化与寄存器回读</td>
+                  <td>芯片内部的模拟校准状态机（BBPLL/RFPLL 锁定、Rx/Tx 正交校准、ENSM 迁移）是黑盒模拟行为，数据手册不公开时序细节，行为模型无法复制</td>
+                  <td>S2/S3 的 SPI 行为模型只能证明"协议与序列正确"。上限：若真机某寄存器语义与手册理解有偏差，整个初始化可能在真机上静默失败</td>
+                  <td>接 V3.0 P2′-S3B：板卡 + AD9363 模块 + JTAG；回读比对 + 20 次冷复位。约 0.5–1 天</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-02</strong></td>
+                  <td><span class="tag tag--need">强依赖</span> AD9363 数据接口时序与排针信号完整性</td>
+                  <td>CMOS DDR 数据口经 40pin 排针互连，走线延迟、回流地、串扰是纯物理问题；RTL 仿真里接口时序永远理想</td>
+                  <td>.xdc 的 set_input_delay/set_output_delay 约束 + STA 只能保证"FPGA 侧时序收敛"；排针通道质量无法约束。可用 IBIS 仿真部分预估，但无实物测量不算数</td>
+                  <td>接 V3.0 P2′-S4：数字环回误码 ≤1e-7 + ILA 眼图观测 + 逐级降采样率找稳定点。约 1–2 天；不过则触发 D0 兜底（Pluto）</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-03</strong></td>
+                  <td><span class="tag tag--need">强依赖</span> 射频模拟性能（EVM、相位噪声、RSSI 精度、AGC 真实动态）</td>
+                  <td>仿真中的 DAC/ADC/增益链路是理想模型；真实器件的噪声系数、IQ 不平衡、本振泄漏、非线性只存在于硬件</td>
+                  <td>S4 的 SFDR ≤ −50 dBc 是"理想 DAC"结论；真实发射谱含器件杂散。上限：链路预算与解调门限可能与仿真假设偏差数 dB</td>
+                  <td>接 V3.0 P2′-S5/S6：频谱仪观测单载波、双板过空 RSSI-距离曲线。约 1 天（含频谱仪档期预约）</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-04</strong></td>
+                  <td><span class="tag tag--need">强依赖</span> 过空链路端到端指标（T1 吞吐 / T2 BER）</td>
+                  <td>真实信道含非平稳多径、外部电磁环境、天线方向图与极化损耗，信道模型（AWGN/瑞利）只是统计近似</td>
+                  <td>S8 的 BER 曲线族是理论性能。上限：实测 BER 曲线整体右移 1–3 dB 属正常；曲线族形状（各配置间相对增益）通常保持</td>
+                  <td>接 V3.0 P3′-S9：双板 + 天线，1–3 m 过空，T1/T2 实测回填。约 2–3 天（含联调）</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-05</strong></td>
+                  <td><span class="tag tag--warn">降级</span> 跳同步真实捕获/重捕时间（T4/T5）</td>
+                  <td>仿真中收发共享理想时钟；真实系统双方晶振各自有 ppm 级频偏与温漂，上电瞬态、TOD 初始偏差只有真机上才存在</td>
+                  <td>S6 给出"理想时钟下的逻辑正确性 + 理论捕获时间"。上限：实测捕获时间可能略超 1 s 指标，需预留参数调优余量</td>
+                  <td>接 V3.0 P4′-S6：双板 50 次捕获平均 + 20 次断链重捕计时。约 1–2 天</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-06</strong></td>
+                  <td><span class="tag tag--warn">降级</span> 真实干扰环境下的抗干扰增益（T6/T7）</td>
+                  <td>注入干扰源是参数已知的合规波形；真实干扰（非平稳、脉冲式、扫频速率不确定、邻道泄漏）与 JSR 标定手段都依赖硬件环境</td>
+                  <td>S7/S8 的闭环逻辑与仿真域增益可信。上限：对未建模干扰形态（如超扫速、智能跟随式干扰）系统表现未知</td>
+                  <td>接 V3.0 P5′-S4：第三块板/信号源做干扰机 + 频谱仪三方标定 JSR 0/5/10 dB。约 2–3 天</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-07</strong></td>
+                  <td><span class="tag tag--warn">降级</span> 真实硬件上的时序余量行为</td>
+                  <td>STA 是签收级可信的，但它验证的是"约束覆盖下的静态余量"；异步接口毛刺、复位释放瞬态、工艺角实际 margin 需 ILA 在板观测</td>
+                  <td>S10 时序全绿即可认为数字部分可工作。上限：偶发的、概率极低的跨域毛刺在仿真中不可见（RTL 仿真无亚稳态）</td>
+                  <td>接 V3.0 P3′-S10/P5′-S5：ILA 抓关键异步节点 + 24 h 烤机观察错误计数。约 1 天 + 烤机等待</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-08</strong></td>
+                  <td><span class="tag tag--warn">降级</span> PS 侧软件真实行为（吞吐、长稳、网络栈）</td>
+                  <td>Zynq VIP 模拟的是总线事务级行为；真实 Linux/PYNQ 的调度、缓存、lwIP 内存管理、PHY 链路协商完全不在仿真内</td>
+                  <td>S9 验证了寄存器接口与协议逻辑。上限：GUI 刷新率、网络吞吐、72 h 内存水位均无数据</td>
+                  <td>接 V3.0 P5′-S5/P7′-S4：板上跑 ps_link + GUI，iperf 吞吐 + 24/72 h 长稳。约 1 天 + 烤机等待</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-09</strong></td>
+                  <td><span class="tag tag--warn">降级</span> 功耗与温升</td>
+                  <td>report_power 是基于翻转率假设的估算；真实功耗依赖实际数据翻转、环境散热、电源树效率</td>
+                  <td>S10 给出估算值并标注假设。上限：估算误差可达 ±20% 以上；无温升数据</td>
+                  <td>接 V3.0 P5′-S5：烤机时记录板卡温升与电源电流。约 0.5 天（搭在烤机里顺带做）</td>
+                </tr>
+                <tr>
+                  <td><strong>BV-10</strong></td>
+                  <td><span class="tag tag--warn">降级</span> 系统级演示与观感（GUI 实时性、瀑布图、干扰开/关对比）</td>
+                  <td>演示效果是"链路 + PS 软件 + GUI + 射频环境"的系统级涌现行为，任一环节的实测延迟都会改变观感</td>
+                  <td>本方案交付仿真波形与脚本化演示数据。上限：无实拍视频素材，演示视频只能用仿真录屏+解说替代</td>
+                  <td>接 V3.0 P6′-S5/P7′-S1：四段式演示脚本实拍 + 彩排。约 2–3 天</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="table-note">BV-01/02/03 为强依赖（不补做则相关结论不成立）；BV-04–BV-10 为降级项（仿真结论有效但降一级置信度）。补做合计约 10–14 天，与 V3.0 主手册的 P2′/P3′-S9/P4′-S6/P5′ 对应步骤完全兼容，可整体后移执行。</div>
+          </figure>
+
+          <div class="callout callout--risk">
+            <div class="callout__label">最大单点风险：BV-01 + BV-02</div>
+            <p>若最终要形成可工作的真实系统，AD9363 真机初始化（BV-01）与排针信号完整性（BV-02）是仅有的两个"仿真完全无法背书、且失败会阻断全链路"的点。好消息是两者的补做成本最低（合计约 2 天），且可以在板卡到货后第一时间独立完成，不依赖其余模块进度。</p>
+          </div>
+        </section>
+
+        <!-- ============================== §5 交付物与评审影响 ============================== -->
+        <section id="deliverables">
+          <h2>5. 纯仿真路线的交付物与评审影响</h2>
+          <h3>能完整交付的部分</h3>
+          <ul class="flat">
+            <li>完整工程源码（14+2 模块）+ 一键 Tcl 重建脚本 + 开源仓库（英文目录、MIT/Apache-2.0）；</li>
+            <li>仿真验证证据链：模块位真比对报告 ×10、异常注入覆盖报告、相位连续性断言报告、捕获性能曲线、仿真域 BER-JSR 曲线族（四配置 × 三档 JSR）；</li>
+            <li>综合与实现报告：时序收敛证据、资源占用表、功耗估算（标注假设）；</li>
+            <li>IP vs 自研对比实验数据（FIR/FFT 两组），支撑"性能与资源优化"章节；</li>
+            <li>AMD 赛道特有的 15 分材料：LLM 协作记录（日归档）+ skill/ 技能包（golden-ref-compare、gowin2amd-porting、vivado-timing-triage、ad936x-reg-check 等，仿真路线下反而更聚焦、更通用）；</li>
+            <li>设计报告：全部指标标注"仿真域"，诚实声明验证边界。</li>
+          </ul>
+          <h3>无法交付或降级的部分</h3>
+          <figure class="tablefig">
+            <figcaption>表 4 · 评测权重在纯仿真路线下的预计影响</figcaption>
+            <table>
+              <thead><tr><th style="width:26%">评测项（权重）</th><th style="width:14%">影响</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td>创新性与应用价值（30）</td><td><span class="tag tag--warn">部分保留</span></td><td>三大创新点叙事成立，仿真证据链完整；但"系统真的跑起来了"的说服力弱于实测演示</td></tr>
+                <tr><td>性能与资源优化（20）</td><td><span class="tag tag--ok">基本保留</span></td><td>IP vs 自研对比、资源表、时序收敛均为工具链确定性数据，不依赖板卡</td></tr>
+                <tr><td>功能正确性与设计完整性（20）</td><td><span class="tag tag--need">明显受损</span></td><td>赛道要求"上板工程与实测结果比对"<sup><a href="#cite-1">[1]</a></sup>；只能以仿真域验证报告替代，T1–T10 实测列空缺</td></tr>
+                <tr><td>大模型协作与技能包（15）</td><td><span class="tag tag--ok">完整保留</span></td><td>与是否上板无关；仿真路线的技能包甚至更通用</td></tr>
+                <tr><td>文档质量与可复现性（15）</td><td><span class="tag tag--ok">完整保留</span></td><td>开源仓库 + 一键重建 + 陌生环境复现均不依赖板卡</td></tr>
+              </tbody>
+            </table>
+          </figure>
+          <div class="callout callout--note">
+            <div class="callout__label">结论</div>
+            <p>纯仿真路线能保住 100 分中的约 50 分基本盘（优化 20 + 协作 15 + 文档 15）与部分创新分，但"功能正确性 20 分"与实测演示的缺失使它<strong>不适合作为竞赛评奖的最终形态</strong>。它的正确定位是：板卡到货前的全速推进方案，或后续补做板级验证的完整前置——因为本方案交付的仿真基础设施（行为模型、信道库、比对框架）在补做板级时一个都不会浪费。</p>
+          </div>
+        </section>
+
+        <!-- ============================== §6 建议 ============================== -->
+        <section id="recommendation">
+          <h2>6. 执行建议</h2>
+          <ul class="flat">
+            <li><strong>关键路径优先</strong>：S1 → S2 → S5 → S8 是主线，S2 的验证基础设施宁可多投 2 天也要一次建好，它决定后续所有步骤的验证质量；</li>
+            <li><strong>证据纪律</strong>：报告中每个指标必须携带"仿真域/实测"标签；仿真结论不许出现"达到""实测"等字样，这是纯仿真路线被评审信任的前提；</li>
+            <li><strong>最小补救策略</strong>：若赛程中段能借到任意一块 Zynq 板 + 一个 AD9363 模块（甚至一块 ADALM-PLUTO），优先补 BV-01 + BV-02（约 2 天），它们能以最小成本把"射频配置"从悬置结论变成实测结论，对报告说服力的提升性价比最高；</li>
+            <li><strong>与主手册的关系</strong>：本方案 S0–S10 全部产出（RTL、testbench、报告章节、技能包）与 V3.0 的 P0′–P6′ 完全同构，板卡到位后可无缝并入主手册流程，无返工风险；</li>
+            <li><strong>每周节奏不变</strong>：周一计划、周三自检、周五评审；评审时多过一道固定议程——表 3 的 BV 清单有无条目可降级（如借到设备）。</li>
+          </ul>
+        </section>
+      </main>
+      <footer>
+        <div class="sources">
+          <h2>参考来源</h2>
+          <ol>
+            <li id="cite-1">《全国大学生嵌入式芯片与系统设计竞赛 '2026 FPGA 赛道选题指南（AMD）》：3.3.3.1 工具限制（Vivado / Vitis 2026.1 推荐或 2025.2；其他版本需在报告中说明并保证脚本可复现）、3.3.5.2 提交内容（含上板实测比对要求）、评测权重（用户上传文档）</li>
+            <li id="cite-2">《基于 FPGA 的跳频/SDR 抗干扰通信系统 · 实施执行手册 V2.1（高云版）》与《AMD 移植实施手册 V3.0》（用户上传文档，本方案的设计基线）</li>
+            <li id="cite-3">AMD Vivado 文档：UG900（仿真，含 Zynq VIP / AXI VIP 使用）、UG949（UltraFast 设计方法学）、UG901/UG904（综合与实现）<a href="https://docs.amd.com/" target="_blank" rel="noopener">docs.amd.com</a></li>
+            <li id="cite-4">Analog Devices，AD9363 产品页与寄存器手册（70 MHz–6 GHz 捷变收发器）<a href="https://www.analog.com/cn/products/ad9363.html" target="_blank" rel="noopener">analog.com/cn/products/ad9363.html</a>；ADALM-PLUTO 开源 HDL 参考工程 <a href="https://github.com/analogdevicesinc/hdl" target="_blank" rel="noopener">github.com/analogdevicesinc/hdl</a></li>
+            <li id="cite-5">PYNQ 官方文档（PS/PL Overlay 与 register_map 机制）<a href="https://pynq.readthedocs.io/en/latest/index.html" target="_blank" rel="noopener">pynq.readthedocs.io</a></li>
+            <li id="cite-6">FPGA 创新设计赛道官网（报名与时间节点）<a href="http://www.fpgachina.cn/?type=0" target="_blank" rel="noopener">fpgachina.cn</a></li>
+          </ol>
+        </div>
+      </footer>
+    </div>
+  </article>
+
+
+<div data-trae-edit-ui="true" class="trae-image-download-btn" title="Download image" style="position: fixed; display: none; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: var(--trae-bg-menu, #222427); border: 1px solid var(--trae-border-l2, rgba(255,255,255,0.12)); box-shadow: var(--trae-floating-shadow, 0px 2px 8px 0px rgba(0,0,0,0.2)); color: var(--trae-icon-default, #f5f9fe); cursor: pointer; z-index: 89990; transition: background 0.15s; pointer-events: auto;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 2v8m0 0L5 7m3 3l3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></div></body></html>
