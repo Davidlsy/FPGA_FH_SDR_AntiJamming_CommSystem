@@ -27,6 +27,7 @@ usage_statistics*
 hs_err_pid*.log
 *.zip                  # 运行导出压缩包（勿与源码归档混淆）
 .Xil/                  # Vivado 临时目录
+build/vivado_smoke/
 
 # 检查点与比特流：大二进制，不入库；归档见文末 releases 规则
 *.dcp                  # design checkpoint
@@ -96,8 +97,8 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
-build/
-dist/
+sw/build/
+sw/dist/
 
 # ============ MATLAB 浮点参考链 ============
 *.asv                  # 自动保存文件
