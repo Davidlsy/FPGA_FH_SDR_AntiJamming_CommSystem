@@ -1,0 +1,31 @@
+﻿section,node,metric,float,fixed,loss_db_or_value,pass,note
+link_ber_point,ebn0_0dB,BER,1.010000e-01,1.060000e-01,ratio=1.0495,,
+link_ber_point,ebn0_1dB,BER,3.950000e-02,4.250000e-02,ratio=1.0759,,
+link_ber_point,ebn0_2dB,BER,5.142857e-03,5.142857e-03,ratio=1.0000,,
+link_ber_point,ebn0_3dB,BER,4.858491e-04,5.141509e-04,ratio=1.0583,,
+link_ber_point,ebn0_4dB,BER,1.550000e-05,1.750000e-05,ratio=1.1290,,
+link_ber_point,ebn0_5dB,BER,0.000000e+00,0.000000e+00,ratio=0.0000,,both_zero_or_no_errors
+link_ber_point,ebn0_6dB,BER,0.000000e+00,0.000000e+00,ratio=0.0000,,both_zero_or_no_errors
+link_ber_point,ebn0_7dB,BER,0.000000e+00,0.000000e+00,ratio=0.0000,,both_zero_or_no_errors
+link_ber_point,ebn0_8dB,BER,0.000000e+00,0.000000e+00,ratio=0.0000,,both_zero_or_no_errors
+link_snr_loss,full_chain,BER=1e-02,,,0.0113,YES,threshold=0.5dB
+link_snr_loss,full_chain,BER=5e-03,,,0.0003,YES,threshold=0.5dB
+link_snr_loss,full_chain,BER=2e-03,,,0.0098,YES,threshold=0.5dB
+link_snr_loss,full_chain,BER=1e-03,,,0.0171,YES,threshold=0.5dB
+link_snr_loss,full_chain,BER=5e-04,,,0.0204,YES,threshold=0.5dB
+link_snr_loss,full_chain,BER=2e-04,,,0.0217,YES,threshold=0.5dB
+link_snr_loss,full_chain,BER=1e-04,,,0.0255,YES,threshold=0.5dB
+link_snr_loss,full_chain,BER=1e-05,,,,,curve_does_not_reach_target
+gate,full_chain,max_snr_loss_among_reached_targets,,,0.0255,YES,threshold=0.5dB; unreached BER not counted
+node_theory,conv_encoder_out,"width=2,frac=0",卷积编码器输出,,quant_noise_power=8.333333e-02;step=1.000000e+00,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,interleaver_out,"width=2,frac=0",交织器输出,,quant_noise_power=8.333333e-02;step=1.000000e+00,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,qpsk_out,"width=12,frac=10",QPSK调制输出I/Q,,quant_noise_power=7.947286e-08;step=9.765625e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,srrc_out,"width=14,frac=11",SRRC输出,,quant_noise_power=1.986821e-08;step=4.882812e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,srrc_coeff,"width=12,frac=11",SRRC系数,,quant_noise_power=1.986821e-08;step=4.882812e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,awgn_out,"width=14,frac=11",AWGN信道输出,,quant_noise_power=1.986821e-08;step=4.882812e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,sync_out,"width=14,frac=11",同步输出,,quant_noise_power=1.986821e-08;step=4.882812e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,viterbi_metric,"width=8,frac=5",Viterbi分支度量,,quant_noise_power=8.138021e-05;step=3.125000e-02,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,viterbi_pm,"width=16,frac=5",Viterbi路径度量,,quant_noise_power=8.138021e-05;step=3.125000e-02,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,cic_stage1,"width=16,frac=11",,,quant_noise_power=1.986821e-08;step=4.882812e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,cic_stage2,"width=18,frac=11",,,quant_noise_power=1.986821e-08;step=4.882812e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"
+node_theory,cic_stage3,"width=20,frac=11",,,quant_noise_power=1.986821e-08;step=4.882812e-04,,"quant=round,overflow=saturate; empirical_node_loss=pending"

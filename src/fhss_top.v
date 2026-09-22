@@ -3,9 +3,7 @@
 // fhss_top : S0 smoke-test top level
 //-----------------------------------------------------------------------------
 // Purpose    : verify Vivado 2021.2 + xc7z020clg400-2 full flow
-//              (synthesis -> implementation -> bitstream). An empty project
-//              has no HDL source, so synthesis refuses to start with the
-//              "no HDL sources" error -- a minimal top is required.
+//              (synthesis -> implementation -> bitstream). 
 // Clock      : sys_clk = PL_GCLK1 (U18, 50 MHz single-ended, AX7Z020B
 //              manual sec 2.5)
 // Output     : led[3:0] binary heartbeat -- led[3] blinks at ~1.5 Hz
@@ -18,7 +16,6 @@
 //              board/fhss_zynq_pins.xdc (sys_clk + led pins filled)
 // Encoding   : pure ASCII English comments -- Vivado on Chinese Windows
 //              reads BOM-less files as GBK, UTF-8 Chinese comments garble;
-//              also required by the English open-source repo rule (3.3.3.3)
 //=============================================================================
 module fhss_top (
     input  wire       sys_clk,   // PL_GCLK1, U18, 50 MHz
