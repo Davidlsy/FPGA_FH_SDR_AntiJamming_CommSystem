@@ -11,5 +11,5 @@
     "docs/report/s1_archive_compare.md"
   ],
   "change_policy": "冻结后位宽/量化/溢出策略变更须走变更流程并重跑 sim/golden_ref",
-  "notes": "评审通过后将 status 改为 frozen，并填写 freeze_date（YYYY-MM-DD）"
+  "notes": "评审通过，已冻结"
 }
