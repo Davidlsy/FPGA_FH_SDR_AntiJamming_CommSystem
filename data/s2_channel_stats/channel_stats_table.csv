@@ -1,0 +1,33 @@
+# S2 信道模型库统计核验 · check_channel_stats.py 生成，勿手改
+# 场景参数来自 sim/models/channel/dump/channel_config.log
+# Eb/N0=4.0 dB  定点=14/11  抽头=4  PDP=3.0 dB/抽头  CFO=0.015625 cycle/sample  SFO=5000 ppm
+check,status,measured,expected,tolerance,note
+identity_bit_exact,PASS,mismatch=0,mismatch=0,0,全旁路逐位透明；拍数 in=2048 out=2048
+identity_beat_count,PASS,"in=2048,out=2048",2048 拍,0,
+awgn_es_consistent,PASS,1.000000000000,1.000000000000,1e-12,核验用参考信号的 Es 与模型参数 ES 一致
+awgn_sigma_matches_golden,PASS,0.446154216921,0.446154216921,rel 1e-9,信道噪声口径与 golden_ref.add_awgn 同源
+awgn_mean_i,PASS,1.122504e-03,0,6.971160e-03,N=65536
+awgn_std_i,PASS,0.445683,0.446154,rel 2%,每维 σ 对齐 golden_ref 现算值
+awgn_mean_q,PASS,2.744824e-03,0,6.971160e-03,N=65536
+awgn_std_q,PASS,0.446801,0.446154,rel 2%,每维 σ 对齐 golden_ref 现算值
+awgn_whiteness,PASS,0.009217,<0.015625,0.015625,噪声自相关（滞后 1..16）应近似为 0
+awgn_iq_independent,PASS,-0.003331,0,0.015625,
+awgn_psd_flatness,PASS,0.547 dB,<2.0 dB,2.0 dB,分段平均周期图 PSD 标准差；max-min=3.16 dB
+awgn_no_saturation,PASS,0 samples at rail,0,0,输入 ±1.0、Eb/N0=4.0 dB 下不应饱和
+cfo_phase_slope,PASS,0.098174770136,0.098174770425,rel 1e-4,归一化频偏 FTW/2^32=0.015625000 cycle/sample
+cfo_amplitude,PASS,max|A-1|=0.000212,0,0.001465,
+cfo_phase_continuity,PASS,std(dphase)=1.349e-04,<1e-3,1e-3,跳相或清零都会让逐拍相位增量出现离散跳变
+sfo_mu_drift,PASS,max dev=2.137e-15,μ_m = frac(m·0.005),1e-9,δ = 5000 ppm（精确依据：模型导出的 μ 序列）
+sfo_interp_uses_mu,PASS,max|y-(m+μ)|=0.500000,≤0.5001 code,0.5001,量子化台阶为 1 码，容差取半码
+sfo_slip_count,PASS,20,20±1,1,滑码 = μ 越过 1 的次数，随 ppm 线性增长
+mp_impulse_response,PASS,max err=0.000 code,0,1 code,冲激输入（+1.0）时的输出应等于抽头系数
+mp_tail_zero,PASS,max|tail|=0.000,0,1 code,抽头数之外的响应应为 0（延迟线长度足够）
+mp_pdp_normalized,PASS,0.999999999999,1,1e-9,功率延迟谱归一化：Σp_k = 1
+mp_rayleigh_pdp,PASS,max rel err=1.14%,各抽头 E|h_k|² = p_k,3%,N=16384 组独立抽头
+mp_rayleigh_power_conserved,PASS,0.994633,1.0,2%,Σ|h_k|² 的期望为 1
+mp_rayleigh_amp_ratio,PASS,0.788073,0.785398,0.015,瑞利幅度分布特征比 E[A]²/E[A²] = π/4
+mp_rayleigh_k_factor,PASS,-42.72 dB,<-20 dB,—,纯瑞利：K→0
+mp_rician_pdp,PASS,max rel err=1.14%,各抽头 E|h_k|² = p_k,3%,N=16384 组独立抽头
+mp_rician_power_conserved,PASS,1.000476,1.0,2%,Σ|h_k|² 的期望为 1
+mp_rician_amp_ratio,PASS,0.908679,>0.795398,—,莱斯分布下该比值高于 π/4
+mp_rician_k_factor,PASS,6.060 dB,6.000 dB,0.5 dB,K_est = |E[h]|²/E|h-E[h]|²（线性 K=3.981）

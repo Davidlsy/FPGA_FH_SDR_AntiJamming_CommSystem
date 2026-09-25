@@ -98,6 +98,9 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │
 ├── sim/                        # 【仿真】
 │   ├── tb_fhss_top.v           #   冒烟 testbench → [SMOKE] PASS/FAIL
+│   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
+│   ├── models/ad9363/          #   S2 AD9363 SPI 行为模型（板卡的仿真替身，自测 6 项）
+│   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径，29 项统计核验）
 │   ├── golden_ref/             #   S1 黄金参考链（Python 包 golden_ref）
 │   └── float_ref/              #   V2.x MATLAB 归档链重跑与对照
 │       ├── README.md           #     运行方式 / 路径约定 / 出口门槛

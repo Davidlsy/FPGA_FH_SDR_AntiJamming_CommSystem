@@ -1,0 +1,21 @@
+{
+  "module": "qpsk_map",
+  "case": "edge",
+  "count": 196,
+  "case_note": "边界用例：四星座点 + 全 0/全 1 连续段 + 最坏码型交替",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.fixed_modules.fixed_qpsk_modulate",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-09-25T16:08:00+08:00",
+  "stim": {
+    "bits": 2,
+    "packing": "{i_bit, q_bit}",
+    "frac": null
+  },
+  "expect": {
+    "bits": 24,
+    "packing": "{i_out[11:0], q_out[11:0]}",
+    "field_bits": 12,
+    "field_frac": 10
+  }
+}

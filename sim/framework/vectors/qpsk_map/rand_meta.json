@@ -1,0 +1,21 @@
+{
+  "module": "qpsk_map",
+  "case": "rand",
+  "count": 4096,
+  "case_note": "长随机序列 4096 符号（default_rng(seed=20260924)）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.fixed_modules.fixed_qpsk_modulate",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-09-25T16:08:00+08:00",
+  "stim": {
+    "bits": 2,
+    "packing": "{i_bit, q_bit}",
+    "frac": null
+  },
+  "expect": {
+    "bits": 24,
+    "packing": "{i_out[11:0], q_out[11:0]}",
+    "field_bits": 12,
+    "field_frac": 10
+  }
+}
