@@ -4,53 +4,89 @@
 # ==========================================================
 
 # ============ Vivado 工程 ============
-# *.xpr 工程文件建议提交（或用 Tcl 重建）；忽略用户级与运行产物
+# 决策：*.xpr 不入库，工程由 build/create_smoke_project.tcl 重建
+# （create_project -> synth -> impl -> bitstream）。该脚本每次运行都会
+# file delete -force 整个 build/vivado_smoke/，提交 .xpr 只会带来
+# 绝对路径/时间戳/工具版本噪声。
+# 注：*.xpr.user 需单独列出——「*.xpr」匹配不到「xxx.xpr.user」。
 *.xpr.user
 *.xpr
-*.cache/               # 综合缓存（可重建，体积大）
-*.hw/                  # 硬件管理器会话
-*.sim/                 # 仿真相关工程目录
-*.runs/                # 综合 / 实现运行目录（synth_1、impl_1 等）
-*.ip_user_files/       # IP 用户文件（可重建）
-*.gen/                 # 生成源目录（可重建）
-*.managed_ip_project/  # 独立 IP 工程
-*.jou                  # Vivado 会话 journal
+# 综合缓存（可重建，体积大）
+*.cache/
+# 硬件管理器会话
+*.hw/
+# 仿真相关工程目录
+*.sim/                
+# 综合 / 实现运行目录（synth_1、impl_1 等）
+*.runs/                
+# IP 用户文件（可重建）
+*.ip_user_files/       
+# 生成源目录（可重建）
+*.gen/                
+# 独立 IP 工程
+*.managed_ip_project/  
+# Vivado 会话 journal
+*.jou                  
 *.log
 *.str
 *.pb
-*.wdb                  # 波形数据库
-*.vcd                  # 通用波形
+# 波形数据库
+*.wdb                  
+# 通用波形
+*.vcd                  
 webtalk*.html
 webtalk*.xml
 webtalk*.csv
 usage_statistics*
 hs_err_pid*.log
-*.zip                  # 运行导出压缩包（勿与源码归档混淆）
-.Xil/                  # Vivado 临时目录
+# 运行导出压缩包（勿与源码归档混淆）
+*.zip                  
+# Vivado 临时目录
+.Xil/                  
 build/vivado_smoke/
 
 # 检查点与比特流：大二进制，不入库；归档见文末 releases 规则
-*.dcp                  # design checkpoint
+# design checkpoint
+*.dcp                  
 *.bit
+# 拍板：*.bin 按产物忽略——Vivado impl 的 BG-BIN 裸比特流（fhss_top.bin）、
+# bootgen 的 boot.bin、硬件交接的 *.hwh.bin 都落在这一类。
+# 本仓库存储器初始化固定用 .hex/.coe/.mif/.mem（见 .gitattributes 存储器初始化段），
+# 故不接受 .bin 作初始化输入。若日后确需入库某个 .bin 源文件，
+# 就地加一行「!/<路径>/*.bin」，勿在此处放开全局——那会同时放开 impl 产物。
 *.bin
 *.mcs
 *.ltx
 *.pdi
-*.cfg                  # 若仅用于烧写配置且体积大，可按需放开
+# 若仅用于烧写配置且体积大，可按需放开
+*.cfg                 
 
 # ============ Vitis / Vitis Unified ============
-.vitis/                # Vitis 临时
-.ade/                  # Vitis IDE
-_ide/
-.sdk/                  # 经典 SDK 工作区
-.sdk/.*
-*.xsa                  # 硬件导出（可由 Vivado 重新导出）
+# Vitis 临时
+.vitis/               
+# Vitis IDE
+.ade/                  
+# Vitis 工作区元数据
+/build/**/_ide/
+# 经典 SDK 工作区
+.sdk/
+# 硬件导出（可由 Vivado 重新导出）
+*.xsa                  
 *.hdf
-export/
-platforms/
-.xpfm                  # 平台描述（若由脚本生成）
+# 决策：export/ 、platforms/ 不带前导斜杠时在任意层级生效，会吞掉
+# src/export/ 、docs/platforms/ 这类源码目录，且 git status 不提示（静默）。
+# 故锚定到本仓库唯一构建根 build/（见 docs 实现方案：build/ 提供一键 Tcl 重建）。
+# 代价：若日后把 Vitis 工作区建到 build/ 之外，产物会以「未见过的未跟踪大目录」
+# 出现在 git status —— 可见、可补一行规则；优于静默吞源码。
+/build/**/export/
+/build/**/platforms/
+# 平台描述（若由脚本生成）
+*.xpfm                  
 
 # 软件/应用构建产物
+# 拍板：*.hex 不按扩展名全局忽略。本仓库 .hex 是存储器初始化源文件
+# （cfg_rom / FIR 系数等 blk_mem_gen / $readmemh 输入，见 docs/amd-fhss-sim-only-plan.html）。
+# Vitis/SDK 编译产出的 .hex 由下方「软件编译输出目录」规则挡住。
 *.elf
 *.map
 *.o
@@ -59,37 +95,52 @@ platforms/
 *.so
 *.so.*
 *.out
-*.hex
 *.axf
+
+# 软件编译输出目录（产物随目录走，不误伤源文件）
+**/Debug/
+**/Release/
 RemoteSystemsTempFiles/
 
 # Vitis HLS / Vivado HLS
 *_hls/
 *.autopilot/
-*.zynq/                # HLS 部分中间目录
-*.prj/                 # HLS 工程运行目录
+# HLS 部分中间目录
+*.zynq/                
+# HLS 工程运行目录
+*.prj/
 *.aocx
 *.xo
 *.xclbin
-csim/
-cosim/
-syn/
-impl/
+# HLS 解（solution）内的运行目录，同样锚定 build/：
+# 裸 syn/ 、impl/ 、csim/ 、cosim/ 会吞掉 src/syn/ 、src/impl/ 、sim/cosim/ 这类源码目录
+/build/**/csim/
+/build/**/cosim/
+/build/**/syn/
+/build/**/impl/
 hls.app
 
 # ============ 仿真产物（Icarus / ModelSim / Verilator / xsim） ============
-*.vvp                  # iverilog 编译产物
+# iverilog 编译产物
+*.vvp                  
 *.fst
-*.wlf                  # ModelSim / Questa 波形
+# ModelSim / Questa 波形
+*.wlf                  
 vsim.lock
-transcript             # ModelSim 会话日志
-work/                  # ModelSim 编译库
+# ModelSim 会话日志
+/sim/**/transcript
+/transcript
+# ModelSim 编译库
+/sim/**/work/
+#根目录
+/work/             
 xsim.dir/
 xsim.log
 xvhdl.log
 xvlog.log
 xelab.log
-obj_dir/               # Verilator 输出
+# Verilator 输出
+obj_dir/              
 
 # ============ Python 上位机（sw/） ============
 __pycache__/
@@ -97,11 +148,12 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
-sw/build/
+sw/**/build/
 sw/dist/
 
 # ============ MATLAB 浮点参考链 ============
-*.asv                  # 自动保存文件
+# 自动保存文件
+*.asv                  
 
 # ============ 临时 / 备份文件 ============
 *.tmp
@@ -120,6 +172,10 @@ desktop.ini
 
 # ============ 大数据 ============
 # 原始射频捕获不入库；doc/ 下测试数据 CSV 为交付物，正常提交
+# 注：raw_capture/ 是本文件唯一「按意图而非按位置」的规则，刻意不加锚点——
+# 捕获落点由采集脚本决定（data/ 、board/ 、临时目录都可能），锚住反而漏挡大文件。
+# 依据：两词描述性命名，与源码目录重名的概率极低；上面的 syn/ 、impl/ 是通用单词，
+# 风险量级不同，才需要锚定。
 raw_capture/
 *.cap
 

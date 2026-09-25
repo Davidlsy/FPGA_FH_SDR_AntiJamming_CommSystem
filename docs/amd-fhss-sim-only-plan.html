@@ -415,7 +415,7 @@
               <dt>工具材料</dt><dd>Vivado / Vitis 2021.2（现有安装）、xsim、Git。</dd>
               <dt>交付物</dt><dd>Git 仓库初始化（.gitignore + 首个 commit + tag v0.1-p0）、<code>src/fhss_top.v</code>、<code>src/constraints/fhss_zynq_timing.xdc</code> + <code>board/fhss_zynq_pins.xdc</code>（引脚占位待原理图填入）、<code>sim/tb_fhss_top.v</code>、env.md（含四项待确认回填）。</dd>
               <dt>验证方法</dt><dd>冒烟工程实现通过、bitstream 生成成功（全部端口已约束，无 NSTD-1/UCIO-1 拦截）；<code>report_timing_summary</code> 无未约束路径；xsim 行为仿真输出 <code>[SMOKE] tb_fhss_top PASS</code>。</dd>
-              <dt>出口门槛</dt><dd>三机各自独立完成模板工程全流程；全部 IP 锁定 2021.2 版本号并记入 env.md；约束模板经评审冻结；仓库已入 Git——生成目录全部被 ignore、手写源文件全部位于版本控制可见目录（.xpr + src/ sim/ board/ build/），四项待确认已回填 env.md。</dd>
+              <dt>出口门槛</dt><dd>三机各自独立完成模板工程全流程；全部 IP 锁定 2021.2 版本号并记入 env.md；约束模板经评审冻结；仓库已入 Git——生成目录全部被 ignore、手写源文件全部位于版本控制可见目录（src/ sim/ board/ build/；*.xpr 不入库，工程由 build/create_smoke_project.tcl 重建），四项待确认已回填 env.md。</dd>
             </dl>
             <div class="callout callout--note">
               <div class="callout__label">版本决策：使用现有 Vivado 2021.2，合规且代价可控</div>

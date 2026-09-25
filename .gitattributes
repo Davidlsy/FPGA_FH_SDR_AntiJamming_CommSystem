@@ -17,7 +17,6 @@
 *.xdc      text eol=lf
 *.sdc      text eol=lf
 *.tcl      text eol=lf
-*.xpr      text eol=lf
 *.xci      text eol=lf
 *.bd       text eol=lf
 *.xpe      text eol=lf
@@ -37,13 +36,17 @@
 *.md       text eol=lf
 *.txt      text eol=lf
 *.csv      text eol=lf
+*.json     text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+
+# ---- 存储器初始化源文件（blk_mem_gen / $readmemh 输入，按源文件管理） ----
+# 决策：本仓库的存储器初始化输入固定用 .hex/.coe/.mif/.mem，一律视为源文件，
+# 不按扩展名在 .gitignore 中忽略。（.bin 归产物类，见 .gitignore 比特流段。）
 *.hex      text eol=lf
 *.coe      text eol=lf
 *.mif      text eol=lf
 *.mem      text eol=lf
-*.json     text eol=lf
-*.yml      text eol=lf
-*.yaml     text eol=lf
 
 # ---- Windows 批处理保持 CRLF ----
 *.bat      text eol=crlf
@@ -59,7 +62,6 @@
 *.ltx      binary
 *.mmi      binary
 *.hwdef    binary
-*.hwh.bin  binary
 *.xsa      binary
 *.xsim     binary
 *.wdb      binary
