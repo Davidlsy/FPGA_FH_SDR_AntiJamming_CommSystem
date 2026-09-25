@@ -68,6 +68,11 @@ All RTL modules are validated bit-exactly against a MATLAB floating-point golden
 reference, with BER curves overlaid for quantization-loss assessment (see
 `data/s1_ber_baseline/`).
 
+The S2 verification infrastructure — comparison framework, AD9363 SPI behaviour
+model, channel model library, jammer source, and the PS/PL AXI VIP environment —
+passes its acceptance run in one shot: 5/5 suites, 1538 checks, 0 errors, 47.6 s
+(`sim/run_s2_acceptance.ps1`; report in `docs/report/s2_verification.md`).
+
 ## Build
 
 Requires Vivado / Vitis ML 2021.2. From a clean checkout:
@@ -97,7 +102,9 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   └── fhss_zynq_pins.xdc      #   引脚 + IOSTANDARD（每板一份，唯一副本）
 │
 ├── sim/                        # 【仿真】
+│   ├── README.md               #   仿真树总入口：S2 五件套关系、约定与运行顺序
 │   ├── tb_fhss_top.v           #   冒烟 testbench → [SMOKE] PASS/FAIL
+│   ├── run_s2_acceptance.ps1   #   S2 统一验收：五项串跑 → [S2 ACCEPTANCE] 判据行（另有 .bat）
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
 │   ├── models/ad9363/          #   S2 AD9363 SPI 行为模型（板卡的仿真替身，自测 6 项）
 │   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径，29 项统计核验）
@@ -138,7 +145,9 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
     │   └── fixed_point_spec.md #   S1 定点规格书（评审冻结基准）
     └── report/
         ├── env.md              # 开发环境记录
-        └── s1_archive_compare.md  # S1 MATLAB 归档对照报告
+        ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告
+        ├── s1_spec_review.md   # S1 定点规格书评审记录
+        └── s2_verification.md  # S2 验收报告（5/5 套件，1538 项，0 错误）
 
 ## License
 
