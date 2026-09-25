@@ -103,7 +103,15 @@ build/vivado_smoke/
 RemoteSystemsTempFiles/
 
 # Vitis HLS / Vivado HLS
-*_hls/
+# 决策：HLS 工程目录锚定 build/。裸 *_hls/ 与裸 syn/ 、impl/ 同类——通用
+# 后缀 + 无锚点，凡是名字以 _hls 结尾的目录一并吞掉，src/dsp_hls/、
+# src/fir_hls/ 这种「DSP 的 HLS 实现」命名正好撞上（本项目明确走 HLS 路线，
+# 见 docs/fpga-fhss-amd-implementation-plan.html 的 UG1399 引用），且
+# git status 不提示（静默）。
+# 注意：目录一旦被排除，其下文件无法用「!」反选回来，故只能改锚点，
+# 不能加例外规则。代价与 syn/ 、impl/ 一致：HLS 工程若建到 build/ 之外，
+# 会以未跟踪目录出现在 git status —— 可见、可补一行规则；优于静默吞源码。
+/build/**/*_hls/
 *.autopilot/
 # HLS 部分中间目录
 *.zynq/                
@@ -178,6 +186,18 @@ desktop.ini
 # 风险量级不同，才需要锚定。
 raw_capture/
 *.cap
+
+# ============ 交付物例外（必须置于所有忽略规则之后） ============
+# docs/ 是评审证据树：docs/report/ 下的综合日志（synth.log）、链接 map
+# （link.map）是交付物本身，不是构建噪声。
+# 与上面 *_hls/ 的区别：*.log / *.map 是「扩展名规则与用途天生冲突」——
+# 同一个扩展名既可能是构建产物，又可能是交付物，按位置锚不干净。
+# 但这里是文件级排除，父目录 docs/ 未被排除，所以尾部反选可行
+# （对比：*_hls/ 排除的是目录，子文件无法反选，只能改锚点）。
+# 副作用：误落进 docs/ 的构建日志会以未跟踪文件出现 —— 可见，人工决定。
+# 当前仓库内 docs/ 下尚无此类文件，此两行是为「证据入库」预留的通道。
+!docs/**/*.log
+!docs/**/*.map
 
 # 如需归档提交版比特流：把 bitstream 放入 releases/ 并取消下行注释
 # !releases/*.bit
