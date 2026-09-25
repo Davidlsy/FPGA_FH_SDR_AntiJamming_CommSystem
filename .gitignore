@@ -38,7 +38,6 @@ webtalk*.html
 webtalk*.xml
 webtalk*.csv
 usage_statistics*
-hs_err_pid*.log
 # 运行导出压缩包（勿与源码归档混淆）
 *.zip                  
 # Vivado 临时目录
@@ -104,8 +103,14 @@ build/vivado_smoke/
 *.axf
 
 # 软件编译输出目录（产物随目录走，不误伤源文件）
-**/Debug/
-**/Release/
+# 同 syn/ 、impl/ 、csim/ 、cosim/ 判据：Debug/ 、Release/ 是通用单词，裸写时
+# 末尾斜杠只表示「只匹配目录」、不产生锚定（见上文 export/ 段），会在任意层级
+# 生效，静默吞掉 src/ps/Debug/ 这类同名源码目录，故锚定唯一构建根 build/。
+# 代价同 *_hls/ ：Vitis 工作区若建到 build/ 之外，其 Debug/Release 产物——含本
+# 仓库唯一靠目录规则挡住、未做扩展名全局忽略的 .hex（见上文拍板）——会以未跟踪
+# 文件显形：可见、可补一行规则；优于静默吞源码。
+/build/**/Debug/
+/build/**/Release/
 RemoteSystemsTempFiles/
 
 # Vitis HLS / Vivado HLS
@@ -153,10 +158,8 @@ wlft*
 #根目录
 /work/             
 xsim.dir/
-xsim.log
-xvhdl.log
-xvlog.log
-xelab.log
+# xsim / xvhdl / xvlog / xelab 的日志与 JVM 崩溃日志 hs_err_pid*.log 同样由 *.log
+# 覆盖（见「Vivado 工程」段），不再逐条重复——避免读者误以为只有这几条 log 会被忽略。
 # Verilator 输出
 obj_dir/              
 
@@ -191,10 +194,14 @@ sw/dist/
 Thumbs.db
 desktop.ini
 *.swp
-.idea/
-# 决策：写成 .vscode/* 而非 .vscode/ —— 目录被整体排除时，其下文件无法用「!」
-# 反选回来（实测：「.vscode/ + !.vscode/tasks.json」仍被忽略，改成 .vscode/* 才生效）。
+# 决策：.idea/ 与 .vscode/ 都写成 .xxx/* 而非 .xxx/ —— 目录被整体排除时，其下文件
+# 无法用「!」反选回来（实测：「.vscode/ + !.vscode/tasks.json」仍被忽略，改成
+# .vscode/* 才生效）。两处写法保持一致，避免换一个 IDE 就出现「配置能共享」与
+# 「整目录被吞」的不对称。
+.idea/*
 .vscode/*
+# 反选共享的部分：IDEA 运行配置（跑 tcl / iverilog / xsim 的启动项）
+!.idea/runConfigurations/
 # 反选共享的部分：跑 tcl / iverilog / xsim 的任务与编辑器设置
 !.vscode/tasks.json
 !.vscode/settings.json
