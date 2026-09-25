@@ -63,8 +63,8 @@ build/vivado_smoke/
 *.mcs
 *.ltx
 *.pdi
-# 决策：锚定 build/ —— *.cfg 是通用扩展名（Vivado write_cfgmem 的烧写配置、各工具的
-# 配置文件同名），裸写会静默吞掉 sw/ 、board/ 下的配置类源文件，git status 不提示。
+# 决策：锚定 build/ —— *.cfg 是通用扩展名（各工具的配置文件都可能用），裸写会静默吞掉
+# sw/ 、board/ 下的配置类源文件，git status 不提示。本仓库当前无 .cfg 产出，此行为防线。
 # 代价与 syn/ 、impl/ 一致：build/ 之外的 .cfg 以未跟踪文件显形——可见、可补一行规则。
 /build/**/*.cfg
 
