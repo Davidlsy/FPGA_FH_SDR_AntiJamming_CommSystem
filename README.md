@@ -102,6 +102,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── models/ad9363/          #   S2 AD9363 SPI 行为模型（板卡的仿真替身，自测 6 项）
 │   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径，29 项统计核验）
 │   ├── models/jammer/          #   S2 干扰注入源（单音/多音/扫频/部分频带 + JSR 标定，31 项核验）
+│   ├── vip/                    #   S2 PS/PL 协同仿真环境（AXI VIP 主端 + PS 软件序列，28 项自检）
 │   ├── golden_ref/             #   S1 黄金参考链（Python 包 golden_ref）
 │   └── float_ref/              #   V2.x MATLAB 归档链重跑与对照
 │       ├── README.md           #     运行方式 / 路径约定 / 出口门槛
