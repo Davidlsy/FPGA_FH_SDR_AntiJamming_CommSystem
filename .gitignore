@@ -38,8 +38,12 @@ webtalk*.html
 webtalk*.xml
 webtalk*.csv
 usage_statistics*
-# 运行导出压缩包（勿与源码归档混淆）
+# 交付/导出压缩包（勿与源码归档混淆）
+# 代价：裸写扩展名 → docs/ 、data/ 下的交付包一并被吞。docs/ 已在文末「交付物例外」
+# 段开反选通道；data/ 下的证据包按既有判据移入 docs/ ，或就地加一行反选。
 *.zip                  
+# .7z 同 *.zip 口径（.gitattributes 已声明为 binary）
+*.7z
 # Vivado 临时目录
 .Xil/                  
 build/vivado_smoke/
@@ -59,8 +63,10 @@ build/vivado_smoke/
 *.mcs
 *.ltx
 *.pdi
-# 若仅用于烧写配置且体积大，可按需放开
-*.cfg                 
+# 决策：锚定 build/ —— *.cfg 是通用扩展名（Vivado write_cfgmem 的烧写配置、各工具的
+# 配置文件同名），裸写会静默吞掉 sw/ 、board/ 下的配置类源文件，git status 不提示。
+# 代价与 syn/ 、impl/ 一致：build/ 之外的 .cfg 以未跟踪文件显形——可见、可补一行规则。
+/build/**/*.cfg
 
 # ============ Vitis / Vitis Unified ============
 # Vitis 临时
@@ -174,13 +180,22 @@ venv/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+*.egg-link
+# pytest-cov：.coverage 是基础数据；并发模式另写 .coverage.<host>.<pid>，htmlcov/ 是
+# HTML 报告目录（量大、可重建）。coverage.xml 有意不挡——同 *.log 判据，它可能是
+# 交付物，需入库时放 docs/ 。
 .coverage
+.coverage.*
+htmlcov/
 sw/**/build/
 sw/dist/
 
 # ============ MATLAB 浮点参考链 ============
 # 自动保存文件
 *.asv                  
+
+# 代码生成 / Simulink 缓存（可重建；浮点参考链若走 codegen 会在此落盘）
+slprj/
 
 # ============ 临时 / 备份文件 ============
 *.tmp
@@ -193,7 +208,10 @@ sw/dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+# vim 交换文件：*.swp 之外，同一文件被第二个实例打开时依次写 .swo / .swn
 *.swp
+*.swo
+*.swn
 # 决策：.idea/ 与 .vscode/ 都写成 .xxx/* 而非 .xxx/ —— 目录被整体排除时，其下文件
 # 无法用「!」反选回来（实测：「.vscode/ + !.vscode/tasks.json」仍被忽略，改成
 # .vscode/* 才生效）。两处写法保持一致，避免换一个 IDE 就出现「配置能共享」与
@@ -218,7 +236,7 @@ raw_capture/
 # ============ 交付物例外（必须置于所有忽略规则之后） ============
 # docs/ 是评审证据树：docs/report/ 下的综合日志（synth.log）、链接 map
 # （link.map）是交付物本身，不是构建噪声。
-# 与上面 *_hls/ 的区别：*.log / *.map 是「扩展名规则与用途天生冲突」——
+# 与上面 *_hls/ 的区别：*.log / *.map / *.zip / *.7z 是「扩展名规则与用途天生冲突」——
 # 同一个扩展名既可能是构建产物，又可能是交付物，按位置锚不干净。
 # 但这里是文件级排除，父目录 docs/ 未被排除，所以尾部反选可行
 # （对比：*_hls/ 排除的是目录，子文件无法反选，只能改锚点）。
@@ -226,13 +244,18 @@ raw_capture/
 # 反向注意：反选通道只对 docs/ 开放。本该入库的证据日志若落在 docs/ 之外
 # （如 data/ 、sim/ 下的 *.log），会被 *.log 静默吞掉——git status 不提示，
 # git add . 也不报错，只在事后核对交付物时才发现缺席。故证据文件一律放 docs/。
-# 当前仓库内 docs/ 下尚无此类文件，此两行是为「证据入库」预留的通道。
+# *.zip / *.7z 同理且更易踩：证据常被打包交付，落在 docs/ 之外同样静默消失——文末
+# releases/ 那几条注释只管比特流归档，不管文档证据包。
+# 当前仓库内 docs/ 下尚无此类文件，此四行是为「证据入库」预留的通道。
 !docs/**/*.log
 !docs/**/*.map
+!docs/**/*.zip
+!docs/**/*.7z
 
 # 如需归档提交版比特流：把 bitstream 放入 releases/ 并取消下行注释
 # !releases/*.bit
 # !releases/*.mcs
 # !releases/*.zip
-# 注：*.zip 已被上面全局忽略（防「运行导出压缩包」混入源码归档），
-# 确需归档源码 zip 时再启用上一行。
+# !releases/*.7z
+# 注：*.zip / *.7z 已被上面全局忽略（防交付/导出包混入源码归档），
+# 确需归档时再启用对应行。
