@@ -54,6 +54,8 @@ build/vivado_smoke/
 # 本仓库存储器初始化固定用 .hex/.coe/.mif/.mem（见 .gitattributes 存储器初始化段），
 # 故不接受 .bin 作初始化输入。若日后确需入库某个 .bin 源文件，
 # 就地加一行「!/<路径>/*.bin」，勿在此处放开全局——那会同时放开 impl 产物。
+# 反选的边界：.bin 若落在已被排除的目录（build/ 等）内，该行无效——目录一旦
+# 被排除，其下文件无法用「!」救回，只能改锚点（同下方 *_hls/ 的约束）。
 *.bin
 *.mcs
 *.ltx
@@ -73,9 +75,13 @@ build/vivado_smoke/
 # 硬件导出（可由 Vivado 重新导出）
 *.xsa                  
 *.hdf
-# 决策：export/ 、platforms/ 不带前导斜杠时在任意层级生效，会吞掉
-# src/export/ 、docs/platforms/ 这类源码目录，且 git status 不提示（静默）。
-# 故锚定到本仓库唯一构建根 build/（见 docs 实现方案：build/ 提供一键 Tcl 重建）。
+# 决策：裸写 export/ 、platforms/ 这类「只有末尾斜杠」的模式（末尾斜杠仅表示
+# 只匹配目录，不产生锚定）时在任意层级生效，会吞掉 src/export/ 、docs/platforms/
+# 这类源码目录，且 git status 不提示（静默）。
+# 判定依据（易记错）：锚定与否只看模式中「末尾以外」有没有 /，与开头那个 / 无关——
+# 有则相对本文件所在目录（上面 build/vivado_smoke/ 就是靠中间那个 / 锚定的），
+# 没有则在任意层级匹配。故锚定到本仓库唯一构建根 build/
+# （见 docs 实现方案：build/ 提供一键 Tcl 重建）。
 # 代价：若日后把 Vitis 工作区建到 build/ 之外，产物会以「未见过的未跟踪大目录」
 # 出现在 git status —— 可见、可补一行规则；优于静默吞源码。
 /build/**/export/
@@ -135,6 +141,10 @@ hls.app
 # ModelSim / Questa 波形
 *.wlf                  
 vsim.lock
+# ModelSim / Questa 优化波形：wlft 前缀且无扩展名，*.wlf 覆盖不到
+# 代价：这是裸前缀通配，任何以 wlft 开头的文件都会被吞（实测 wlft_notes.md 也命中）。
+# 与 ModelSim 的临时文件名一致故保留；若日后确需入库同类名文件，改为就近锚定。
+wlft*
 # ModelSim 会话日志
 /sim/**/transcript
 /transcript
@@ -156,6 +166,12 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
+# 工具缓存与打包元数据（uv / pytest / ruff / mypy）
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+.coverage
 sw/**/build/
 sw/dist/
 
@@ -176,7 +192,12 @@ Thumbs.db
 desktop.ini
 *.swp
 .idea/
-.vscode/
+# 决策：写成 .vscode/* 而非 .vscode/ —— 目录被整体排除时，其下文件无法用「!」
+# 反选回来（实测：「.vscode/ + !.vscode/tasks.json」仍被忽略，改成 .vscode/* 才生效）。
+.vscode/*
+# 反选共享的部分：跑 tcl / iverilog / xsim 的任务与编辑器设置
+!.vscode/tasks.json
+!.vscode/settings.json
 
 # ============ 大数据 ============
 # 原始射频捕获不入库；doc/ 下测试数据 CSV 为交付物，正常提交
@@ -195,6 +216,9 @@ raw_capture/
 # 但这里是文件级排除，父目录 docs/ 未被排除，所以尾部反选可行
 # （对比：*_hls/ 排除的是目录，子文件无法反选，只能改锚点）。
 # 副作用：误落进 docs/ 的构建日志会以未跟踪文件出现 —— 可见，人工决定。
+# 反向注意：反选通道只对 docs/ 开放。本该入库的证据日志若落在 docs/ 之外
+# （如 data/ 、sim/ 下的 *.log），会被 *.log 静默吞掉——git status 不提示，
+# git add . 也不报错，只在事后核对交付物时才发现缺席。故证据文件一律放 docs/。
 # 当前仓库内 docs/ 下尚无此类文件，此两行是为「证据入库」预留的通道。
 !docs/**/*.log
 !docs/**/*.map
@@ -202,3 +226,6 @@ raw_capture/
 # 如需归档提交版比特流：把 bitstream 放入 releases/ 并取消下行注释
 # !releases/*.bit
 # !releases/*.mcs
+# !releases/*.zip
+# 注：*.zip 已被上面全局忽略（防「运行导出压缩包」混入源码归档），
+# 确需归档源码 zip 时再启用上一行。
