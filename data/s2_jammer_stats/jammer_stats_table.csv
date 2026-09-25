@@ -1,0 +1,35 @@
+# S2 干扰注入源频谱与 JSR 核验 · check_jammer_stats.py 生成，勿手改
+# 场景参数来自 sim/models/jammer/dump/jammer_config.log
+# JS=1.0  源格式=16/13  输出=14/11  单音=268435456/2^32  四音间隔=67108864/2^32  扫频斜率=1048576/2^32  扫频周期=1024  部分频带 D=8
+check,status,measured,expected,tolerance,note
+off_identity,PASS,mismatch=0,0,0,关闭干扰时逐位透明；拍数 in=2048 out=2048
+off_jammer_zero,PASS,0 拍非零,0,0,关闭时干扰输出应恒为 0
+tone0_power,PASS,0.999949,1.000000,rel 1%,干扰总功率 = JS·10^(JSR/10)
+tone0_jsr,PASS,-0.0002 dB,0.0000 dB,0.2 dB,实测 JSR = 10·log10(P_jam / P_signal)
+tone0_peak_freq,PASS,0.06250000,0.06250000,1e-4,单音峰频 = FTW/2^32（归一化到 fs）
+tone0_purity,PASS,-79.24 dBc,<-40 dBc,-40 dBc,纯音主瓣外的杂散（量化底噪）
+tone5_power,PASS,3.162523,3.162278,rel 1%,干扰总功率 = JS·10^(JSR/10)
+tone5_jsr,PASS,5.0003 dB,5.0000 dB,0.2 dB,实测 JSR = 10·log10(P_jam / P_signal)
+tone5_peak_freq,PASS,0.06250000,0.06250000,1e-4,单音峰频 = FTW/2^32（归一化到 fs）
+tone10_power,PASS,9.999569,10.000000,rel 1%,干扰总功率 = JS·10^(JSR/10)
+tone10_jsr,PASS,9.9998 dB,10.0000 dB,0.2 dB,实测 JSR = 10·log10(P_jam / P_signal)
+tone10_peak_freq,PASS,0.06250000,0.06250000,1e-4,单音峰频 = FTW/2^32（归一化到 fs）
+multi_peak_count,PASS,4 峰,4 峰,0,频谱峰数与配置音数一致
+multi_peak_freqs,PASS,max err=0.00e+00,各音频率 = (FTW + k·spacing)/2^32,1e-4,"期望 [0.0625, 0.078125, 0.09375, 0.109375]"
+multi_tone_balance,PASS,max/min=1.0002,1.0,1.1,等功率合成的各音功率应一致
+multi_jsr,PASS,-0.0004 dB,0 dB,0.2 dB,四音合计功率仍等于 JS（JSR 0 dB）
+sweep_period,PASS,1024.0 拍,1024 拍,±4 拍,共 3 次回卷，4 段
+sweep_slope,PASS,2.441e-04,2.441e-04,rel 1e-3,瞬时频率斜率 = DFW/2^32（cycle/sample²）
+sweep_start_freq,PASS,-0.12500000,-0.12500000,1e-4,扫频起点 = FTW0/2^32
+sweep_power,PASS,0.999994,1.000000,rel 1%,扫频功率 = JS（JSR 0 dB）
+partial_power,PASS,1.003960,1.000000,rel 3%,跳过前 D=8 拍预热后总功率 = JS
+partial_bandwidth,PASS,0.10405 fs,0.11073 fs,rel 30%,双边 -3 dB 带宽 = 2×0.4429/D（滑动平均的 sinc² 形状）
+partial_outband,PASS,9.31%,9.83%,4 个百分点,±2×单边 -3dB 带宽之外的功率占比 vs sinc² 裙边解析值
+partial_jsr,PASS,0.0172 dB,0 dB,0.3 dB,部分频带同样按总功率标定 JSR（0 dB 档）
+sum_off,PASS,max err=0.000 code (clipped=10),0,1 code,输出应为量化后的「信号 + 干扰」
+sum_tone_0,PASS,max err=0.000 code (clipped=0),0,1 code,输出应为量化后的「信号 + 干扰」
+sum_tone_5,PASS,max err=0.000 code (clipped=0),0,1 code,输出应为量化后的「信号 + 干扰」
+sum_tone_10,PASS,max err=0.000 code (clipped=512),0,1 code,输出应为量化后的「信号 + 干扰」
+sum_multitone,PASS,max err=0.000 code (clipped=0),0,1 code,输出应为量化后的「信号 + 干扰」
+sum_sweep,PASS,max err=0.000 code (clipped=0),0,1 code,输出应为量化后的「信号 + 干扰」
+sum_partial,PASS,max err=0.000 code (clipped=1),0,1 code,输出应为量化后的「信号 + 干扰」
