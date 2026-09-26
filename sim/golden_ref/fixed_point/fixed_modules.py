@@ -3,7 +3,7 @@
 各模块的定点版本，位宽配置来自 config.FIXED_POINT_CONFIG
 """
 import numpy as np
-from ..config import FIXED_POINT_CONFIG, SRRC_ALPHA, SRRC_SPAN, UPSAMPLE_FACTOR, CONV_GEN_POLY, CONV_K, INTERLEAVER_DEPTH
+from ..config import FIXED_POINT_CONFIG, UPSAMPLE_FACTOR, CONV_K
 from .quantizer import quantize, quantize_complex
 from ..float_chain.srrc import srrc_coeffs
 

@@ -1,0 +1,10 @@
+# 开发 / CI 依赖 —— 仅供检查与自动化使用，RTL 侧不需要 Python。
+#
+# 运行时依赖只有 numpy：sim/golden_ref 是全系统唯一正确性基准，
+# 云 runner 上的黄金参考链冒烟就是靠它。
+# 本机实测版本见 docs/report/env.md（Python 3.12.7 + numpy 2.5.3）。
+
+numpy>=2.0
+matplotlib>=3.8   # 仅 BER 曲线图；缺失时 run_ber.py 自动跳过绘图
+ruff>=0.8         # 与 .pre-commit-config.yaml 中的 --select E9,F 保持一致
+pre-commit>=3.7

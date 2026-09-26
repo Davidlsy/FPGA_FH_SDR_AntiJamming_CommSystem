@@ -105,7 +105,7 @@ def main():
     print("S1 浮点黄金参考与定点化 - BER 仿真")
     print("=" * 60)
     print(f"Eb/N0 范围: {eb_n0_range[0]:.0f} ~ {eb_n0_range[-1]:.0f} dB")
-    print(f"每帧比特: {num_frames} 帧 (快速模式)" if args.quick else f"每帧比特: 标准模式")
+    print(f"每帧比特: {num_frames} 帧 (快速模式)" if args.quick else "每帧比特: 标准模式")
     print(f"随机种子: {args.seed}")
     print()
 

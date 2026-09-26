@@ -6,8 +6,7 @@ from pathlib import Path
 import numpy as np
 from ..config import (
     EB_N0_RANGE_DB, DEFAULT_FRAME_LEN, DEFAULT_NUM_FRAMES,
-    MIN_ERROR_BITS, MAX_BITS_PER_EBN0, UPSAMPLE_FACTOR,
-    INTERLEAVER_DEPTH
+    MIN_ERROR_BITS, MAX_BITS_PER_EBN0, INTERLEAVER_DEPTH
 )
 from ..float_chain.conv_encoder import conv_encode
 from ..float_chain.interleaver import block_interleave, block_deinterleave

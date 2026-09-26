@@ -1,0 +1,101 @@
+name: FPGA Simulation
+
+# 需要 Vivado 2021.2 的 S2 统一验收只能跑在自托管 runner 上：云 runner 既没有
+# Vivado（商业 license，体积也不适合），也有 xsim 批处理「即使 $fatal 也返回 0」
+# 这个坑——判成败只能看判据行，见 sim/README.md §5.4。
+#
+# 本 job 默认关闭，避免 runner 尚未注册时把 PR 卡在 pending。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fpga-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  s2-acceptance:
+    name: S2 统一验收
+    # 启用方式：Settings → Secrets and variables → Actions → Variables 新建
+    # ENABLE_FPGA_SIM = true。
+    # 手动触发（workflow_dispatch）不受开关限制，可用来先验证 runner 是否接好。
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_FPGA_SIM == 'true'
+    runs-on: [self-hosted, Windows, X64]
+    env:
+      VIVADO_SETTINGS: ${{ vars.VIVADO_SETTINGS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 确保 Vivado 工具链在 PATH
+        shell: powershell
+        run: |
+          if (Get-Command xvlog -ErrorAction SilentlyContinue) {
+            Write-Host 'xvlog 已在 PATH，无需加载 settings64.bat'
+            exit 0
+          }
+          # runner 以 Windows 服务方式安装时不会继承登录用户的 PATH，
+          # 所以显式把 settings64.bat 导出的变量注入本步骤会话。
+          $settings = if ($env:VIVADO_SETTINGS) {
+            $env:VIVADO_SETTINGS
+          } else {
+            'D:\software\vivado2021\Vivado\2021.2\settings64.bat'
+          }
+          if (-not (Test-Path -LiteralPath $settings)) {
+            Write-Host "::error::找不到 Vivado 环境脚本：$settings（可用仓库变量 VIVADO_SETTINGS 覆盖）"
+            exit 1
+          }
+          cmd /c "call `"$settings`" >nul 2>&1 & set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path ('env:' + $matches[1]) -Value $matches[2] }
+          }
+          if (-not (Get-Command xvlog -ErrorAction SilentlyContinue)) {
+            Write-Host '::error::加载 settings64.bat 后仍未找到 xvlog'
+            exit 1
+          }
+          Write-Host 'Vivado 工具链就绪'
+
+      - name: S2 统一验收
+        shell: powershell
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 's2'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $stdout = Join-Path $dir 's2_acceptance.stdout.log'
+
+          # 走 powershell -File 起子进程：判据行由 Write-Host 输出，只有把子进程
+          # 的原生 stdout 整体收下来才拿得到完整文本（与 run_s2_acceptance.ps1
+          # 内部调用各模块入口的方式一致）。
+          $text = & powershell -NoProfile -ExecutionPolicy Bypass -File .\sim\run_s2_acceptance.ps1 2>&1 | Out-String
+          $exit = $LASTEXITCODE
+          [IO.File]::WriteAllText($stdout, $text, [Text.UTF8Encoding]::new($false))
+          Write-Host $text
+
+          # 判据行是纯 ASCII，可安全跨编码 match；中文行不作判据（sim/README.md §5.3）。
+          $m = [regex]::Matches($text, '\[S2 ACCEPTANCE\] suites=(\d+) failed=(\d+) checks=(\d+) errors=(\d+) status=(PASS|FAIL)')
+          if ($m.Count -eq 0) {
+            Write-Host '::error::未找到 [S2 ACCEPTANCE] 判据行 —— 验收没有真正跑完'
+            exit 1
+          }
+          $v = $m[$m.Count - 1]
+          Write-Host ('判据行 -> ' + $v.Value)
+          Write-Host ('退出码 -> ' + $exit + '（xsim 批处理即使 $fatal 也返回 0，故退出码只是必要条件）')
+
+          if ($v.Groups[5].Value -ne 'PASS' -or $exit -ne 0) {
+            Write-Host '::error::S2 验收未通过'
+            exit 1
+          }
+          Write-Host 'S2 验收通过'
+
+      - name: 上传验收日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s2-acceptance-logs
+          path: |
+            sim/logs/
+            ${{ runner.temp }}/s2/
+          if-no-files-found: warn

@@ -16,24 +16,24 @@
 # 硬件管理器会话
 *.hw/
 # 仿真相关工程目录
-*.sim/                
+*.sim/
 # 综合 / 实现运行目录（synth_1、impl_1 等）
-*.runs/                
+*.runs/
 # IP 用户文件（可重建）
-*.ip_user_files/       
+*.ip_user_files/
 # 生成源目录（可重建）
-*.gen/                
+*.gen/
 # 独立 IP 工程
-*.managed_ip_project/  
+*.managed_ip_project/
 # Vivado 会话 journal
-*.jou                  
+*.jou
 *.log
 *.str
 *.pb
 # 波形数据库
-*.wdb                  
+*.wdb
 # 通用波形
-*.vcd                  
+*.vcd
 webtalk*.html
 webtalk*.xml
 webtalk*.csv
@@ -41,16 +41,16 @@ usage_statistics*
 # 交付/导出压缩包（勿与源码归档混淆）
 # 代价：裸写扩展名 → docs/ 、data/ 下的交付包一并被吞。docs/ 已在文末「交付物例外」
 # 段开反选通道；data/ 下的证据包按既有判据移入 docs/ ，或就地加一行反选。
-*.zip                  
+*.zip
 # .7z 同 *.zip 口径（.gitattributes 已声明为 binary）
 *.7z
 # Vivado 临时目录
-.Xil/                  
+.Xil/
 build/vivado_smoke/
 
 # 检查点与比特流：大二进制，不入库；归档见文末 releases 规则
 # design checkpoint
-*.dcp                  
+*.dcp
 *.bit
 # 拍板：*.bin 按产物忽略——Vivado impl 的 BG-BIN 裸比特流（fhss_top.bin）、
 # bootgen 的 boot.bin、硬件交接的 *.hwh.bin 都落在这一类。
@@ -70,15 +70,15 @@ build/vivado_smoke/
 
 # ============ Vitis / Vitis Unified ============
 # Vitis 临时
-.vitis/               
+.vitis/
 # Vitis IDE
-.ade/                  
+.ade/
 # Vitis 工作区元数据
 /build/**/_ide/
 # 经典 SDK 工作区
 .sdk/
 # 硬件导出（可由 Vivado 重新导出）
-*.xsa                  
+*.xsa
 *.hdf
 # 决策：裸写 export/ 、platforms/ 这类「只有末尾斜杠」的模式（末尾斜杠仅表示
 # 只匹配目录，不产生锚定）时在任意层级生效，会吞掉 src/export/ 、docs/platforms/
@@ -92,7 +92,7 @@ build/vivado_smoke/
 /build/**/export/
 /build/**/platforms/
 # 平台描述（若由脚本生成）
-*.xpfm                  
+*.xpfm
 
 # 软件/应用构建产物
 # 拍板：*.hex 不按扩展名全局忽略。本仓库 .hex 是存储器初始化源文件
@@ -131,7 +131,7 @@ RemoteSystemsTempFiles/
 /build/**/*_hls/
 *.autopilot/
 # HLS 部分中间目录
-*.zynq/                
+*.zynq/
 # HLS 工程运行目录
 *.prj/
 *.aocx
@@ -147,10 +147,10 @@ hls.app
 
 # ============ 仿真产物（Icarus / ModelSim / Verilator / xsim） ============
 # iverilog 编译产物
-*.vvp                  
+*.vvp
 *.fst
 # ModelSim / Questa 波形
-*.wlf                  
+*.wlf
 vsim.lock
 # ModelSim / Questa 优化波形：wlft 前缀且无扩展名，*.wlf 覆盖不到
 # 代价：这是裸前缀通配，任何以 wlft 开头的文件都会被吞（实测 wlft_notes.md 也命中）。
@@ -162,12 +162,12 @@ wlft*
 # ModelSim 编译库
 /sim/**/work/
 #根目录
-/work/             
+/work/
 xsim.dir/
 # xsim / xvhdl / xvlog / xelab 的日志与 JVM 崩溃日志 hs_err_pid*.log 同样由 *.log
 # 覆盖（见「Vivado 工程」段），不再逐条重复——避免读者误以为只有这几条 log 会被忽略。
 # Verilator 输出
-obj_dir/              
+obj_dir/
 
 # ============ Python 上位机（sw/） ============
 __pycache__/
@@ -192,7 +192,7 @@ sw/dist/
 
 # ============ MATLAB 浮点参考链 ============
 # 自动保存文件
-*.asv                  
+*.asv
 
 # 代码生成 / Simulink 缓存（可重建；浮点参考链若走 codegen 会在此落盘）
 slprj/

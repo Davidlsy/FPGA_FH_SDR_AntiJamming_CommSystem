@@ -3,7 +3,7 @@
 // fhss_top : S0 smoke-test top level
 //-----------------------------------------------------------------------------
 // Purpose    : verify Vivado 2021.2 + xc7z020clg400-2 full flow
-//              (synthesis -> implementation -> bitstream). 
+//              (synthesis -> implementation -> bitstream).
 // Clock      : sys_clk = PL_GCLK1 (U18, 50 MHz single-ended, AX7Z020B
 //              manual sec 2.5)
 // Output     : led[3:0] binary heartbeat -- led[3] blinks at ~1.5 Hz

@@ -407,9 +407,9 @@
                 <li>三人环境统一使用现有 <strong>Vivado ML 2021.2</strong>，版本号、操作系统与 IP 组件清单记入 <code>report/env.md</code>——版本合规结论与随之生效的两条纪律见下方"版本决策"<sup><a href="#cite-1">[1]</a></sup>；</li>
                 <li>新建工程选定 <b>xc7z020clg400-2</b>（速度等级按 AX7Z020B 丝印 -2），加入最小冒烟顶层 <code>src/fhss_top.v</code>（09-16 按本地实际目录同步为 <code>src/</code> 平铺）跑通 综合→实现→bitstream 全流程。同时修正约束模板晶振假设，已按官方手册填入 pins 文件，到手后对照实物复核。</li>
                   <li><b>纯仿真路线冒烟分两层</b>：<br>① 工具链冒烟——综合→实现<b>必须保留</b>（STA 时序签收、资源占用报告、可综合性检查、xdc 语法验证四项均依赖它；bitstream 可选但建议保留：约 5 分钟端到端证明环境，09-24 板到货无缝衔接）；<br>② 仿真器冒烟（本路线主角）——<code>sim/tb_fhss_top.v</code>，跑通 Run Behavioral Simulation，控制台输出 <code>[SMOKE] tb_fhss_top PASS</code>，作为 S2 验证基础设施（自动回归框架）的种子。行为仿真不读 xdc，引脚/时序约束的验证由综合→实现冒烟承担；板上 LED 冒烟属 P1′-S1 / BV 遗留，本路线不做。</li>
-                
-                
-                
+
+
+
                 <li>编写四时钟域 <code>.xdc</code> 约束模板（基带域：板载晶振→MMCM ~61.44 MHz / 控制面域：PS FCLK_CLK0 100 MHz / 射频采样域：AD9363 DATA_CLK=采样率 / SPI ≤20 MHz 伪域——SCLK 为 FCLK 分频输出，非独立 fabric 时钟），异步分组用 <code>set_clock_groups</code>（优于逐条 set_false_path：双向生效、自动覆盖派生时钟）。<b>勘误：</b>PS GEM 125 MHz 在 PS/MIO 域（PHY 挂 MIO，选板硬条件 C2），不进 PL xdc。模板已落地：<code>src/constraints/fhss_zynq_timing.xdc</code>（时序，跨板复用）+ <code>board/fhss_zynq_pins.xdc</code>（引脚，每板一份）。</li>
               </ul></dd>
               <dt>工具材料</dt><dd>Vivado / Vitis 2021.2（现有安装）、xsim、Git。</dd>

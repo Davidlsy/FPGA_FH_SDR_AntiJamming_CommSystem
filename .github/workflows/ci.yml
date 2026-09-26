@@ -1,0 +1,86 @@
+name: CI
+
+# 云 runner（ubuntu-latest）能承担的部分：文本卫生 + Python 侧。
+# 需要 Vivado 2021.2 的 S2 统一验收在 fpga-sim.yml（自托管 runner）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: 文本卫生（pre-commit）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # 与本地跑的是同一套钩子、同一批版本，避免「本地过、CI 不过」。
+      # 注意：trailing-whitespace / end-of-file-fixer 属于自动修复型钩子，
+      # 一旦发现需要修复的文件本 job 就会失败并打印 diff。仓库首次启用
+      # pre-commit 时需要先在本机跑一次 pre-commit run --all-files 把这批
+      # 清理提交掉，此后本 job 才会稳定为绿。
+      - name: 安装 pre-commit
+        run: pip install pre-commit
+      - name: 全量检查
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  reference-chain:
+    name: 黄金参考链（S1）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 安装依赖
+        run: pip install -r requirements-dev.txt
+
+      - name: Python 静态检查
+        run: ruff check --select E9,F sim sw
+
+      # 守住 sim/README.md §5.1「位宽/小数位只有一个来源」：规格书是
+      # config.py 的生成物，若有人改了 FIXED_POINT_CONFIG 却没重跑生成器，
+      # 这里会立刻暴露。生成器输出是确定性的（无时间戳），已实测重生成结果
+      # 与入库文件逐字符一致。
+      - name: 重生成定点规格书
+        working-directory: sim
+        run: python -c "from golden_ref.generate_spec import generate_fixed_point_spec; generate_fixed_point_spec()"
+
+      - name: 校验规格书无差异
+        run: git diff --exit-code -- docs/spec/fixed_point_spec.md
+
+      # 参考链是全部判据的来源，先证明它在干净环境（只有 numpy）下能跑通。
+      # 产物落临时目录，绝不覆盖入库的 data/s1_ber_baseline/。
+      # 说明：run_ber.py 结束时不改退出码，本步骤判的是「可运行性」；出口门槛
+      # （定点相对浮点 BER 损失 ≤ 0.5 dB）由脚本自行判定并打印，见
+      # docs/spec/fixed_point_spec.md §4。本机实测 --quick 约 184 s。
+      - name: 参考链快速冒烟
+        working-directory: sim/golden_ref
+        run: python run_ber.py --quick --output-dir "$RUNNER_TEMP/ber"
+
+      - name: 校验冒烟产物
+        run: |
+          for f in ber_float.npz ber_fixed.npz snr_loss_table.csv; do
+            test -s "$RUNNER_TEMP/ber/$f" || { echo "缺失产物: $f"; exit 1; }
+          done
+          ls -l "$RUNNER_TEMP/ber"
+
+      - name: 上传 BER 冒烟产物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s1-ber-smoke
+          path: ${{ runner.temp }}/ber/
+          if-no-files-found: warn

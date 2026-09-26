@@ -4,7 +4,7 @@
 载波同步：无频偏/相差（AWGN 理想信道假设）
 """
 import numpy as np
-from ..config import UPSAMPLE_FACTOR, SRRC_SPAN
+from ..config import UPSAMPLE_FACTOR
 
 
 def ideal_timing_recover(signal, sps=UPSAMPLE_FACTOR, phase=0):

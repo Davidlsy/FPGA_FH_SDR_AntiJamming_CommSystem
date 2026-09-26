@@ -9,11 +9,11 @@ AX7XXX板卡压缩包
    │   ├── 7Z010_S1_RSTdocument /                         # cource_S1_FPGA 教程
    │   │    │
    │   │    ├── images/                                   # RST技术文档教程用到的图片
-   │   │    │      └── xx_media/                          # 对应每个章节内的图片   
+   │   │    │      └── xx_media/                          # 对应每个章节内的图片
    │   │    │
    │   │    ├── 01_软件包说明和开发板检测_CN.rst          # 章节内容（01表示第一章节；_CN表示中文文档_EN表示英文文档）
-   │   │    └──  .... 
-   │   │   
+   │   │    └──  ....
+   │   │
    │   ├── 7Z010_S2_RSTdocument                           # cource_S2_Vitis 教程
    │   ├── 7Z010_S3_RSTdocument                           # cource_S3_HLS 教程
    │   ├── 7Z010_S4_RSTdocument                           # cource_S4_Linux 教程
@@ -21,22 +21,22 @@ AX7XXX板卡压缩包
    │   ├── index.rst                                      # sphinx 目录结构配置文件
    │   └── requirements.txt                               # sphinx 版本配置文件
    │
-   ├── HTMLdocxs/                                         # html 格式文档教程（解压压缩包后可以在本地网页上进行浏览）   
+   ├── HTMLdocxs/                                         # html 格式文档教程（解压压缩包后可以在本地网页上进行浏览）
    │   │
-   │   ├── AX7xxx教程.html                                # course_s1,course_s2,course_s3,course_s4 教程   
-   │   │       
-   │   └──  ....    
-   │ 
+   │   ├── AX7xxx教程.html                                # course_s1,course_s2,course_s3,course_s4 教程
+   │   │
+   │   └──  ....
+   │
    ├──  course_s1_fpga/                                   # S1_FPGA demo 实验工程
-   │ 
+   │
    ├──  course_s2_vitis/                                  # S2_Vitis demo 实验工程
-   │ 
-   ├──  course_s3_hls/                                    # S3_HLS demo 实验工程 
-   │ 
+   │
+   ├──  course_s3_hls/                                    # S3_HLS demo 实验工程
+   │
    ├──  course_s4_linux/                                  # S4_Linux demo 实验工程
-   │ 
+   │
    ├──  Hardware/                                         # 硬件资料
-   │   
+   │
    └──  README/                                           # 板卡功能介绍
 
 

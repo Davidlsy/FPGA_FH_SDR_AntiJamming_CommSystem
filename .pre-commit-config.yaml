@@ -1,0 +1,87 @@
+# =====================================================================
+# .pre-commit-config.yaml — 提交前的本地快速门禁
+#
+# 分工（与 .github/workflows/ 的关系）：
+#   · 本文件：秒级、确定性的检查，跑在你敲 git commit 的那一刻；
+#   · ci.yml      —— 云 runner 上的权威判定（文本卫生、黄金参考链冒烟、
+#                    规格书与 config.py 的一致性）；
+#   · fpga-sim.yml —— 需要 Vivado 的 S2 统一验收，跑在自托管 runner 上。
+#
+# 判据行一律纯 ASCII —— 与 sim/README.md §5.3 的约定一致。
+#
+# 安装：pip install pre-commit && pre-commit install
+# 全量跑：pre-commit run --all-files
+# 升级钩子版本：pre-commit autoupdate
+# =====================================================================
+
+# 生成物不参与本层检查。
+# docs/spec/fixed_point_spec.md 由 sim/golden_ref/generate_spec.py 生成，位宽
+# 正文的唯一来源是 golden_ref/config.py 的 FIXED_POINT_CONFIG（sim/README.md
+# §5.1）。它自带 Markdown 硬换行、且末尾不写换行；若交给
+# trailing-whitespace / end-of-file-fixer 改写，ci.yml 里「重生成后 git diff
+# 必须为空」这条判据就会永远失败。要改内容请改 config.py 再重跑生成器。
+exclude: ^docs/spec/fixed_point_spec\.md$
+
+repos:
+  # ---- 通用文本卫生 ----
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        # md 行尾的两个空格是 Markdown 硬换行，必须保留。
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-yaml
+      - id: check-json
+      - id: detect-private-key
+      # 刻意不启用 mixed-line-ending：行尾策略由 .gitattributes 按文件类型
+      # 锁定（*.bat/*.cmd = CRLF，HDL / Python / 脚本 / 文档 = LF）。再叠一个
+      # 统一行尾的钩子会与它互相打架，并把 .bat 改成 LF 导致批处理无法执行。
+
+  # ---- Python：只抓真错误，不动风格 ----
+  # pre-commit-hooks 的 rev 已核实存在；ruff-pre-commit 的 rev 因本机网络
+  # 不可达未能核验。若首次安装时报找不到该 rev，直接跑
+  # pre-commit autoupdate 让它自动取当前可用版本。
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        # E9 = 语法/解析错误；F = pyflakes（未定义名、未使用导入等）。
+        # 暂不启用风格规则与 ruff-format：sim/ 下的 .py 是位真比对链的一部分，
+        # 批量重排会淹没真实改动。准备就绪后删掉 --select 即可放开。
+        # 忽略 F841（未使用局部变量）：它是 F 系列里唯一「报告但不可自动修」的
+        # 规则，留着会让本钩子稳定阻断提交。参考链与核验脚本里存在把边界/位宽
+        # 写成赋值、仅作记录的写法（如 check_jammer_stats.py 那行「14/11 补码界」
+        # 注释），这类取舍属于代码评审，不放在提交门禁上。
+        # 注意 "E9,F" 必须带引号：YAML 流式序列里的裸逗号是分隔符，
+        # 不引会被拆成 E9 和 F 两个参数，后者会被 ruff 当成文件路径。
+        args: [--select, "E9,F", --ignore, "F841", --fix]
+
+  # ---- 提交信息规范（默认关闭） ----
+  # 仓库历史提交遵循 Conventional Commits + 中文描述，例如
+  # "feat(s2): 落地统一验收入口，五项自测串跑一次给出判据"。如需强制，取消
+  # 注释后执行 pre-commit install --hook-type commit-msg。
+  #
+  # - repo: https://github.com/compilerla/conventional-pre-commit
+  #   rev: v3.6.0
+  #   hooks:
+  #     - id: conventional-pre-commit
+  #       stages: [commit-msg]
+
+  # ---- S2 统一验收（默认关闭） ----
+  # 刻意不放进 pre-commit：单次约 48 s，且跑完 sim/framework/vectors/*/*_meta.json
+  # 会因 generated_at 变脏（sim/README.md §6 已登记）。它的正确落点是 push 前的
+  # pre-push 阶段或自托管 CI —— 两者取一，不要都开。
+  #
+  # - repo: local
+  #   hooks:
+  #     - id: s2-acceptance
+  #       name: S2 统一验收（前置：Vivado 在 PATH）
+  #       entry: powershell -NoProfile -ExecutionPolicy Bypass -File sim/run_s2_acceptance.ps1
+  #       language: system
+  #       pass_filenames: false
+  #       stages: [pre-push]

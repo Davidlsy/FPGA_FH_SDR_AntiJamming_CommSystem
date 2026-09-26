@@ -3,7 +3,7 @@ SRRC (Square Root Raised Cosine) 平方根升余弦滤波器
 滚降系数 α=0.35, 上采样因子 4, 跨度 8 符号
 """
 import numpy as np
-from ..config import SRRC_ALPHA, SRRC_SPAN, UPSAMPLE_FACTOR, SRRC_NUM_TAPS
+from ..config import SRRC_ALPHA, SRRC_SPAN, UPSAMPLE_FACTOR
 
 
 def srrc_coeffs(alpha=SRRC_ALPHA, span=SRRC_SPAN, sps=UPSAMPLE_FACTOR):
