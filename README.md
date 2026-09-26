@@ -84,72 +84,126 @@ vivado -mode batch -source build/create_smoke_project.tcl
 
 ---
 
+## 当前状态（阶段、已交付、下一步）
+
+> 本节是仓库的实际状态。上文 Overview / Architecture / Key Features / Performance 描述的是实施手册
+> V3.0.1 的目标设计（终态）；两者的差集以本节与下列边界表为准。
+
+### 编号体系
+
+工程有两套编号线，本 README 与各报告里的 `S` 编号指**纯仿真路线的验证阶段 S0–S10**
+（定义见 `docs/amd-fhss-sim-only-plan.html`）。`docs/pins.md`、`docs/report/env.md` 另用 AMD 实施手册的
+阶段号 `P0′–P7′` 与板级闸 `BV-01/BV-02`（定义见 `docs/fpga-fhss-amd-implementation-plan.html`）。两套
+编号不通用。
+
+### 进度
+
+| 阶段 | 内容 | 状态 | 证据 |
+|---|---|---|---|
+| S0 | 工具链冒烟：综合 → 实现 → bitstream + 行为仿真 | **完成** | `build/create_smoke_project.tcl`、`sim/tb_fhss_top.v`（`[SMOKE] PASS`） |
+| S1 | 浮点 / 定点黄金参考链 + BER 基线，定点规格书冻结 | **完成**（2026-09-22 冻结） | `sim/golden_ref/`、`data/s1_ber_baseline/`、`docs/spec/fixed_point_spec.md` |
+| S2 | 验证基础设施四件套（比对框架 / AD9363 模型 / 信道库 / 干扰源）+ PS-PL 协同仿真 | **完成**（2026-09-25 验收：5/5 套件、1538 项、0 错误） | `sim/run_s2_acceptance.ps1`、`docs/report/s2_verification.md` |
+| S3 | `spi_master` + `ad9363_cfg` 对 AD9363 模型做逐条（地址, 数据, 延时）比对 | **进行中** | `src/spi_master.v` 已入库；`src/ad9363_cfg.v` 与其 testbench 仍在工作区，尚未入库 |
+| S4+ | 发射链 / 接收链 / 跳频层 / 干扰感知 RTL | **未开始** | 仅 `sim/framework/vectors/qpsk_map/` 向量已就绪，等 S4-P1 接真实 DUT |
+
+### 已知边界
+
+- **板卡未到货**。`board/fhss_zynq_pins.xdc` 只有 `sys_clk` 与 4 个 LED 已填，AD9363 数据 / SPI / 按键
+  全是注释占位；`src/constraints/fhss_zynq_timing.xdc` 仅 `[1][6]` 生效。**当前 bitstream 只用于工具流
+  验证，不得下载到板卡**；引脚冻结（P1′-S1）、AD9363 真机回读（BV-01）、排针信号完整性（BV-02）
+  均在板卡到货后补。人读引脚表与状态总览见 `docs/pins.md`。
+- S2 五项之间没有联合仿真：RF 侧（信道 + 干扰源）接口一致但未串联，控制侧（SPI / AXI）与 RF 侧
+  也无交叉；登记见 `sim/README.md` §6 与 `docs/report/s2_verification.md` §5/§6。
+- `sim/framework/` 的比对框架目前只跑过自测（`golden-consistent` 桩 DUT），还没有真实模块用过它的
+  模板——所以"所有 RTL 模块已逐比特比对"目前仅对 S0/S1 的链级结论成立，不是逐模块结论。
+- `sw/`、`skill/` 目前只有 `.gitkeep`。
+- 复现入口：S1 见 `sim/golden_ref/README.md`，S2 见 `docs/report/s2_verification.md` §8。
+
 ## 工程结构
 
 ```text
 FPGA_FH_SDR_AntiJamming_CommSystem/
 │
-├── .gitattributes              # Git 属性
-├── .gitignore                  # 忽略规则
+├── .gitattributes              # Git 属性（文本 / 二进制判定）
+├── .gitignore                  # 忽略规则（本地产物一律不入库，见文末图例）
+├── .pre-commit-config.yaml     # 提交前检查（CI 的"文本卫生"作业复用同一套配置）
 ├── LICENSE                     # MIT
-├── README.md                   # 工程说明
+├── README.md                   # 工程说明（本文件）
+├── requirements-dev.txt        # S1 / S2 Python 脚本与 pre-commit 的依赖
+│
+├── .github/workflows/          # 【CI】
+│   ├── ci.yml                  #   文本卫生（pre-commit）+ S1 黄金参考链快速冒烟
+│   └── fpga-sim.yml            #   S2 统一验收（自托管 Windows runner，需 Vivado 在 PATH）
 │
 ├── src/                        # 【RTL 源码】
-│   ├── fhss_top.v              #   冒烟顶层：50MHz 计数器 + LED 心跳
+│   ├── fhss_top.v              #   S0 冒烟顶层：50MHz 计数器 + LED 心跳
+│   ├── spi_master.v            #   S3 AD9363 SPI 主端
+│   ├── ad9363_cfg.v *          #   S3 AD9363 初始化序列状态机（仅在工作区，尚未入库）
 │   └── constraints/
-│       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本）
+│       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
 ├── board/                      # 【板级约束】
-│   └── fhss_zynq_pins.xdc      #   引脚 + IOSTANDARD（每板一份，唯一副本）
+│   └── fhss_zynq_pins.xdc      #   物理属性（每板一份，换板只替换此文件；当前仅 sys_clk + 4 LED 已填，AD9363 / 按键为占位）
 │
-├── sim/                        # 【仿真】
+├── sim/                        # 【仿真】入口见 sim/README.md
 │   ├── README.md               #   仿真树总入口：S2 五件套关系、约定与运行顺序
-│   ├── tb_fhss_top.v           #   冒烟 testbench → [SMOKE] PASS/FAIL
+│   ├── tb_fhss_top.v           #   S0 冒烟 testbench → [SMOKE] PASS/FAIL
 │   ├── run_s2_acceptance.ps1   #   S2 统一验收：五项串跑 → [S2 ACCEPTANCE] 判据行（另有 .bat）
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
-│   ├── models/ad9363/          #   S2 AD9363 SPI 行为模型（板卡的仿真替身，自测 6 项）
-│   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径，29 项统计核验）
-│   ├── models/jammer/          #   S2 干扰注入源（单音/多音/扫频/部分频带 + JSR 标定，31 项核验）
-│   ├── vip/                    #   S2 PS/PL 协同仿真环境（AXI VIP 主端 + PS 软件序列，28 项自检）
-│   ├── golden_ref/             #   S1 黄金参考链（Python 包 golden_ref）
-│   └── float_ref/              #   V2.x MATLAB 归档链重跑与对照
-│       ├── README.md           #     运行方式 / 路径约定 / 出口门槛
-│       ├── config.py           #     系统参数 + FIXED_POINT_CONFIG
-│       ├── run_ber.py          #     BER 仿真入口 → data/s1_ber_baseline/
-│       ├── generate_spec.py    #     生成定点规格书 → docs/spec/
-│       ├── float_chain/        #     浮点模块（卷积/交织/QPSK/SRRC/AWGN/同步/Viterbi）
-│       ├── fixed_point/        #     定点模块 + 量化器
-│       └── sim/                #     链路 BER 仿真 + SNR 损失分析
+│   ├── models/ad9363/          #   S2 AD9363 SPI 行为模型（板卡的仿真替身）
+│   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径）
+│   ├── models/jammer/          #   S2 干扰注入源（单音/多音/扫频/部分频带 + JSR 标定）
+│   ├── vip/                    #   S2 PS/PL 协同仿真环境（AXI VIP 主端 + PS 软件序列；gen/ 本地生成可重建）
+│   ├── golden_ref/             #   S1 黄金参考链（Python 包 golden_ref）——全工程唯一正确性基准
+│   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）
+│   │   ├── run_ber.py          #     BER 仿真入口 → data/s1_ber_baseline/
+│   │   ├── generate_spec.py    #     生成定点规格书 → docs/spec/
+│   │   ├── float_chain/        #     浮点模块（卷积/交织/QPSK/SRRC/AWGN/同步/Viterbi）
+│   │   ├── fixed_point/        #     定点模块 + 量化器
+│   │   └── sim/                #     链路 BER 仿真 + SNR 损失分析
+│   ├── float_ref/              #   V2.x MATLAB 归档链重跑与对照（对照证据，不是基准）
+│   │   ├── run_ber_sweep.m     #     归档脚本重跑 → results/
+│   │   └── results/            #     归档 BER 数据（csv / mat）
+│   └── logs/                   #   运行日志（*.log 本地生成）
 │
 ├── build/                      # 【一键重建脚本】
-│   ├── create_smoke_project.tcl  # Vivado batch：建工程→综合→实现→bit
-│   └── vivado_smoke/           #   冒烟工程与实现产物（综合/实现报告、bit 等）
+│   ├── create_smoke_project.tcl  # Vivado batch：建工程→综合→实现→bit（`-tclargs sim` 只跑行为仿真）
+│   └── vivado_smoke/ *         #   冒烟工程与实现产物（每次运行整目录重建）
 │
-├── sw/                         # 【上位机 / 软件】software
-│   └── （Python 上位机等，产物 sw/build、sw/dist 已 ignore）
+├── sw/                         # 【上位机 / 软件】当前只有 .gitkeep（Python 上位机待开发；产物 sw/**/build、sw/dist 不入库）
+│
+├── skill/                      # 【技能 / 脚本 / 工具说明】当前只有 .gitkeep（比对框架尚未沉淀为技能包）
 │
 ├── data/                       # 【数据 / 激励 / 参考结果】
-│   └── s1_ber_baseline/        #   S1 BER 基线
-│       ├── ber_curve.png       #     浮点 vs 定点 BER 曲线
-│       ├── ber_float.npz       #     浮点原始数据
-│       ├── ber_fixed.npz       #     定点原始数据
-│       └── snr_loss_table.csv  #     SNR 损失表（链路 + 节点位宽）
-│
-├── skill/                      # 【技能 / 脚本 / 工具说明】
+│   ├── s1_ber_baseline/        #   S1 BER 基线
+│   │   ├── ber_curve.png       #     浮点 vs 定点 BER 曲线
+│   │   ├── ber_float.npz       #     浮点原始数据
+│   │   ├── ber_fixed.npz       #     定点原始数据
+│   │   └── snr_loss_table.csv  #     SNR 损失表（链路 + 节点位宽）
+│   ├── s2_channel_stats/       #   S2 信道模型核验表
+│   └── s2_jammer_stats/        #   S2 干扰源核验表
 │
 └── docs/                       # 【文档】
-    ├── amd-board-requirements.html
-    ├── amd-fhss-sim-only-plan.html          # 纯仿真路线 S0–S10
-    ├── fpga-fhss-amd-implementation-plan.html
-    ├── pins.md                 # 引脚映射表（与 board/fhss_zynq_pins.xdc 1:1）
+    ├── fpga-fhss-amd-implementation-plan.html  # 实施手册 V3.0.1（主线，阶段号 P0′–P7′）
+    ├── amd-fhss-sim-only-plan.html             # 纯仿真路线备选方案（阶段号 S0–S10）
+    ├── amd-board-requirements.html             # 选板论证（AX7020 / PYNQ-Z2）
+    ├── s4-tx-chain-implementation-dark.html    # S4 TX 链实现说明（约 4.3 MB，内嵌字体）
+    ├── pins.md                 # 人读引脚映射表（与 board/fhss_zynq_pins.xdc 1:1，含待填清单与状态总览）
     ├── spec/
-    │   └── fixed_point_spec.md #   S1 定点规格书（评审冻结基准）
-    └── report/
-        ├── env.md              # 开发环境记录
-        ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告
-        ├── s1_spec_review.md   # S1 定点规格书评审记录
-        └── s2_verification.md  # S2 验收报告（5/5 套件，1538 项，0 错误）
+    │   ├── fixed_point_spec.md #   S1 定点规格书（评审冻结基准，由 generate_spec.py 生成）
+    │   └── freeze_status.json  #   冻结状态的机器可读来源
+    ├── report/
+    │   ├── env.md              #   开发环境记录
+    │   ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告
+    │   ├── s1_spec_review.md   #   S1 定点规格书评审记录
+    │   └── s2_verification.md  #   S2 验收报告（5/5 套件，1538 项，0 错误）
+    └── Xilinx-Zynq-7000 系列开发板AX7020/   # ALINX 官方资料（用户手册 / 管脚表 / 原理图 / PCB）
 ```
+
+> **图例**：无标记 = 已入库，clone 即可获得；`*` = 本地生成、不入库，可重建。仓库内另有
+> `desktop.ini`（Windows 系统文件）与 `.ruff_cache/` 等本地产物，均按 `.gitignore` 忽略。
+> `docs/Xilinx-Zynq-7000 系列开发板AX7020/` 是仓库内唯一的中文文件名目录，按交付纪律需在收尾时
+> 改为英文目录名。
 
 ## License
 
