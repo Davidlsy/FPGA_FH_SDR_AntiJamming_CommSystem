@@ -315,8 +315,8 @@ module spi_master #(
                             sdo_r  <= wbuf_data[7];
                             sh_out <= {wbuf_data[6:0], 9'b0};
                         end else begin
-                            // mode1/3: 首沿驱动
-                            sh_out <= {8'h00, wbuf_data};
+                            // mode1/3: 首沿驱动 (data[7] 需对齐到 [15])
+                            sh_out <= {wbuf_data, 8'h00};
                         end
                         bits_left <= 5'd8;
                         edge_ph   <= 1'b0;

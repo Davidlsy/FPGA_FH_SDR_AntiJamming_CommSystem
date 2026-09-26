@@ -86,6 +86,7 @@ vivado -mode batch -source build/create_smoke_project.tcl
 
 ## 工程结构
 
+```text
 FPGA_FH_SDR_AntiJamming_CommSystem/
 │
 ├── .gitattributes              # Git 属性
@@ -148,6 +149,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
         ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告
         ├── s1_spec_review.md   # S1 定点规格书评审记录
         └── s2_verification.md  # S2 验收报告（5/5 套件，1538 项，0 错误）
+```
 
 ## License
 
