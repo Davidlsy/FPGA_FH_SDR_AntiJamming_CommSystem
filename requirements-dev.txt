@@ -6,5 +6,9 @@
 
 numpy>=2.0
 matplotlib>=3.8   # 仅 BER 曲线图；缺失时 run_ber.py 自动跳过绘图
-ruff>=0.8         # 与 .pre-commit-config.yaml 中的 --select E9,F 保持一致
 pre-commit>=3.7
+
+# ruff 刻意不在此声明：它由 pre-commit 钩子自带，版本由
+# .pre-commit-config.yaml 里 ruff-pre-commit 的 rev 唯一确定，CI 也不再单独
+# 安装 ruff。两处各装一份迟早版本不一致，最后表现为「本地过、CI 不过」。
+# 想在命令行直接跑 ruff，用 pre-commit run ruff --all-files。

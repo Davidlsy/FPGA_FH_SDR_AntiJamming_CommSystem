@@ -47,8 +47,10 @@ jobs:
       - name: 安装依赖
         run: pip install -r requirements-dev.txt
 
-      - name: Python 静态检查
-        run: ruff check --select E9,F sim sw
+      # Python 静态检查不在这里重复：ruff 由 pre-commit 钩子统一执行，版本由
+      # .pre-commit-config.yaml 里的 ruff-pre-commit rev 唯一确定，hygiene job
+      # 已经跑过。在 CI 里另外 pip install 一个 ruff 会引入版本漂移，造成
+      # 「本地过、CI 不过」——那正是本配置要避免的。
 
       # 守住 sim/README.md §5.1「位宽/小数位只有一个来源」：规格书是
       # config.py 的生成物，若有人改了 FIXED_POINT_CONFIG 却没重跑生成器，

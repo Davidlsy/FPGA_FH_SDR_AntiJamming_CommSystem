@@ -182,27 +182,37 @@ module tb_spi_master;
     reg        spy_is_wr;
     reg [3:0]  spy_bytcnt;
     reg [2:0]  spy_nbm1;
+    integer    spy_pedges;
+    integer    spy_txn;
 
     always @(negedge spi_csb) begin
         spy_instr   = 16'd0;
         spy_bitcnt  = 5'd0;
         spy_in_data = 1'b0;
         spy_bytcnt  = 4'd0;
+        spy_pedges  = 0;
+        spy_txn     = spy_txn + 1;
+    end
+
+    always @(posedge spi_csb) begin
+        $display("[%0t] SPY-TXN[%0d] END: posedges=%0d", $time, spy_txn, spy_pedges);
     end
 
     always @(posedge spi_sclk) begin
         if (!spi_csb) begin
+            spy_pedges = spy_pedges + 1;
             if (!spy_in_data) begin
                 spy_instr = {spy_instr[14:0], sdio};
-                spy_bitcnt = spy_bitcnt + 5'd1;
                 if (spy_bitcnt == 5'd15) begin
-                    spy_is_wr  = spy_instr[15];
-                    spy_nbm1   = spy_instr[14:12];
+                    spy_is_wr   = spy_instr[15];
+                    spy_nbm1    = spy_instr[14:12];
                     spy_in_data = 1'b1;
-                    spy_bitcnt = 5'd0;
-                    $display("[%0t] SPY-INSTR: 0x%04h %s nb=%0d addr=0x%03h",
-                             $time, spy_instr, spy_is_wr ? "WR" : "RD",
+                    spy_bitcnt  = 5'd0;
+                    $display("[%0t] SPY-TXN[%0d] INSTR: 0x%04h %s nb=%0d addr=0x%03h",
+                             $time, spy_txn, spy_instr, spy_is_wr ? "WR" : "RD",
                              spy_nbm1 + 3'd1, spy_instr[9:0]);
+                end else begin
+                    spy_bitcnt = spy_bitcnt + 5'd1;
                 end
             end else begin
                 if (spy_is_wr) begin
@@ -210,17 +220,27 @@ module tb_spi_master;
                 end else begin
                     spy_rbyte = {spy_rbyte[6:0], sdo_chip};
                 end
-                spy_bitcnt = spy_bitcnt + 5'd1;
                 if (spy_bitcnt == 5'd7) begin
                     spy_bitcnt = 5'd0;
                     if (spy_is_wr)
-                        $display("[%0t] SPY-WR-BYTE[%0d]: 0x%02h", $time, spy_bytcnt, spy_wbyte);
+                        $display("[%0t] SPY-TXN[%0d] WR-BYTE[%0d]: 0x%02h", $time, spy_txn, spy_bytcnt, spy_wbyte);
                     else
-                        $display("[%0t] SPY-RD-BYTE[%0d] (chip drove): 0x%02h", $time, spy_bytcnt, spy_rbyte);
+                        $display("[%0t] SPY-TXN[%0d] RD-BYTE[%0d] chip-drove: 0x%02h", $time, spy_txn, spy_bytcnt, spy_rbyte);
                     spy_bytcnt = spy_bytcnt + 4'd1;
+                end else begin
+                    spy_bitcnt = spy_bitcnt + 5'd1;
                 end
             end
         end
+    end
+
+    //------------------------------ 主控内部状态逐拍跟踪 (仅 T1 窗口) ------------------------------
+    reg trace_on = 1'b0;
+    always @(negedge clk) begin
+        if (trace_on)
+            $display("[%0t] TRC: st=%0d edge_ph=%0d half=%0d bits=%0d pairs=%0d sclk=%b csb=%b sdo_oe=%b sdo_r=%b sh_out=%04h",
+                     $time, dut.state, dut.edge_ph, dut.half_cnt, dut.bits_left, dut.pairs_left,
+                     dut.sclk_r, dut.csb_r, dut.sdo_oe_r, dut.sdo_r, dut.sh_out);
     end
 
     //------------------------------ 测试主体 ------------------------------
@@ -233,9 +253,11 @@ module tb_spi_master;
         repeat (5) @(negedge clk);
 
         //---------------- T1: 单字节写 ----------------
+        trace_on = 1'b1;
         issue_cmd(1'b0, A_RW1, 3'd0);
         feed_bytes(3'd0, 64'hA5);
         wait_done(4'd0, "T1 wr 1B done");
+        trace_on = 1'b0;
         check(model.peek_reg(A_RW1) === 8'hA5, "T1 peek 0x013 == 0xA5");
 
         //---------------- T2: 单字节读 ----------------
