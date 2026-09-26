@@ -44,6 +44,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          # 必须显式指定：setup-python 的 pip 缓存只默认匹配
+          # **/requirements.txt 与 **/pyproject.toml，本仓库的清单叫
+          # requirements-dev.txt，匹配不到会直接报错终止 job。
+          cache-dependency-path: requirements-dev.txt
       - name: 安装依赖
         run: pip install -r requirements-dev.txt
 

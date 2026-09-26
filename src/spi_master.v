@@ -253,8 +253,9 @@ module spi_master #(
                             if (mosi_act)
                                 bits_left <= bits_left - 5'd1;
 
+                            // ---- 三个互不排斥的动作: 采样 / 驱动 / 预约 ----
+                            // (1) mode0/2 读: 在后沿采样 MISO
                             if (rw_r && !cpha_r) begin
-                                // mode0/2: 在后沿采样 MISO
                                 if (sample_p) begin
                                     sh_in        <= {sh_in[6:0], sdi};
                                     sample_p     <= 1'b0;
@@ -265,15 +266,17 @@ module spi_master #(
                                         rdata_valid <= 1'b1;
                                     end
                                 end
-                            end else if (cpha_r) begin
-                                // mode1/3: 预约下一前沿采样
-                                if (rw_r && phase_data && (rd_bits_left != 7'd0))
-                                    sample_p <= 1'b1;
-                            end else if (mosi_act && (bits_left > 5'd1)) begin
-                                // mode0/2: 在后沿更新下一位 MOSI
+                            end
+                            // (2) mode0/2 MOSI 驱动: 指令段(含读事务) + 写数据段。
+                            //     读指令段同样需要驱动, 之前用 else-if 链导致读事务
+                            //     指令只送出首位的错误在此修复
+                            if (!cpha_r && mosi_act && (bits_left > 5'd1)) begin
                                 sdo_r  <= sh_out[15];
                                 sh_out <= {sh_out[14:0], 1'b0};
                             end
+                            // (3) mode1/3 读: 预约下一前沿采样
+                            if (rw_r && cpha_r && phase_data && (rd_bits_left != 7'd0))
+                                sample_p <= 1'b1;
 
                             //--------- 单元/字节推进 (所有模式) ---------
                             if (!phase_data) begin
@@ -308,8 +311,9 @@ module spi_master #(
                     if (wbuf_valid) begin
                         if (!cpha_r) begin
                             // mode0/2: 入口直接驱动 bit7, 移位寄存器预移一位
+                            // (b6 对齐到 [15], 供首个尾沿驱动)
                             sdo_r  <= wbuf_data[7];
-                            sh_out <= {1'b0, wbuf_data[6:0], 8'h00};
+                            sh_out <= {wbuf_data[6:0], 9'b0};
                         end else begin
                             // mode1/3: 首沿驱动
                             sh_out <= {8'h00, wbuf_data};

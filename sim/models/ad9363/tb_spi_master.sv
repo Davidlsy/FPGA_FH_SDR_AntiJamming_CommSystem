@@ -90,7 +90,7 @@ module tb_spi_master;
     ad9363_spi_model #(
         .TCO_NS    (5.0),
         .TIMEOUT_NS(1000.0),
-        .VERBOSE   (1)
+        .VERBOSE   (0)
     ) model (
         .sclk     (spi_sclk),
         .csb      (spi_csb),
@@ -183,7 +183,7 @@ module tb_spi_master;
     reg [3:0]  spy_bytcnt;
     reg [2:0]  spy_nbm1;
     integer    spy_pedges;
-    integer    spy_txn;
+    integer    spy_txn = 0;
 
     always @(negedge spi_csb) begin
         spy_instr   = 16'd0;
@@ -210,7 +210,7 @@ module tb_spi_master;
                     spy_bitcnt  = 5'd0;
                     $display("[%0t] SPY-TXN[%0d] INSTR: 0x%04h %s nb=%0d addr=0x%03h",
                              $time, spy_txn, spy_instr, spy_is_wr ? "WR" : "RD",
-                             spy_nbm1 + 3'd1, spy_instr[9:0]);
+                             {1'b0, spy_nbm1} + 4'd1, spy_instr[9:0]);
                 end else begin
                     spy_bitcnt = spy_bitcnt + 5'd1;
                 end
@@ -234,7 +234,7 @@ module tb_spi_master;
         end
     end
 
-    //------------------------------ 主控内部状态逐拍跟踪 (仅 T1 窗口) ------------------------------
+    //------------------------------ 主控内部状态逐拍跟踪 (诊断用, 默认关闭) ------------------------------
     reg trace_on = 1'b0;
     always @(negedge clk) begin
         if (trace_on)
@@ -253,11 +253,9 @@ module tb_spi_master;
         repeat (5) @(negedge clk);
 
         //---------------- T1: 单字节写 ----------------
-        trace_on = 1'b1;
         issue_cmd(1'b0, A_RW1, 3'd0);
         feed_bytes(3'd0, 64'hA5);
         wait_done(4'd0, "T1 wr 1B done");
-        trace_on = 1'b0;
         check(model.peek_reg(A_RW1) === 8'hA5, "T1 peek 0x013 == 0xA5");
 
         //---------------- T2: 单字节读 ----------------
@@ -267,7 +265,7 @@ module tb_spi_master;
         check(rd_pat[7:0] === 8'hA5, "T2 readback 0x013 == 0xA5");
 
         //---------------- T3: 4 字节突发写 ----------------
-        wr_pat = 64'h11_22_33_44_00_00_00_00;
+        wr_pat = 64'h11_22_33_44;   // 右对齐: byte0=0x11 @ 0x004
         issue_cmd(1'b0, A_BURST4, 3'd3);
         feed_bytes(3'd3, wr_pat);
         wait_done(4'd0, "T3 wr 4B done");
