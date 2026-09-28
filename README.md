@@ -111,7 +111,8 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S1 | 浮点 / 定点黄金参考链 + BER 基线，定点规格书冻结 | **完成**（2026-09-22 冻结） | `sim/golden_ref/`、`data/s1_ber_baseline/`、`docs/spec/fixed_point_spec.md` |
 | S2 | 验证基础设施四件套（比对框架 / AD9363 模型 / 信道库 / 干扰源）+ PS-PL 协同仿真 | **完成**（2026-09-25 验收：5/5 套件、1538 项、0 错误） | `sim/run_s2_acceptance.ps1`、`docs/report/s2_verification.md` |
 | S3 | `spi_master` + `ad9363_cfg` 对 AD9363 模型做逐条（地址, 数据, 延时）比对 | **进行中**（代码与机制完成，序列表内容待补，报告待评审） | 两模块 RTL 已入库；`sim/run_s3_acceptance.ps1` 四套件 4718 项 0 错误；`docs/report/s3_verification.md` |
-| S4+ | 发射链 / 接收链 / 跳频层 / 干扰感知 RTL | **未开始** | 仅 `sim/framework/vectors/qpsk_map/` 向量已就绪，等 S4-P1 接真实 DUT |
+| S4-P0+P1 | 帧格式与接口冻结（P0）+ `frame_tx` / `conv_enc` / `qpsk_map` 位真比对（P1） | **完成**（2026-09-28 验收：13/13 套件、0 错误；含 1000 帧与 10⁶ bit 两条长跑判据） | `sim/run_s4_acceptance.ps1`、`docs/report/s4_verification.md`、`docs/spec/{frame_format,s4_tx_interface}.md` |
+| S4-P2..P5 | `blk_inter` 存储迁移 / `srrc_duc` 双版 SRRC + NCO / IP vs 手写对比 / 整链收口 | **未开始**（接口已冻结，可直接开工） | `docs/spec/s4_tx_interface.md` §8 待冻结清单 |
 
 ### 已知边界
 
@@ -121,8 +122,15 @@ vivado -mode batch -source build/create_smoke_project.tcl
   均在板卡到货后补。人读引脚表与状态总览见 `docs/pins.md`。
 - S2 五项之间没有联合仿真：RF 侧（信道 + 干扰源）接口一致但未串联，控制侧（SPI / AXI）与 RF 侧
   也无交叉；登记见 `sim/README.md` §6 与 `docs/report/s2_verification.md` §5/§6。
-- `sim/framework/` 的比对框架目前只跑过自测（`golden-consistent` 桩 DUT），还没有真实模块用过它的
-  模板——所以"所有 RTL 模块已逐比特比对"目前仅对 S0/S1 的链级结论成立，不是逐模块结论。
+- `sim/framework/` 的比对框架现已由**三个真实模块**（`frame_tx` / `conv_enc` / `qpsk_map`）
+  在使用，并为此扩展成"激励/期望长度解耦 + 激励节奏"（S4-P0）：原实现只支持一入一出，
+  装不下成帧（256 拍进 / 2160 拍出）与上采样这类 N:M 模块。框架自测因此从 4 项扩到 8 项，
+  每条新判据都配了专门证伪它的用例。**尚未用过框架的是接收链与跳频层**。
+- S4 的五个模块只完成三个：`blk_inter`（P2）、`srrc_duc` 双版 + NCO（P3）、IP vs 手写对比（P4）、
+  整链收口（P5）未开始，故任务卡的 S4 出口门槛**尚未达成**——`docs/report/s4_verification.md`
+  §6 已登记，不得被引用为"S4 已通过"。
+- S4 长跑判据（1000 帧 / 10⁶ bit）的向量体积约 9 MB，按 `.gitignore` 的"S4 长跑向量"段不入库，
+  由固定种子确定性重生成（`export_vectors.py --case long`）。
 - `sw/`、`skill/` 目前只有 `.gitkeep`。
 - 复现入口：S1 见 `sim/golden_ref/README.md`，S2 见 `docs/report/s2_verification.md` §8。
 
@@ -146,6 +154,10 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── fhss_top.v              #   S0 冒烟顶层：50MHz 计数器 + LED 心跳
 │   ├── spi_master.v            #   S3 AD9363 SPI 主端
 │   ├── ad9363_cfg.v            #   S3 AD9363 初始化序列状态机（表驱动 + cfg_rom，$readmemh 加载）
+│   ├── frame_tx.v              #   S4 帧成形：Gold 同步字 + 帧头 + 256B + CRC16（双缓冲）
+│   ├── frame_tx_sync.vh        #   S4 同步字常量（生成物，见 sim/golden_ref/gen_frame_sync.py）
+│   ├── conv_enc.v              #   S4 卷积编码 (171,133)₈，含 6 bit 归零尾比特与输入弹性缓冲
+│   ├── qpsk_map.v              #   S4 QPSK 直移映射（纯组合）
 │   └── constraints/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
@@ -157,7 +169,9 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── tb_fhss_top.v           #   S0 冒烟 testbench → [SMOKE] PASS/FAIL
 │   ├── run_s2_acceptance.ps1   #   S2 统一验收：五项串跑 → [S2 ACCEPTANCE] 判据行（另有 .bat）
 │   ├── run_s3_acceptance.ps1   #   S3 统一验收：四项串跑 → [S3 ACCEPTANCE] 判据行
+│   ├── run_s4_acceptance.ps1   #   S4 统一验收：位真比对 + 证伪用例 → [S4 ACCEPTANCE]（-Full 带长跑判据）
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
+│   │   └── tb/                 #     S4-P1 起接真实 DUT：tb_{frame_tx,conv_enc,qpsk_map}_compare.sv
 │   ├── models/ad9363/          #   S2 SPI 行为模型 + S3 射频配置模块的验证落点
 │   │   ├── ad9363_spi_model.sv #     S2 模型本体（寄存器堆 + 回读校验 + 异常注入）
 │   │   ├── ad9363_init_table.csv  #  S3 初始化表唯一人类可读来源（现为烟测占位序列，见 s3 报告 §8）
@@ -168,12 +182,14 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── models/jammer/          #   S2 干扰注入源（单音/多音/扫频/部分频带 + JSR 标定）
 │   ├── vip/                    #   S2 PS/PL 协同仿真环境（AXI VIP 主端 + PS 软件序列；gen/ 本地生成可重建）
 │   ├── golden_ref/             #   S1 黄金参考链（Python 包 golden_ref）——全工程唯一正确性基准
-│   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）
+│   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）+ FRAME_*（帧格式）
 │   │   ├── run_ber.py          #     BER 仿真入口 → data/s1_ber_baseline/
 │   │   ├── generate_spec.py    #     生成定点规格书 → docs/spec/
+│   │   ├── gen_frame_sync.py   #     S4 帧同步字 → src/frame_tx_sync.vh（带 --check）
 │   │   ├── float_chain/        #     浮点模块（卷积/交织/QPSK/SRRC/AWGN/同步/Viterbi）
+│   │   │   └── framing.py      #       S4 帧层裁判：m 序列 / Gold / CRC16 / 成帧与解析
 │   │   ├── fixed_point/        #     定点模块 + 量化器
-│   │   └── sim/                #     链路 BER 仿真 + SNR 损失分析
+│   │   └── sim/                #     链路 BER 仿真 + SNR 损失分析 + S4 帧层自检 check_framing.py
 │   ├── float_ref/              #   V2.x MATLAB 归档链重跑与对照（对照证据，不是基准）
 │   │   ├── run_ber_sweep.m     #     归档脚本重跑 → results/
 │   │   └── results/            #     归档 BER 数据（csv / mat）
@@ -204,13 +220,16 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
     ├── pins.md                 # 人读引脚映射表（与 board/fhss_zynq_pins.xdc 1:1，含待填清单与状态总览）
     ├── spec/
     │   ├── fixed_point_spec.md #   S1 定点规格书（评审冻结基准，由 generate_spec.py 生成）
+    │   ├── frame_format.md     #   S4 帧格式规格书（帧层首次定义，已冻结）
+    │   ├── s4_tx_interface.md  #   S4 发射链接口规格书（流控 / 位序 / 拍数账本 / NCO 语义）
     │   └── freeze_status.json  #   冻结状态的机器可读来源
     ├── report/
     │   ├── env.md              #   开发环境记录
     │   ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告
     │   ├── s1_spec_review.md   #   S1 定点规格书评审记录
     │   ├── s2_verification.md  #   S2 验收报告（5/5 套件，1538 项，0 错误）
-    │   └── s3_verification.md  #   S3 验证报告（4/4 套件，4718 项，0 错误；含异常注入覆盖矩阵与遗留项）
+    │   ├── s3_verification.md  #   S3 验证报告（4/4 套件，4718 项，0 错误；含异常注入覆盖矩阵与遗留项）
+    │   └── s4_verification.md  #   S4 验证报告（P0+P1：13/13 套件，0 错误；含证伪用例与有意偏差登记）
     └── Xilinx-Zynq-7000 系列开发板AX7020/   # ALINX 官方资料（用户手册 / 管脚表 / 原理图 / PCB）
 ```
 

@@ -1,0 +1,24 @@
+{
+  "module": "frame_tx",
+  "case": "single",
+  "stim_rows": 256,
+  "expect_rows": 2160,
+  "count": 2160,
+  "case_note": "单帧随机载荷：复位后首帧、帧号 0",
+  "seed": 20260924,
+  "golden_source": "golden_ref.float_chain.framing.build_frame_bits",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-09-28T15:54:05+08:00",
+  "stim": {
+    "bits": 8,
+    "packing": "载荷字节（每帧 256 个）",
+    "frac": null
+  },
+  "expect": {
+    "bits": 1,
+    "packing": "帧比特流：同步字64→帧头32→载荷2048→CRC16",
+    "frac": null
+  },
+  "frames": 1,
+  "stim_period": 9
+}

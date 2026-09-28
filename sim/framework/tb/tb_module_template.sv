@@ -5,6 +5,12 @@
 // 然后只改 4 处占位：MODULE_NAME、IN_W、OUT_W、DUT 例化；向量文件路径指向
 // vectors/<module>/<case>_{stim,expect}.hex（由 export_vectors.py 生成）。
 //
+// 两个长度互不约束（S4-P0 起）：stim 行数 = 驱动节拍数，expect 行数 = 比对长度。
+//   · 1:1 模块（qpsk_map / conv_enc）两者相等，照模板不做任何事；
+//   · N:M 模块（frame_tx 256→2160、blk_inter 补零、srrc_duc ×4 上采样）只需
+//     把两份文件交给导出器，TB 不用改——比对器按 DUT 自己的 dout_valid 逐拍取数。
+//   · DUT 在激励停止后继续吐输出（如 conv_enc 的 6 bit 尾码字）同样由它覆盖。
+//
 // 一个 TB 只跑一个用例。要跑第二个用例就再复制一份（改 CASE_NAME 与路径），
 // 或用 ifdef 切换——比对器在收口时会 $finish/$fatal，不适合在一个 TB 里串两轮。
 // =====================================================================
@@ -44,8 +50,8 @@ module tb_MODULE_compare;
         .STIM_FILE(STIM_FILE),
         .EXP_FILE (EXP_FILE),
         .TB_NAME  ({"tb_", MODULE_NAME, "_", CASE_NAME})
-        //, .DRAIN_CYCLES   (64)     // 流水线深（如 SRRC 31 抽头）时按需放大
-        //, .TIMEOUT_CYCLES (0)      // 0 = 自动 8*n_vec+4096
+        //, .DRAIN_CYCLES   (64)     // 流水线深（如 SRRC 33 抽头）时按需放大
+        //, .TIMEOUT_CYCLES (0)      // 0 = 自动 8*max(stim_rows,expect_rows)+4096
     ) u_cmp (
         .clk       (clk),
         .rst_n     (rst_n),

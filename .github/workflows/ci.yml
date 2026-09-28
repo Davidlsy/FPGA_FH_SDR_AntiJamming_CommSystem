@@ -67,6 +67,17 @@ jobs:
       - name: 校验规格书无差异
         run: git diff --exit-code -- docs/spec/fixed_point_spec.md
 
+      # S4 帧层的黄金模型是 frame_tx 位真比对的裁判，它自己也必须先证明可信：
+      # CRC 走两条独立实现路径并对上标准向量 "123456789"→0x29B1、优选对交叉相关集
+      # 恰为三值、成帧往返一致、注错必须被检出（含"非优选对"对照，证明判据不是恒真）。
+      - name: S4 帧层黄金模型自检
+        run: python sim/golden_ref/sim/check_framing.py
+
+      # 守住 src/frame_tx_sync.vh 与黄金模型同源：手改常量、或改了帧格式却忘了
+      # 重跑生成器，都会在这里暴露（RTL 不运行时生成同步字，常量就是唯一载体）。
+      - name: 校验同步字常量与黄金模型一致
+        run: python sim/golden_ref/gen_frame_sync.py --check
+
       # 参考链是全部判据的来源，先证明它在干净环境（只有 numpy）下能跑通。
       # 产物落临时目录，绝不覆盖入库的 data/s1_ber_baseline/。
       # 说明：run_ber.py 结束时不改退出码，本步骤判的是「可运行性」；出口门槛

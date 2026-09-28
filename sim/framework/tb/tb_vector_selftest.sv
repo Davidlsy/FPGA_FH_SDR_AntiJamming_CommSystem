@@ -8,10 +8,19 @@
 //   ------------------------------     ------------------------------
 //   默认编译                           框架判 PASS（桩 DUT 与 golden 一致）
 //   -d SELFTEST_CASE_EDGE              边界用例同样 PASS
+//   -d SELFTEST_CASE_RATIO             1:N 路径 PASS（3 拍激励 → 9 拍期望）
+//   -d SELFTEST_CASE_RATIO -d SELF_TEST_STIM_PERIOD
+//                                      带节奏的激励 PASS（每 4 拍才出一个激励拍）
 //
 //   负路径
 //   ------------------------------     ------------------------------
 //   -d SELF_TEST_NEGATIVE              框架判 FAIL，且首个失配必须落在第 1000 拍
+//   -d SELFTEST_CASE_RATIO + -d SELF_TEST_EXTRA_OUT
+//                                      桩每输入多吐 1 拍 → 多余拍必须被判 FAIL
+//
+// 1:N 路径（S4-P0 新增）用 `stub_ratio3` 覆盖：这个桩每个输入拍产出 3 拍输出
+// （k, k+1, k+2），对应成帧/上采样/补零类模块的真实形状。夹具向量只有 3+9 行，
+// 手算即可核验，见 vectors/selftest_ratio/。
 //
 // 桩 DUT 只是 golden 映射的镜像（QPSK 四星座点 ±round(1/√2·2^10) = ±724），
 // 不是设计交付物——真实模块的 TB 从 tb_module_template.sv 起手。
@@ -64,12 +73,96 @@ endmodule
 
 
 // ---------------------------------------------------------------------
+// 自测桩（1:N 路径）：每个输入拍产出 3 拍输出 k, k+1, k+2
+// 形状对应成帧（256 拍进 → 2160 拍出）、上采样（×4）、交织补零等真实模块。
+//
+// 带 -d SELF_TEST_EXTRA_OUT 时**数据流一字不变**，只在 FIFO 排空后再多吐 3 拍
+// （值 0xA0..0xA2，与期望明显不同）——这样"多余拍"才是唯一被判错的来源。
+// 直接把每输入拍数改成 4 会让整条流出相位错位，9 拍全错，测不到 extra 这条判据。
+// ---------------------------------------------------------------------
+module stub_ratio3 (
+    input  logic       clk,
+    input  logic       rst_n,
+    input  logic       din_valid,
+    input  logic [7:0] din_data,
+    output logic       dout_valid,
+    output logic [7:0] dout_data
+);
+
+    localparam int PHASES = 3;
+
+`ifdef SELF_TEST_EXTRA_OUT
+    localparam bit EXTRA_TAIL = 1'b1;
+`else
+    localparam bit EXTRA_TAIL = 1'b0;
+`endif
+
+    logic [7:0] fifo [0:7];
+    logic [3:0] wptr, rptr;
+    logic [1:0] tail_cnt;
+    int         phase;
+
+    wire fifo_pop = (wptr != rptr);
+    // 尾巴必须在"数据流已排空"之后才启动：rptr!=0 表示至少已读出一拍，
+    // 否则复位后 FIFO 本来就是空的，尾拍会跑到数据前面（实测踩过一次）。
+    wire drained  = (rptr != 4'd0) && !fifo_pop;
+    wire tail_pop = EXTRA_TAIL && drained && (tail_cnt != 2'd3);
+
+    assign dout_valid = fifo_pop || tail_pop;
+    assign dout_data  = fifo_pop ? (fifo[rptr[2:0]] + phase[7:0])
+                                 : (8'hA0 + {6'b0, tail_cnt});
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)          wptr <= 4'd0;
+        else if (din_valid) begin
+            fifo[wptr[2:0]] <= din_data;
+            wptr <= wptr + 4'd1;
+        end
+    end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            rptr     <= 4'd0;
+            phase    <= 0;
+            tail_cnt <= 2'd0;
+        end else if (dout_valid) begin
+            if (fifo_pop) begin
+                if (phase == PHASES - 1) begin
+                    phase <= 0;
+                    rptr  <= rptr + 4'd1;
+                end else begin
+                    phase <= phase + 1;
+                end
+            end else begin
+                tail_cnt <= tail_cnt + 2'd1;
+            end
+        end
+    end
+
+endmodule
+
+
+// ---------------------------------------------------------------------
 // 自测 TB
 // ---------------------------------------------------------------------
 module tb_vector_selftest;
 
+`ifdef SELFTEST_CASE_RATIO
+    localparam int    IN_W  = 8;
+    localparam int    OUT_W = 8;
+    localparam string TB_LABEL  = "tb_selftest_ratio";
+    localparam string STIM_FILE = "vectors/selftest_ratio/stim.hex";
+    localparam string EXP_FILE  = "vectors/selftest_ratio/expect.hex";
+`ifdef SELF_TEST_STIM_PERIOD
+    localparam int    STIM_PERIOD = 4;      // 每 4 拍才出一个激励拍（多速率模块的形状）
+`else
+    localparam int    STIM_PERIOD = 1;
+`endif
+`else
     localparam int IN_W  = 2;
     localparam int OUT_W = 24;
+    localparam string TB_LABEL = "tb_vector_selftest";
+    localparam int    STIM_PERIOD = 1;
 
 `ifdef SELFTEST_CASE_EDGE
     localparam string CASE_NAME = "edge";
@@ -78,6 +171,7 @@ module tb_vector_selftest;
 `endif
     localparam string STIM_FILE = {"vectors/qpsk_map/", CASE_NAME, "_stim.hex"};
     localparam string EXP_FILE  = {"vectors/qpsk_map/", CASE_NAME, "_expect.hex"};
+`endif
 
     logic clk   = 1'b0;
     logic rst_n = 1'b0;
@@ -94,11 +188,12 @@ module tb_vector_selftest;
     logic [OUT_W-1:0] dut_data;
 
     tb_vec_cmp #(
-        .IN_W      (IN_W),
-        .OUT_W     (OUT_W),
-        .STIM_FILE (STIM_FILE),
-        .EXP_FILE  (EXP_FILE),
-        .TB_NAME   ("tb_vector_selftest")
+        .IN_W       (IN_W),
+        .OUT_W      (OUT_W),
+        .STIM_FILE  (STIM_FILE),
+        .EXP_FILE   (EXP_FILE),
+        .STIM_PERIOD(STIM_PERIOD),
+        .TB_NAME    (TB_LABEL)
     ) u_cmp (
         .clk       (clk),
         .rst_n     (rst_n),
@@ -108,6 +203,16 @@ module tb_vector_selftest;
         .dut_data  (dut_data)
     );
 
+`ifdef SELFTEST_CASE_RATIO
+    stub_ratio3 u_dut (
+        .clk       (clk),
+        .rst_n     (rst_n),
+        .din_valid (stim_valid),
+        .din_data  (stim_data),
+        .dout_valid(dut_valid),
+        .dout_data (dut_data)
+    );
+`else
     stub_qpsk_map u_dut (
         .clk       (clk),
         .rst_n     (rst_n),
@@ -116,5 +221,6 @@ module tb_vector_selftest;
         .dout_valid(dut_valid),
         .dout_data (dut_data)
     );
+`endif
 
 endmodule

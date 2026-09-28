@@ -10,9 +10,15 @@
 位宽、小数位一律取自 golden_ref.config.FIXED_POINT_CONFIG（即 docs/spec/
 fixed_point_spec.md 的机器可读来源），本文件不硬编码任何位宽。
 
+stim 与 expect 的**行数互不约束**（S4-P0 起）：前者是驱动节拍数，后者是比对长度。
+成帧（256 拍 → 2160 拍）、上采样、交织补零这类 N:M 模块因此不需要把形状凑成一比一。
+
+长跑用例（frame_tx/long、conv_enc/long）体积过大且可由固定种子确定性重生成，
+默认不生成、不入库；`--full` 或 `--case long` 才产出，权威验收脚本据此跑满判据。
+
 向量格式与 TB 时序契约见 sim/framework/README.md，比对器见 hdl/tb_vec_cmp.sv。
-新增模块：在 MODULES 里加一条 `cases` + `export` 即可，S4 的 frame_tx / conv_enc /
-qpsk_map / blk_inter / srrc_duc 依次照此接入。
+新增模块：在 MODULES 里加一条 `cases` + `export` 即可，S4 剩余的 blk_inter /
+srrc_duc 依次照此接入。
 """
 from __future__ import annotations
 
@@ -29,12 +35,27 @@ if str(SIM_DIR) not in sys.path:
 import numpy as np  # noqa: E402
 
 from golden_ref import __version__ as GOLDEN_REF_VERSION  # noqa: E402
-from golden_ref.config import FIXED_POINT_CONFIG  # noqa: E402
+from golden_ref.config import (  # noqa: E402
+    FIXED_POINT_CONFIG,
+    FRAME_PAYLOAD_BYTES,
+    FRAME_TOTAL_BITS,
+)
+from golden_ref.float_chain.conv_encoder import conv_encode  # noqa: E402
+from golden_ref.float_chain.framing import build_frame_bits  # noqa: E402
 from golden_ref.fixed_point.fixed_modules import fixed_qpsk_modulate  # noqa: E402
 
 FRAMEWORK_DIR = Path(__file__).resolve().parent
 DEFAULT_OUT = FRAMEWORK_DIR / "vectors"
 DEFAULT_SEED = 20260924
+
+# conv_enc 的块长固定为帧长（= 链路里的真实取值，见 docs/spec/s4_tx_interface.md §4.2）。
+# 10⁶ bit 判据按整块堆叠表达：463 × 2160 = 1,000,080 bit ≥ 10⁶，
+# 而不是用一个 10⁶ 比特的单块——blk_len 是 16 bit，装不下。
+CONV_BLK_BITS = FRAME_TOTAL_BITS
+
+# 长跑用例（frame_tx/long、conv_enc/long）体积过大且可由固定种子确定性重生成，
+# 按 .gitignore 的约定不入库，只在权威验收（run_s4_acceptance.ps1 -Full）时生成。
+LONG_CASES = {"long"}
 
 
 # ============================================================
@@ -128,6 +149,98 @@ def _export_qpsk_map(syms, seed: int):
 
 
 # ============================================================
+# frame_tx
+# ============================================================
+def _frame_payloads(rng, n: int):
+    return [rng.integers(0, 256, FRAME_PAYLOAD_BYTES, dtype=np.uint8).tobytes() for _ in range(n)]
+
+
+def _frame_tx_cases(seed: int):
+    """用例的"块"= 一帧：256 拍载荷进，2160 拍比特出。
+
+    帧号随帧序递增（0 起），所以多帧用例同时覆盖了帧号字段与背靠背帧边界。
+    """
+    rng = np.random.default_rng(seed)
+    edge = [
+        b"\x00" * FRAME_PAYLOAD_BYTES,
+        b"\xff" * FRAME_PAYLOAD_BYTES,
+        bytes(0xAA if i % 2 == 0 else 0x55 for i in range(FRAME_PAYLOAD_BYTES)),
+        b"\x00" * (FRAME_PAYLOAD_BYTES - 1) + b"\x01",   # 末字节仅 LSB 为 1
+    ]
+    return [
+        ("single", _frame_payloads(rng, 1), "单帧随机载荷：复位后首帧、帧号 0"),
+        ("multi", _frame_payloads(rng, 8), "8 帧背靠背随机载荷：覆盖帧号递增与帧边界"),
+        ("edge", edge, "边界载荷：全 0 / 全 0xFF / 0xAA-0x55 交替 / 末字节单比特"),
+        ("long", _frame_payloads(rng, 1000), "1000 随机帧（任务卡判据；体积大，不入库）"),
+    ]
+
+
+def _export_frame_tx(payloads, seed: int):
+    stim_hex, expect_hex = [], []
+    for frame_no, payload in enumerate(payloads):
+        stim_hex += [hex_of_int(b, 8) for b in payload]
+        expect_hex += [hex_of_int(int(x), 1) for x in build_frame_bits(payload, frame_no=frame_no)]
+
+    meta = {
+        "stim": {"bits": 8, "packing": "载荷字节（每帧 256 个）", "frac": None},
+        "expect": {"bits": 1, "packing": "帧比特流：同步字64→帧头32→载荷2048→CRC16", "frac": None},
+        "frames": len(payloads),
+        # 载荷 1 字节 / 9 拍：满足接口规格 §4.1 的"平均每字节 ≥ 8.44 拍"约束。
+        # TB 必须把 tb_vec_cmp 的 STIM_PERIOD 设成同一个值（见 tb_frame_tx_*.sv）。
+        "stim_period": 9,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
+# conv_enc
+# ============================================================
+def _conv_enc_cases(seed: int):
+    """用例的"块"= 一个编码块，块长固定为帧长（链路里的真实取值）。"""
+    rng = np.random.default_rng(seed)
+
+    def rand_blk():
+        return rng.integers(0, 2, CONV_BLK_BITS).astype(np.int8)
+
+    edge = [
+        np.zeros(CONV_BLK_BITS, dtype=np.int8),
+        np.ones(CONV_BLK_BITS, dtype=np.int8),
+        np.tile(np.array([0, 1], dtype=np.int8), CONV_BLK_BITS // 2),
+        np.concatenate([[1], np.zeros(CONV_BLK_BITS - 1, dtype=np.int8)]),
+    ]
+    return [
+        ("frame", [rand_blk()], f"单块随机信息位（块长 = 帧长 {CONV_BLK_BITS}）"),
+        ("rand", [rand_blk() for _ in range(8)], "8 块背靠背随机：覆盖块边界与尾比特"),
+        ("edge", edge, "边界：全 0 / 全 1 / 交替 / 首位单 1（寄存器归零路径）"),
+        ("long", [rand_blk() for _ in range(463)],
+         "463 块 = 1,000,080 bit（任务卡 10⁶ bit 判据；体积大，不入库）"),
+    ]
+
+
+def _export_conv_enc(blocks, seed: int):
+    stim_hex, expect_hex = [], []
+    for blk in blocks:
+        blk = np.asarray(blk, dtype=np.int8)
+        stim_hex += [hex_of_int(int(b), 1) for b in blk]
+
+        enc = conv_encode(blk)
+        if len(enc) != 2 * (len(blk) + 6):
+            raise RuntimeError(f"参考编码输出 {len(enc)} != 2*({len(blk)}+6)")
+
+        # 每拍输出一个符号 {g1, g2}——与接口规格 §4.2 的 dout_data[1:0] 一致
+        for k in range(0, len(enc), 2):
+            expect_hex.append(hex_of_int(pack_fields((int(enc[k]), 1), (int(enc[k + 1]), 1)), 2))
+
+    meta = {
+        "stim": {"bits": 1, "packing": "信息比特，MSB-first", "frac": None},
+        "expect": {"bits": 2, "packing": "{g1, g2}（先 g1 后 g2）", "frac": None},
+        "blk_len": CONV_BLK_BITS,
+        "blocks": len(blocks),
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -135,6 +248,16 @@ MODULES = {
         "cases": _qpsk_map_cases,
         "export": _export_qpsk_map,
         "golden_source": "golden_ref.fixed_point.fixed_modules.fixed_qpsk_modulate",
+    },
+    "frame_tx": {
+        "cases": _frame_tx_cases,
+        "export": _export_frame_tx,
+        "golden_source": "golden_ref.float_chain.framing.build_frame_bits",
+    },
+    "conv_enc": {
+        "cases": _conv_enc_cases,
+        "export": _export_conv_enc,
+        "golden_source": "golden_ref.float_chain.conv_encoder.conv_encode",
     },
 }
 
@@ -154,19 +277,25 @@ def _write_json(path: Path, payload: dict) -> None:
         f.write("\n")
 
 
-def export_module(module: str, case_filter: str, seed: int, out_dir: Path) -> list[dict]:
+def export_module(module: str, case_filter: str, seed: int, out_dir: Path,
+                  full: bool = False) -> list[dict]:
     entry = MODULES[module]
     written = []
     out_dir = out_dir / module
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for case, payload, note in entry["cases"](seed):
-        if case_filter != "all" and case != case_filter:
+        if case_filter == "all":
+            # 长跑用例（10⁶ bit / 1000 帧）体积大且不入库，默认不生成；--full 才带上
+            if case in LONG_CASES and not full:
+                continue
+        elif case_filter != case:
             continue
 
         stim_hex, expect_hex, meta = entry["export"](payload, seed)
-        if len(stim_hex) != len(expect_hex):
-            raise RuntimeError(f"{module}/{case}: stim {len(stim_hex)} 行 != expect {len(expect_hex)} 行")
+        # 行数不再要求相等（S4-P0：激励节拍数 ≠ 比对长度），但不能有空文件
+        if not stim_hex or not expect_hex:
+            raise RuntimeError(f"{module}/{case}: 空向量 stim={len(stim_hex)} expect={len(expect_hex)}")
 
         _write_lines(out_dir / f"{case}_stim.hex", stim_hex)
         _write_lines(out_dir / f"{case}_expect.hex", expect_hex)
@@ -175,7 +304,9 @@ def export_module(module: str, case_filter: str, seed: int, out_dir: Path) -> li
             {
                 "module": module,
                 "case": case,
-                "count": len(stim_hex),
+                "stim_rows": len(stim_hex),
+                "expect_rows": len(expect_hex),
+                "count": len(expect_hex),      # 比对长度（PASS 判据里的 compared 目标）
                 "case_note": note,
                 "seed": seed,
                 "golden_source": entry["golden_source"],
@@ -184,7 +315,8 @@ def export_module(module: str, case_filter: str, seed: int, out_dir: Path) -> li
                 **meta,
             },
         )
-        written.append({"module": module, "case": case, "count": len(stim_hex)})
+        written.append({"module": module, "case": case,
+                        "stim_rows": len(stim_hex), "expect_rows": len(expect_hex)})
     return written
 
 
@@ -192,7 +324,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="从 S1 定点参考模型导出 xsim 比对向量")
     ap.add_argument("--module", action="append", default=None,
                     help=f"模块名，可重复；缺省=全部（{'/'.join(MODULES)}）")
-    ap.add_argument("--case", default="all", help="用例名，缺省 all")
+    ap.add_argument("--case", default="all", help="用例名，缺省 all（不含长跑用例，见 --full）")
+    ap.add_argument("--full", action="store_true",
+                    help="all 时也生成长跑用例（frame_tx/long 1000 帧、conv_enc/long 10⁶ bit）")
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"随机种子，缺省 {DEFAULT_SEED}")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"输出目录，缺省 {DEFAULT_OUT}")
     ap.add_argument("--list", action="store_true", help="只列出已注册模块")
@@ -203,7 +337,6 @@ def main(argv=None) -> int:
             cases = "/".join(c for c, _, _ in entry["cases"](DEFAULT_SEED))
             print(f"{name:16s} cases={cases:12s} {entry['golden_source']}")
         return 0
-
     modules = args.module or list(MODULES)
     unknown = [m for m in modules if m not in MODULES]
     if unknown:
@@ -212,16 +345,18 @@ def main(argv=None) -> int:
 
     total = 0
     for module in modules:
-        written = export_module(module, args.case, args.seed, args.out)
+        written = export_module(module, args.case, args.seed, args.out, full=args.full)
         if not written:
             print(f"[VEC-GEN] {module}/{args.case} 无匹配用例", file=sys.stderr)
             return 2
         for item in written:
             rel = (args.out / item["module"]).relative_to(FRAMEWORK_DIR) if args.out.is_relative_to(FRAMEWORK_DIR) else args.out / item["module"]
-            print(f"[VEC-GEN] {item['module']}/{item['case']}  {item['count']:6d} 行  → {rel}\\{item['case']}_{{stim,expect}}.hex")
-            total += item["count"]
+            print(f"[VEC-GEN] {item['module']}/{item['case']}  "
+                  f"stim {item['stim_rows']:7d} 行 / expect {item['expect_rows']:7d} 行  "
+                  f"→ {rel}\\{item['case']}_{{stim,expect}}.hex")
+            total += item["expect_rows"]
 
-    print(f"[VEC-GEN] 完成：{len(modules)} 个模块，合计 {total} 个向量样本")
+    print(f"[VEC-GEN] 完成：{len(modules)} 个模块，合计 {total} 个比对样本")
     return 0
 
 

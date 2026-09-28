@@ -121,6 +121,38 @@ jobs:
           }
           Write-Host 'S3 验收通过'
 
+      # S4 与 S2/S3 是相互独立的验收：同样用 always() 保证前一项挂了也能拿到
+      # S4 的判据。默认只跑短用例；任务卡的两条长跑判据（1000 帧 / 10⁶ bit）
+      # 在本机实测约 15 s，故 CI 里也带上 -Full。
+      - name: S4 发射链统一验收
+        if: always()
+        shell: powershell
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 's4'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $stdout = Join-Path $dir 's4_acceptance.stdout.log'
+
+          $text = & powershell -NoProfile -ExecutionPolicy Bypass -File .\sim\run_s4_acceptance.ps1 -Full 2>&1 | Out-String
+          $exit = $LASTEXITCODE
+          [IO.File]::WriteAllText($stdout, $text, [Text.UTF8Encoding]::new($false))
+          Write-Host $text
+
+          # 判据行是纯 ASCII，可安全跨编码 match；中文行不作判据（sim/README.md §5.3）。
+          $m = [regex]::Matches($text, '\[S4 ACCEPTANCE\] suites=(\d+) failed=(\d+) positives=(\d+) full=(\w+) status=(PASS|FAIL)')
+          if ($m.Count -eq 0) {
+            Write-Host '::error::未找到 [S4 ACCEPTANCE] 判据行 —— 验收没有真正跑完'
+            exit 1
+          }
+          $v = $m[$m.Count - 1]
+          Write-Host ('判据行 -> ' + $v.Value)
+          Write-Host ('退出码 -> ' + $exit + '（xsim 批处理即使 $fatal 也返回 0，故退出码只是必要条件）')
+
+          if ($v.Groups[5].Value -ne 'PASS' -or $exit -ne 0) {
+            Write-Host '::error::S4 验收未通过'
+            exit 1
+          }
+          Write-Host 'S4 验收通过'
+
       - name: 上传验收日志
         if: always()
         uses: actions/upload-artifact@v4
@@ -130,4 +162,5 @@ jobs:
             sim/logs/
             ${{ runner.temp }}/s2/
             ${{ runner.temp }}/s3/
+            ${{ runner.temp }}/s4/
           if-no-files-found: warn

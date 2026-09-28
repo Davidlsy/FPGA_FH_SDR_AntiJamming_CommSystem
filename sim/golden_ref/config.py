@@ -94,3 +94,27 @@ FIXED_POINT_CONFIG = {
 QUANT_MODE = "round"
 # 溢出模式: "saturate" 饱和, "wrap" 卷绕
 OVERFLOW_MODE = "saturate"
+
+# ============================================================
+# S4 帧格式参数
+# 《帧格式规格书》docs/spec/frame_format.md 的机器可读来源。
+# 本组只描述比特级成帧；与 FIXED_POINT_CONFIG 的位宽规格相互独立，
+# 增删本组不触碰 S1 冻结基线（定点规格书 §0 的变更策略只管位宽/量化/溢出）。
+# ============================================================
+FRAME_SYNC_POLY = [0o103, 0o133]     # 6 级本原多项式优选对: x^6+x+1 与 x^6+x^4+x^3+x+1
+FRAME_SYNC_M = 6                     # m 序列级数（周期 2^6-1 = 63）
+# 第二条 m 序列的相对位移（Gold 码的相位自由度）。两条序列同状态起步时异或结果
+# 前 8 位会塌成全 0，故按准则搜相位并冻结 k=24：最长同值游程 4、旁瓣 max|R|=16、
+# 恰 32 个 1（全表三项同时最优，见 docs/spec/frame_format.md §2.2）。
+FRAME_SYNC_SHIFT = 24
+FRAME_SYNC_LEN = 64                  # 同步字长度 = 一个 Gold 周期 63 bit + 首位重复
+FRAME_HEADER_BITS = 32               # 帧头长度（整字节）
+FRAME_HEADER_VERSION = 0b01          # 帧头版本字段
+FRAME_PAYLOAD_BYTES = 256            # 每帧载荷字节数
+FRAME_CRC_POLY = 0x1021              # CRC-16/CCITT-FALSE（初值 FFFF、不反序、无终值异或）
+FRAME_CRC_INIT = 0xFFFF
+FRAME_CRC_BITS = 16
+# 送 CRC 的比特 = 帧头 + 载荷；同步字不参与（它只是接收端相关检测用的已知前导）
+FRAME_COVERED_BITS = FRAME_HEADER_BITS + FRAME_PAYLOAD_BYTES * 8
+# 帧总长 = 同步字 + 帧头 + 载荷 + CRC
+FRAME_TOTAL_BITS = FRAME_SYNC_LEN + FRAME_COVERED_BITS + FRAME_CRC_BITS

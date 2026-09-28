@@ -233,6 +233,20 @@ desktop.ini
 raw_capture/
 *.cap
 
+# ============ S4 长跑向量（本地生成，不入库） ============
+# frame_tx/long（1000 帧）与 conv_enc/long（10⁶ bit）这两条任务卡判据，其证据是
+# 判据行里的"0 错误 + 比对样本量"，而向量本身可由固定种子确定性重生成
+# （export_vectors.py --case long，DEFAULT_SEED=20260924）——与 sim/logs/*.log
+# 同一口径：本地生成、重跑重建，不必入库。
+# 体积代价：conv_enc/long 的 stim+expect 合计约 6 MB 文本，只为记录"某次跑过"。
+# 范围刻意收到文件级：其余向量仍按 README §9 的口径正常入库（.hex 有意不做
+# 扩展名全局忽略，见上文「软件/应用构建产物」段的拍板）。
+# 反选边界提醒：这里不能写成 vectors/*long*/ —— 目录一旦被排除，其下文件
+# 无法用「!」救回，只能改锚点（同 *_hls/ 段的约束）。
+/sim/framework/vectors/*/long_stim.hex
+/sim/framework/vectors/*/long_expect.hex
+/sim/framework/vectors/*/long_meta.json
+
 # ============ 交付物例外（必须置于所有忽略规则之后） ============
 # docs/ 是评审证据树：docs/report/ 下的综合日志（synth.log）、链接 map
 # （link.map）是交付物本身，不是构建噪声。

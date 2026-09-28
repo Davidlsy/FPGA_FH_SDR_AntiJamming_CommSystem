@@ -1,0 +1,24 @@
+{
+  "module": "frame_tx",
+  "case": "edge",
+  "stim_rows": 1024,
+  "expect_rows": 8640,
+  "count": 8640,
+  "case_note": "边界载荷：全 0 / 全 0xFF / 0xAA-0x55 交替 / 末字节单比特",
+  "seed": 20260924,
+  "golden_source": "golden_ref.float_chain.framing.build_frame_bits",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-09-28T15:54:05+08:00",
+  "stim": {
+    "bits": 8,
+    "packing": "载荷字节（每帧 256 个）",
+    "frac": null
+  },
+  "expect": {
+    "bits": 1,
+    "packing": "帧比特流：同步字64→帧头32→载荷2048→CRC16",
+    "frac": null
+  },
+  "frames": 4,
+  "stim_period": 9
+}

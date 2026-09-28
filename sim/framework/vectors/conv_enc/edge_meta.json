@@ -1,0 +1,24 @@
+{
+  "module": "conv_enc",
+  "case": "edge",
+  "stim_rows": 8640,
+  "expect_rows": 8664,
+  "count": 8664,
+  "case_note": "边界：全 0 / 全 1 / 交替 / 首位单 1（寄存器归零路径）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.float_chain.conv_encoder.conv_encode",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-09-28T15:54:06+08:00",
+  "stim": {
+    "bits": 1,
+    "packing": "信息比特，MSB-first",
+    "frac": null
+  },
+  "expect": {
+    "bits": 2,
+    "packing": "{g1, g2}（先 g1 后 g2）",
+    "frac": null
+  },
+  "blk_len": 2160,
+  "blocks": 4
+}
