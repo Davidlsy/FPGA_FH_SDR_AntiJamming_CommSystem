@@ -1,27 +1,31 @@
-# S4 发射链验证报告（P0 + P1）
+# S4 发射链验证报告（P0 + P1 + P2）
 
-> **阶段**: S4-P0 判据与接口冻结 + S4-P1 纯逻辑三模块（`frame_tx` / `conv_enc` / `qpsk_map`）
+> **阶段**: S4-P0 判据与接口冻结 + S4-P1 纯逻辑三模块 + S4-P2 `blk_inter` 存储迁移
 > **日期**: 2026-09-28
 > **依据**: S4 任务卡「发射链 frame_tx / conv_enc / blk_inter / qpsk_map / srrc_duc」
 > **验收入口**: `sim/run_s4_acceptance.ps1`（`-Full` 追加任务卡的两条长跑判据）
-> **本报告范围**: 任务卡的五个模块里已完成三个（P0 冻结了全部五个的接口）；`blk_inter`（P2）、
-> `srrc_duc` 双版 + NCO（P3）、IP vs 手写对比（P4）、整链收口（P5）**未开始**，见 §6。
+> **本报告范围**: 任务卡的五个模块里已完成四个（P0 冻结了全部五个的接口）；
+> `srrc_duc` 双版 + NCO（P3）、IP vs 手写对比（P4）、整链收口（P5）**未开始**，见 §7。
 
 ## 1. 结论
 
 ```
-[S4 ACCEPTANCE] suites=13 failed=0 positives=10 full=True status=PASS
+[S4 ACCEPTANCE] suites=18 failed=0 positives=14 full=False status=PASS
 ```
 
-- **13/13 套件通过**（10 条正例位真比对 + 3 条证伪用例），总耗时 **65.4 s**；
-  只跑短用例为 `suites=11 failed=0 positives=8 full=False`，49.9 s。
-- 任务卡的两条量化判据均已跑满：
+- **18/18 套件通过**（14 条正例位真比对 + 4 条证伪用例），总耗时 **83.5 s**；
+  `-Full` 另加 task 卡的两条长跑判据共 20/20。
+- 任务卡的四条量化判据均已跑满：
   - `frame_tx` **1000 随机帧**：2,160,000 拍逐拍比对，**0 错误**；
-  - `conv_enc` **10⁶ bit**：463 块 = 1,000,080 bit，输出 1,002,858 拍，**0 错误**。
-- 三条证伪用例全部按预期判 FAIL（详见 §4.2）——**这是本报告最该被看重的部分**：
+  - `conv_enc` **10⁶ bit**：463 块 = 1,000,080 bit，输出 1,002,858 拍，**0 错误**；
+  - `blk_inter` **解交织还原 0 错误**：三用例逐块还原 0 错误 + 尾部 8 bit 补零正确；
+  - `blk_inter` **突发 10 bit 打散 ≥10 码字位**：实测量化为
+    `[BURST-RESULT] restore=1 errors=10 rows=10 rows_no_interleave=1 burst=10 status=PASS`。
+- 四条证伪用例全部按预期判 FAIL（详见 §4.2、§5.2）——**这是本报告最该被看重的部分**：
   正例的 PASS 只有在"把关键处改错就必然红"的前提下才有信息量。
-- 帧层黄金模型自检 36 项 0 失败（`[FRAME-GOLDEN] checks=36 failed=0 status=PASS`）；
-  比对框架自测 8 项全过（含 S4-P0 新增的 1:N 与激励节奏契约）。
+- `blk_inter` 的**两种存储实现**（`blk_mem_gen` IP 版与 RTL 推断版）跑同一套向量、同一套 TB，
+  位真结果一致——这是 P2「存储介质替换而非逻辑重写」的实证。
+- 帧层黄金模型自检 36 项 0 失败；比对框架自测 8 项全过（含 S4-P0 新增的 1:N 与激励节奏契约）。
 
 ## 2. 交付物
 
@@ -29,16 +33,20 @@
 |---|---|---|
 | RTL | `src/frame_tx.v` | 帧成形：Gold 同步字 + 帧头 + 256B + CRC16，双缓冲 |
 | RTL | `src/conv_enc.v` | (171,133)₈ 卷积编码，含 6 bit 归零尾比特与输入弹性缓冲 |
+| RTL | `src/blk_inter.v` | 块交织：写行读列地址生成 + 双缓冲 + 32 拍输入弹性缓冲 |
+| RTL | `src/blk_mem_1w1r.v` | 存储器副本：`blk_mem_gen` IP 版 / RTL 推断版，同接口同延迟 |
 | RTL | `src/qpsk_map.v` | QPSK 直移映射，纯组合 |
 | RTL | `src/frame_tx_sync.vh` | 同步字常量（生成物，综合期即 LUT-ROM） |
-| 规格 | `docs/spec/frame_format.md` | 帧格式规格书（本阶段首次定义帧层，已冻结） |
-| 规格 | `docs/spec/s4_tx_interface.md` | 五模块接口规格书（流控/位序/拍数账本/NCO 语义） |
+| 生成脚本 | `build/gen_blk_mem_gen.tcl` | 生成 blk_inter 正式版存储 IP（产物 `build/ip/` 不入库） |
+| 规格 | `docs/spec/frame_format.md` | 帧格式规格书（P0 首次定义帧层，已冻结） |
+| 规格 | `docs/spec/s4_tx_interface.md` | 五模块接口规格书（流控/位序/拍数账本/P2 存储决策/NCO 语义） |
 | 黄金模型 | `sim/golden_ref/float_chain/framing.py` | 帧层唯一裁判：m 序列 / Gold / CRC16 / 成帧与解析 |
 | 黄金模型 | `sim/golden_ref/sim/check_framing.py` | 帧层自检（36 项，两条独立 CRC 路径 + 注错负例） |
 | 生成器 | `sim/golden_ref/gen_frame_sync.py` | 同步字 → RTL 常量，带 `--check` |
 | 框架 | `sim/framework/hdl/tb_vec_cmp.sv` | 比对器扩展：激励/期望长度解耦 + 激励节奏 + `stim_count` |
-| 框架 | `sim/framework/tb/tb_{qpsk_map,conv_enc,frame_tx}_compare.sv` | 三个模块的位真 TB（用例用 `-d` 切换，含证伪用例） |
-| 向量 | `sim/framework/vectors/{qpsk_map,conv_enc,frame_tx}/` | 由 `export_vectors.py` 从黄金模型确定性导出 |
+| 框架 | `sim/framework/tb/tb_{qpsk_map,conv_enc,frame_tx,blk_inter}_compare.sv` | 四个模块的位真 TB（用例 `-d` 切换，含证伪用例） |
+| 框架 | `sim/framework/tb/tb_blk_inter_burst.sv` | 模块专属量化检查：突发打散 + TB 侧独立解交织模型 |
+| 向量 | `sim/framework/vectors/{qpsk_map,conv_enc,frame_tx,blk_inter}/` | 由 `export_vectors.py` 从黄金模型确定性导出 |
 | 验收 | `sim/run_s4_acceptance.ps1` | 统一验收，判据行 `[S4 ACCEPTANCE]` |
 
 ## 3. P0：判据与接口冻结
@@ -130,7 +138,7 @@ NCO 相位连续跳频语义（`freq_word` / `freq_valid` / 相位累加器不�
 | `frame_tx`: 1000 随机帧 0 错误 | `frame-long`：2,160,000 拍，0 错误 |
 | `conv_enc`: 10⁶ bit 与参考 0 错误 | `conv-long`：1,000,080 bit → 1,002,858 拍，0 错误 |
 | `qpsk_map`: 纯逻辑零改动 | 4096 随机 + 196 边界，0 错误 |
-| `blk_inter`: 还原 0 错误；突发 10 bit 打散 ≥10 码字位 | **未开始（P2）** |
+| `blk_inter`: 还原 0 错误；突发 10 bit 打散 ≥10 码字位 | §5.3：还原 0 错误 + `rows=10`（无交织 1 行），两种存储实现一致 |
 | `srrc_duc`: 两版逐拍一致；SFDR ≤ −50 dBc | **未开始（P3）** |
 | IP vs 手写三栏对比表 | **未开始（P4）** |
 | 五模块串联位真比对全过 | **未开始（P5）** |
@@ -138,32 +146,87 @@ NCO 相位连续跳频语义（`freq_word` / `freq_valid` / 相位累加器不�
 `frame_tx` 的 CRC 检出能力另有一层证据在帧层自检里：CRC 覆盖区单比特注错 **32/32 全部检出**、
 同步字注错被 `sync_ok` 检出、帧头版本位注错同时改变字段并让 CRC 失败。
 
-## 5. 与任务卡的有意偏差（登记，不隐藏）
+## 5. P2：blk_inter 存储迁移
+
+任务卡的要求是「存储 BRAM36（`blk_mem_gen` 或 RTL 推断），**写行读列地址生成器不变**」——
+即核心是**存储介质替换而不是逻辑重写**。P2 的产出因此分三块：地址生成器与流控、两种存储
+实现、以及"打散 ≥10 码字位"这条最容易被做成假测试的判据。
+
+### 5.1 开工时冻结的四条设计决策
+
+见 `docs/spec/s4_tx_interface.md` §4.3（含理由）。摘要：
+
+| 决策 | 取值 | 关键理由 |
+|---|---|---|
+| 存储序 | **padded 序（行优先）** | 写侧退化为"顺序写一个字地址计数器"（任务卡说的行优先递增器就是它）；补零那 8 bit 落在末 4 个字，写 0 即可；读侧用一张 `217×r` 项表 + 两个加法器生成列优先地址，**不需要除 434 的除法器** |
+| 字宽与深度 | 2 bit/字、2 块 × 2170 字 | 一拍正好一个符号：写侧一拍一个整字，读侧一拍读两个字各取 1 bit |
+| 读写冲突 | **不存在冲突** | 写与读永远作用于不同 bank（双缓冲），同 bank 内先写满再读——这比"选一个 read-first/write-first/no-change"更强，也就没有与参考不一致的口子 |
+| 输入速率 | 平均 ≤ 2166/2171 ≈ 0.9977 拍⁻¹ | 一块写 2166 拍数据 + 4 拍补零，块周期 2171 拍；模块内带 32 拍弹性缓冲吸抖 |
+
+**一个端口预算的硬约束**：双缓冲稳态下每拍要 1 写 + 2 读 = 3 次访问，而单块 BRAM 只有两个
+端口。解法是**两个"1 写 1 读"副本，写广播、读分流**——每个副本稳态下正好是简单双口 RAM 的
+能力上限（代价是存储复制 2 份，本设计 2 × 8.7 kbit，仍在一个 BRAM36 之内）。
+
+### 5.2 正例与证伪用例
+
+| 套件 | 规模 | 判据行 |
+|---|---|---|
+| `blk-frame` | 1 块（激励 = 一帧的真实编码输出） | `vectors=2170 compared=2170 errors=0`（stim 2166 拍） |
+| `blk-rand` | 8 块随机背靠背（节奏 1/2） | `vectors=17360 compared=17360 errors=0` |
+| `blk-edge` | 4 个边界块 | `vectors=8680 compared=8680 errors=0` |
+| `blk-burst` | 模块专属量化检查 | `[BURST-RESULT] restore=1 errors=10 rows=10 rows_no_interleave=1 burst=10 status=PASS` |
+| `blk-ip-frame` | 同上向量，**换 blk_mem_gen 存储** | `vectors=2170 compared=2170 errors=0`（与 RTL 推断版逐拍一致） |
+| `blk-ip-burst` | IP 版突发打散 | `restore=1 errors=10 rows=10 … status=PASS` |
+| `neg-blk` | **证伪**：输出 `{I,Q}` 互换 | `status=FAIL`，`errors=1032`，首失配第 3 拍 |
+
+**为什么突发判据要单独写一个 TB**：只验证"数据能还原"是连通性测试，证明不了抗突发能力。
+`tb_blk_inter_burst.sv` 收下 DUT 的 4340 bit 交织输出后，在交织流第 1000 位翻**连续 10 bit**，
+用**TB 侧独立实现**的解交织模型还原（与 S1 `block_deinterleave` 同式但独立代码路径），
+统计错误落在几行：实测 **10 行**（10×434 矩阵的几何），而同样 10 个位置若不经交织只落在
+**1 行**——这才是任务卡要的"量化验证"。
+
+### 5.3 本阶段踩到并修掉的一个真问题
+
+IP 版首次跑位真比对时**整体错一位**（`first_mismatch=2`，实际值 = 上一拍的期望值）。
+根因不是地址生成，而是**读延迟不匹配**：7 系列 BRAM 的输出寄存器会额外叠一拍，
+`blk_mem_gen` 的 `Register_PortB_Output_of_Memory_Primitives=true` 时实测读延迟 **2 拍**，
+而 RTL 推断版 `rdata <= mem[raddr]` 是 **1 拍** —— 我的 FSM 按 1 拍设计，于是 IP 版的
+数据比 valid 晚一拍。修法是关掉那个配置项（实测变 1 拍），并**把这条写进接口规格 §4.3**
+以免下次重演。诊断手法值得留档：不猜参数含义，写一个 20 行的 TB 直接量"地址进、数据出"差几拍。
+
+## 6. 与任务卡的有意偏差（登记，不隐藏）
 
 | # | 任务卡写法 | 实际做法 | 理由 |
 |---|---|---|---|
 | 1 | SRRC「31 抽头」 | 待 P3；将沿用 S1 冻结的 **33 抽头** | S1 系数是 `span 8 × sps 4 + 1 = 33`；位真裁判必须同源，改 31 要重跑 S1 BER 基线（属独立变更流程） |
 | 2 | CRC16「并行 8-bit 查表，每拍一字节」 | **位串行 LFSR，每拍一比特** | `frame_tx` 输出是比特串行流，查表要在 2080 bit 之外另开 260 拍字节域；位串行版边发边算，零额外节拍 |
-| 3 | 「写行读列地址生成器不变」 | 未变，且 `blk_inter` 接口已冻结 | P2 只换存储介质，不重写地址生成器 |
+| 3 | 「写行读列地址生成器不变」 | 未变（P2 已实现并逐拍验证） | P2 只换存储介质，不重写地址生成器；两种介质跑同一套向量 |
 | 4 | 同步字 64 bit | 64 = Gold 周期 **63** + 首位重复 | 6 级 Gold 周期是 63，凑不出 64；代价已量化（旁瓣浮动 ±1，相对主峰 64 无实质影响） |
 | 5 | 计划书"MATLAB 比对脚本" | 沿用 Python `golden_ref` | S2 已登记的偏差：比对基线须与冻结基准同源，避免两套"真理" |
+| 6 | `blk_inter` 存储"BRAM36" | 两个 1 写 1 读副本（复制 2 份） | 双缓冲稳态每拍 3 次访问、单块 BRAM 只有 2 端口；存储量仍在一个 BRAM36 内（2 × 8.7 kbit） |
+| 7 | — | `blk_inter` 增加 32 拍输入弹性缓冲 | 一块要写 2166+4 拍而块周期 2171 拍，存在 0.23% 的节拍差；无背压约定下必须靠缓冲吸抖并写死平均速率上限 |
 
-## 6. 已知边界与遗留项
+## 7. 已知边界与遗留项
 
-1. **P2–P5 未开始**：`blk_inter`、`srrc_duc` 双版 SRRC + NCO/DUC、IP vs 手写三栏对比、
-   五模块整链收口均未做。任务卡的出口门槛因此**尚未达成**，本报告不得被引用为"S4 已通过"。
+1. **P3–P5 未开始**：`srrc_duc` 双版 SRRC + NCO/DUC、IP vs 手写三栏对比、五模块整链收口均未做。
+   任务卡的出口门槛因此**尚未达成**，本报告不得被引用为"S4 已通过"。
 2. **`frame_tx` 的速率约束是接口属性**：上游平均每字节 ≥ 8.44 拍，否则帧缓存溢出丢字节
    （无背压约定下无法自愈）。已写进接口规格书 §4.1 与向量 `meta.json` 的 `stim_period`。
-3. **`conv_enc` 的弹性缓冲只吸收短时抖动**：平均速率仍须 ≤ `blk_len/(blk_len+6)`；
-   长跑用例把激励节奏放到 1/2 就是为了让缓冲常态只有几个比特（见 TB 头注释）。
-4. **1000 帧 / 10⁶ bit 两条判据的向量不入库**：由固定种子确定性重生成，体积约 9 MB，
+3. **`conv_enc` / `blk_inter` 的弹性缓冲只吸收短时抖动**：平均速率仍须分别 ≤ `blk_len/(blk_len+6)`
+   与 2166/2171；长跑与多块用例把激励节奏放到 1/2 就是为了让缓冲常态只有几个字
+   （见两个 TB 的头注释）。
+4. **`blk_inter` 两种存储实现的资源/时序差异未定量**：本阶段只证明**行为一致**（同向量同位真）；
+   资源与 Fmax 的对比属 P4 口径，本阶段不出数字。
+5. **1000 帧 / 10⁶ bit 两条判据的向量不入库**：由固定种子确定性重生成，体积约 9 MB，
    按 `.gitignore` 的 S4 长跑向量段忽略；证据是本报告与 `sim/logs/s4_acceptance.log`
    （日志目录按既有约定不入库）。
-5. **SFDR / 真实发射频谱**：属 P3 与板级，本阶段无频谱结论。真实频谱（含 AD9363 模拟链路）
+6. **`blk_mem_gen` IP 产物不入库**：由 `build/gen_blk_mem_gen.tcl` 确定性重建（约 40 s），
+   验收脚本在缺失时自动生成。IP 的**参数**是本仓库的源码（tcl 即单一来源），产物不是。
+7. **SFDR / 真实发射频谱**：属 P3 与板级，本阶段无频谱结论。真实频谱（含 AD9363 模拟链路）
    仍按任务卡口径移交 **BV-03**。
-6. **板卡未到货**：本阶段全部结论都是仿真域结论，不构成任何硬件可用性结论。
+8. **板卡未到货**：本阶段全部结论都是仿真域结论，不构成任何硬件可用性结论。
 
-## 7. 复现
+## 8. 复现
 
 ```powershell
 # 帧层黄金模型自检（36 项，含两条独立 CRC 路径与注错检出）
@@ -175,7 +238,10 @@ python sim\golden_ref\gen_frame_sync.py --check
 # 比对框架自测（8 项，含 1:N 与激励节奏契约）
 powershell -File sim\framework\run_selftest.ps1
 
-# S4 统一验收：短用例 49.9 s / 含长跑判据 65.4 s（本机实测，Vivado 2021.2 xsim）
+# blk_inter 正式版存储 IP（约 40 s；产物不入库，验收脚本会在缺失时自动生成）
+vivado -mode batch -source build\gen_blk_mem_gen.tcl
+
+# S4 统一验收：短用例 18/18 套件 83.5 s（本机实测，Vivado 2021.2 xsim）
 powershell -File sim\run_s4_acceptance.ps1
 powershell -File sim\run_s4_acceptance.ps1 -Full
 ```
@@ -183,12 +249,13 @@ powershell -File sim\run_s4_acceptance.ps1 -Full
 前置：`xvlog`/`xelab`/`xsim` 在 PATH（`call D:\software\vivado2021\Vivado\2021.2\settings64.bat`）、
 Python 3.12 带 numpy。总日志落 `sim/logs/s4_acceptance.log`。
 
-## 8. 下一步
+## 9. 下一步
 
-按 `docs/s4-tx-chain-implementation-dark.html` 的 P2–P5 推进，但 P2 开工前有两件已识别的具体工作：
+按 `docs/s4-tx-chain-implementation-dark.html` 的 P3–P5 推进：
 
-1. **P2 开工即需定**：`blk_inter` 的输入速率约束（块交织是"收满再读"，与 `frame_tx` 同理）
-   与读写冲突模式；建议按双缓冲设计（读 2170 拍 / 写 2166 拍，双缓冲后无需空隙）。
-2. **P3 开工前无需再动框架**：`STIM_PERIOD` 已落地并自测，采样域 DUC 的"符号 1/4 节奏进"
-   可以直接用。
-3. P4 需要 Vivado 综合实现两轮采数（同一约束、同一目标时钟），本机 Vivado 2021.2 可用。
+1. **P3 开工前无需再动框架**：`STIM_PERIOD` 已落地并自测，且 `frame_tx` 与 `blk_inter` 已在实际
+   使用它——采样域 DUC 的"符号 1/4 节奏进"可以直接用。
+2. **P3 需要先冻的三项**留在接口规格 §8：`srrc_duc` 输出位宽与小数位、目标时钟与采样率、
+   SFDR 分析方法。两版 SRRC 必须共用同一份 12 bit 量化系数（"逐拍一致"的前提）。
+3. **P4 需要 Vivado 综合实现两轮采数**（同一约束、同一目标时钟取均值），本机 Vivado 2021.2 可用；
+   `blk_inter` 两版存储的资源差异也应在同一轮采数里一并记录（§7 第 4 条）。

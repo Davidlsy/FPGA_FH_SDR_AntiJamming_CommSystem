@@ -8,7 +8,7 @@
   "seed": 20260924,
   "golden_source": "golden_ref.float_chain.framing.build_frame_bits",
   "golden_ref_version": "1.0.0",
-  "generated_at": "2026-09-28T15:54:05+08:00",
+  "generated_at": "2026-09-28T16:45:39+08:00",
   "stim": {
     "bits": 8,
     "packing": "载荷字节（每帧 256 个）",

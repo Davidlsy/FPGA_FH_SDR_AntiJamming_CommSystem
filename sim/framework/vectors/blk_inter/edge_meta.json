@@ -1,0 +1,30 @@
+{
+  "module": "blk_inter",
+  "case": "edge",
+  "stim_rows": 8664,
+  "expect_rows": 8680,
+  "count": 8680,
+  "case_note": "边界块：全 0 / 全 1 / 交替 / 首位单 1（节奏 1/2）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.float_chain.interleaver.block_interleave",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-09-28T16:45:47+08:00",
+  "stim": {
+    "bits": 2,
+    "packing": "{I, Q}（I 是靠前那个比特）",
+    "frac": null
+  },
+  "expect": {
+    "bits": 2,
+    "packing": "列优先读出后的 {I, Q}",
+    "frac": null
+  },
+  "blocks": 4,
+  "block_bits": 4332,
+  "matrix": {
+    "depth": 10,
+    "cols": 434,
+    "pad_bits": 8
+  },
+  "stim_period": 2
+}

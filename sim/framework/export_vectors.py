@@ -42,6 +42,7 @@ from golden_ref.config import (  # noqa: E402
 )
 from golden_ref.float_chain.conv_encoder import conv_encode  # noqa: E402
 from golden_ref.float_chain.framing import build_frame_bits  # noqa: E402
+from golden_ref.float_chain.interleaver import block_interleave  # noqa: E402
 from golden_ref.fixed_point.fixed_modules import fixed_qpsk_modulate  # noqa: E402
 
 FRAMEWORK_DIR = Path(__file__).resolve().parent
@@ -241,6 +242,72 @@ def _export_conv_enc(blocks, seed: int):
 
 
 # ============================================================
+# blk_inter
+# ============================================================
+# 一块 = 一帧的编码输出：2160 帧比特 + 6 归零尾比特 = 4332 bit = 2166 拍（2 bit/拍）。
+# 交织后 10 × 434 = 4340 bit = 2170 拍，尾部补零 8 bit。
+BLK_IN_BITS = 2 * (FRAME_TOTAL_BITS + 6)
+
+
+def _blk_inter_cases(seed: int):
+    """用例载荷是 (块列表, 激励节奏) —— 节奏随用例变，故随载荷一起传给导出器。
+
+    `frame` 用例用真实的编码帧比特（conv_enc 的输出）当激励，让模块级位真比对
+    与链路里跑的是同一种数据；后两个用例的节奏放到 1/2，因为交织器一块要吃
+    2166 拍数据、块周期 2171 拍，连续满速灌多块会累积出超出弹性缓冲的节拍差
+    （见接口规格 §4.3 的速率约束）。
+    """
+    rng = np.random.default_rng(seed)
+
+    payload = rng.integers(0, 256, FRAME_PAYLOAD_BYTES, dtype=np.uint8).tobytes()
+    coded_frame = conv_encode(build_frame_bits(payload, frame_no=0))
+
+    def rand_block():
+        return rng.integers(0, 2, BLK_IN_BITS).astype(np.int8)
+
+    edge = [
+        np.zeros(BLK_IN_BITS, dtype=np.int8),
+        np.ones(BLK_IN_BITS, dtype=np.int8),
+        np.tile(np.array([0, 1], dtype=np.int8), BLK_IN_BITS // 2),
+        np.concatenate([[1], np.zeros(BLK_IN_BITS - 1, dtype=np.int8)]),
+    ]
+
+    return [
+        ("frame", ([coded_frame], 1), "1 块 = 一帧的编码输出（真实链路激励）"),
+        ("rand", ([rand_block() for _ in range(8)], 2), "8 块随机比特背靠背（节奏 1/2）"),
+        ("edge", (edge, 2), "边界块：全 0 / 全 1 / 交替 / 首位单 1（节奏 1/2）"),
+    ]
+
+
+def _export_blk_inter(payload, seed: int):
+    blocks, stim_period = payload
+    stim_hex, expect_hex = [], []
+
+    for blk in blocks:
+        blk = np.asarray(blk, dtype=np.int8)
+        inter = block_interleave(blk)
+        if len(inter) % 2:
+            raise RuntimeError(f"交织输出 {len(inter)} bit 不是 2 的整数倍")
+
+        # 一拍一个符号：stim = {b[2k], b[2k+1]}，expect = {interleaved[2m], interleaved[2m+1]}
+        for k in range(0, len(blk), 2):
+            stim_hex.append(hex_of_int(pack_fields((int(blk[k]), 1), (int(blk[k + 1]), 1)), 2))
+        for m in range(0, len(inter), 2):
+            expect_hex.append(hex_of_int(pack_fields((int(inter[m]), 1), (int(inter[m + 1]), 1)), 2))
+
+    n_col = (len(blocks[0]) + 9) // 10
+    meta = {
+        "stim": {"bits": 2, "packing": "{I, Q}（I 是靠前那个比特）", "frac": None},
+        "expect": {"bits": 2, "packing": "列优先读出后的 {I, Q}", "frac": None},
+        "blocks": len(blocks),
+        "block_bits": len(blocks[0]),
+        "matrix": {"depth": 10, "cols": n_col, "pad_bits": 10 * n_col - len(blocks[0])},
+        "stim_period": stim_period,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -258,6 +325,11 @@ MODULES = {
         "cases": _conv_enc_cases,
         "export": _export_conv_enc,
         "golden_source": "golden_ref.float_chain.conv_encoder.conv_encode",
+    },
+    "blk_inter": {
+        "cases": _blk_inter_cases,
+        "export": _export_blk_inter,
+        "golden_source": "golden_ref.float_chain.interleaver.block_interleave",
     },
 }
 

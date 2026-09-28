@@ -28,9 +28,9 @@ RF 数字基带侧（位宽/握手一致，可直接串联）
   golden_ref 样点 ──▶ ch_top 信道库 ──▶ jm_top 干扰源 ──▶ S4+ 的 RX 链
                      AWGN/CFO/SFO/多径   单音/多音/扫频/部分频带
 
-  S4 TX 链（已到位三段，逐段与 golden_ref 逐拍位真比对）
-  frame_tx ──▶ conv_enc ──▶ [blk_inter] ──▶ qpsk_map ──▶ [srrc_duc]
-  256B→2160bit  N→N+6 拍     P2 待做         2bit→24bit    P3 待做
+  S4 TX 链（已到位四段，逐段与 golden_ref 逐拍位真比对）
+  frame_tx ──▶ conv_enc ──▶ blk_inter ──▶ qpsk_map ──▶ [srrc_duc]
+  256B→2160bit  N→N+6 拍    N→N+8 bit     2bit→24bit    P3 待做
 
 控制侧
   TB 的 PS 软件序列 ──▶ AXI VIP(master) ──▶ axi_regs_demo（S9 换真 axi_regs）
@@ -65,19 +65,22 @@ RF 数字基带侧（位宽/握手一致，可直接串联）
 | 4 | 干扰注入源 | `models/jammer/run_jammer_check.ps1` | 31 项 | `[JAMMER STATS] PASS` | 7.4 s |
 | 5 | PS/PL 协同仿真环境 | `vip/run_vip_check.ps1` | 28 项（7 组） | `[VIP-RESULT] … status=PASS` | 9.0 s |
 
-另有 S4 发射链验收（P0+P1 已落地的三个模块）：
+另有 S4 发射链验收（P0–P2 已落地的四个模块）：
 
 ```powershell
-.\sim\run_s4_acceptance.ps1          # 短用例：11/11 套件，49.9 s
-.\sim\run_s4_acceptance.ps1 -Full    # 追加 1000 帧 / 10⁶ bit 长跑判据：13/13 套件，65.4 s
+.\sim\run_s4_acceptance.ps1          # 短用例：18/18 套件，83.5 s
+.\sim\run_s4_acceptance.ps1 -Full    # 追加 1000 帧 / 10⁶ bit 长跑判据：20/20 套件
 ```
 
 ```
-[S4 ACCEPTANCE] suites=13 failed=0 positives=10 full=True status=PASS
+[S4 ACCEPTANCE] suites=18 failed=0 positives=14 full=False status=PASS
 ```
 
-判据口径与前两阶段一致（`failed=0` + 各套件自己的 `[VEC-RESULT]` 行）。其中三条是**证伪用例**
-（故意把 I/Q 互换、位序颠倒、CRC 多项式换错），必须判 FAIL——反例跑不出 FAIL，正例的 PASS 也不值钱。
+判据口径与前两阶段一致（`failed=0` + 各套件自己的判据行）。其中四条是**证伪用例**
+（故意把 I/Q 互换、位序颠倒、CRC 多项式换错、交织输出换序），必须判 FAIL——反例跑不出 FAIL，
+正例的 PASS 也不值钱。`blk_inter` 另有 `[BURST-RESULT]` 这条模块专属量化判据
+（10 bit 突发 → 打散到 10 个码字行，无交织时 1 行）。首次运行会先自动生成 `blk_mem_gen` IP
+（约 40 s，产物不入库）。
 
 合计 47.6 s（首次 `-Rebuild` 式生成 AXI VIP 时约 +1 min）。**判据是 `failed=0` 与各项判据行，
 不是检查数的具体值**——AD9363 的随机压力用 `$urandom`，check 数在 1444~1446 间浮动。
@@ -125,10 +128,10 @@ RF 数字基带侧（位宽/握手一致，可直接串联）
   比对由「引脚波形嗅探 vs CSV 派生的期望」承担，入口 `run_s3_acceptance.ps1`，报告
   `docs/report/s3_verification.md`。**待补**：初始化表内容仍是烟测占位（真表来源见报告 §8），
   以及"全部状态可达、无锁死环"的形式化/可达性核查未做。
-- S4 已落地的部分（P0+P1）：帧格式与五模块接口冻结（`docs/spec/frame_format.md`、
-  `docs/spec/s4_tx_interface.md`），`frame_tx` / `conv_enc` / `qpsk_map` 三模块位真比对全过，
-  入口 `run_s4_acceptance.ps1`（`-Full` 带 1000 帧与 10⁶ bit 两条长跑判据），
-  报告 `docs/report/s4_verification.md`。**待补**：`blk_inter`（P2）、`srrc_duc` 双版 + NCO（P3）、
+- S4 已落地的部分（P0–P2）：帧格式与五模块接口冻结（`docs/spec/frame_format.md`、
+  `docs/spec/s4_tx_interface.md`），`frame_tx` / `conv_enc` / `blk_inter` / `qpsk_map`
+  四模块位真比对全过（`blk_inter` 两种存储实现同向量一致），入口 `run_s4_acceptance.ps1`，
+  报告 `docs/report/s4_verification.md`。**待补**：`srrc_duc` 双版 SRRC + NCO（P3）、
   IP vs 手写三栏对比（P4）、五模块整链收口（P5）——任务卡的 S4 出口门槛因此**尚未达成**。
 - S4 起 `tb_vec_cmp` 消费向量，框架开始被真实 DUT 使用；期间按需要扩展了两处契约
   （激励/期望长度解耦、激励节奏 `STIM_PERIOD`），详见 `framework/README.md` §2–§3、§7。

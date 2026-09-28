@@ -111,8 +111,8 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S1 | 浮点 / 定点黄金参考链 + BER 基线，定点规格书冻结 | **完成**（2026-09-22 冻结） | `sim/golden_ref/`、`data/s1_ber_baseline/`、`docs/spec/fixed_point_spec.md` |
 | S2 | 验证基础设施四件套（比对框架 / AD9363 模型 / 信道库 / 干扰源）+ PS-PL 协同仿真 | **完成**（2026-09-25 验收：5/5 套件、1538 项、0 错误） | `sim/run_s2_acceptance.ps1`、`docs/report/s2_verification.md` |
 | S3 | `spi_master` + `ad9363_cfg` 对 AD9363 模型做逐条（地址, 数据, 延时）比对 | **进行中**（代码与机制完成，序列表内容待补，报告待评审） | 两模块 RTL 已入库；`sim/run_s3_acceptance.ps1` 四套件 4718 项 0 错误；`docs/report/s3_verification.md` |
-| S4-P0+P1 | 帧格式与接口冻结（P0）+ `frame_tx` / `conv_enc` / `qpsk_map` 位真比对（P1） | **完成**（2026-09-28 验收：13/13 套件、0 错误；含 1000 帧与 10⁶ bit 两条长跑判据） | `sim/run_s4_acceptance.ps1`、`docs/report/s4_verification.md`、`docs/spec/{frame_format,s4_tx_interface}.md` |
-| S4-P2..P5 | `blk_inter` 存储迁移 / `srrc_duc` 双版 SRRC + NCO / IP vs 手写对比 / 整链收口 | **未开始**（接口已冻结，可直接开工） | `docs/spec/s4_tx_interface.md` §8 待冻结清单 |
+| S4-P0..P2 | 帧格式与接口冻结（P0）+ `frame_tx` / `conv_enc` / `qpsk_map`（P1）+ `blk_inter` 存储迁移（P2） | **完成**（2026-09-28 验收：18/18 套件、0 错误；`-Full` 另含 1000 帧与 10⁶ bit 长跑判据） | `sim/run_s4_acceptance.ps1`、`docs/report/s4_verification.md`、`docs/spec/{frame_format,s4_tx_interface}.md` |
+| S4-P3..P5 | `srrc_duc` 双版 SRRC + NCO / IP vs 手写对比 / 整链收口 | **未开始**（接口已冻结，可直接开工） | `docs/spec/s4_tx_interface.md` §8 待冻结清单 |
 
 ### 已知边界
 
@@ -126,9 +126,11 @@ vivado -mode batch -source build/create_smoke_project.tcl
   在使用，并为此扩展成"激励/期望长度解耦 + 激励节奏"（S4-P0）：原实现只支持一入一出，
   装不下成帧（256 拍进 / 2160 拍出）与上采样这类 N:M 模块。框架自测因此从 4 项扩到 8 项，
   每条新判据都配了专门证伪它的用例。**尚未用过框架的是接收链与跳频层**。
-- S4 的五个模块只完成三个：`blk_inter`（P2）、`srrc_duc` 双版 + NCO（P3）、IP vs 手写对比（P4）、
-  整链收口（P5）未开始，故任务卡的 S4 出口门槛**尚未达成**——`docs/report/s4_verification.md`
+- S4 的五个模块已完成四个：`srrc_duc` 双版 + NCO（P3）、IP vs 手写对比（P4）、整链收口（P5）
+  未开始，故任务卡的 S4 出口门槛**尚未达成**——`docs/report/s4_verification.md`
   §6 已登记，不得被引用为"S4 已通过"。
+- `blk_inter` 的两种存储实现（`blk_mem_gen` IP 版与 RTL 推断版）已跑同一套向量、位真一致；
+  资源/时序的定量对比属 P4，本阶段不出口径。
 - S4 长跑判据（1000 帧 / 10⁶ bit）的向量体积约 9 MB，按 `.gitignore` 的"S4 长跑向量"段不入库，
   由固定种子确定性重生成（`export_vectors.py --case long`）。
 - `sw/`、`skill/` 目前只有 `.gitkeep`。
@@ -157,6 +159,8 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── frame_tx.v              #   S4 帧成形：Gold 同步字 + 帧头 + 256B + CRC16（双缓冲）
 │   ├── frame_tx_sync.vh        #   S4 同步字常量（生成物，见 sim/golden_ref/gen_frame_sync.py）
 │   ├── conv_enc.v              #   S4 卷积编码 (171,133)₈，含 6 bit 归零尾比特与输入弹性缓冲
+│   ├── blk_inter.v             #   S4 块交织（写行读列，双缓冲 + 输入弹性缓冲）
+│   ├── blk_mem_1w1r.v          #   S4 存储器副本：blk_mem_gen IP 版 / RTL 推断版同接口
 │   ├── qpsk_map.v              #   S4 QPSK 直移映射（纯组合）
 │   └── constraints/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
@@ -197,6 +201,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │
 ├── build/                      # 【一键重建脚本】
 │   ├── create_smoke_project.tcl  # Vivado batch：建工程→综合→实现→bit（`-tclargs sim` 只跑行为仿真）
+│   ├── gen_blk_mem_gen.tcl     # S4 生成 blk_inter 用的 blk_mem_gen（产物 build/ip/ 不入库，约 40 s）
 │   └── vivado_smoke/ *         #   冒烟工程与实现产物（每次运行整目录重建）
 │
 ├── sw/                         # 【上位机 / 软件】当前只有 .gitkeep（Python 上位机待开发；产物 sw/**/build、sw/dist 不入库）

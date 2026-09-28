@@ -27,11 +27,17 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Join-Path $PSScriptRoot 'framework')
 
+$RepoRoot     = Split-Path -Parent $PSScriptRoot
 $FrameworkDir = $PSScriptRoot | Join-Path -ChildPath 'framework'
-$SrcDir       = Join-Path (Split-Path -Parent $PSScriptRoot) 'src'
+$SrcDir       = Join-Path $RepoRoot 'src'
 $LogDir       = Join-Path $PSScriptRoot 'logs'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $AggLog = Join-Path $LogDir 's4_acceptance.log'
+
+# blk_mem_gen（正式交付版存储）的仿真模型路径；由 build/gen_blk_mem_gen.tcl 生成
+$IpDir   = Join-Path $RepoRoot 'build\ip\blk_mem_gen\blk_mem_gen_1w1r'
+$IpModel = Join-Path $IpDir 'sim\blk_mem_gen_1w1r.v'
+$IpPrim  = Join-Path $IpDir 'simulation\blk_mem_gen_v8_4.v'
 
 foreach ($tool in @('xvlog', 'xelab', 'xsim', 'python')) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
@@ -50,51 +56,108 @@ if ($Full) { $exportArgs += '--full' }
 if ($LASTEXITCODE -ne 0) { throw 'export_vectors.py failed' }
 
 # ---------------------------------------------------------------------
-# 2. 套件表：Module / Tb / Case 名 / 额外 define / 期望判据 / 说明
+# 1b. blk_inter 的正式版存储（blk_mem_gen）按需生成：产物不入库、可重建（约 40 s）
+#     缺了就先建，之后 P2 的 IP 版套件才有东西可编译。
 # ---------------------------------------------------------------------
+if (-not (Test-Path -LiteralPath $IpModel)) {
+    Write-Host '[0b] 生成 blk_mem_gen IP（首次约 40 s，产物不入库）'
+    & vivado -mode batch -nojournal -nolog -source (Join-Path $RepoRoot 'build\gen_blk_mem_gen.tcl') *> (Join-Path $LogDir 'gen_blk_mem_gen.log')
+    if (-not (Test-Path -LiteralPath $IpModel)) {
+        throw "blk_mem_gen IP 生成失败，见 $(Join-Path $LogDir 'gen_blk_mem_gen.log')"
+    }
+    Write-Host '      [BLK-MEM-GEN] OK'
+}
+
+# ---------------------------------------------------------------------
+# 2. 套件表：Name / Testbench / 源文件清单 / define / 期望判据 / 说明
+#    正例要求 status=PASS，反例要求 status=FAIL（反例若 PASS 说明向量抓不住这个错）
+# ---------------------------------------------------------------------
+$src = $SrcDir
 $suites = @(
-    [pscustomobject]@{ Name = 'qpsk-rand'; Module = 'qpsk_map'; Tb = 'tb_qpsk_map_compare';
+    [pscustomobject]@{ Name = 'qpsk-rand'; Tb = 'tb_qpsk_map_compare';
+        Sources = @("$src\qpsk_map.v");
         Defines = @(); Expect = 'status=PASS.*vectors=4096 compared=4096 errors=0';
-        ExpectFail = $false; Note = '4096 随机符号 1:1 位真' },
-    [pscustomobject]@{ Name = 'qpsk-edge'; Module = 'qpsk_map'; Tb = 'tb_qpsk_map_compare';
+        ExpectFail = $false; Note = 'qpsk_map 4096 随机符号 1:1 位真' },
+    [pscustomobject]@{ Name = 'qpsk-edge'; Tb = 'tb_qpsk_map_compare';
+        Sources = @("$src\qpsk_map.v");
         Defines = @('QPSK_CASE_EDGE'); Expect = 'status=PASS.*vectors=196 compared=196 errors=0';
-        ExpectFail = $false; Note = '四星座点 + 全 0/全 1 + 最坏码型' },
-    [pscustomobject]@{ Name = 'conv-frame'; Module = 'conv_enc'; Tb = 'tb_conv_enc_compare';
+        ExpectFail = $false; Note = 'qpsk_map 四星座点 + 全 0/全 1 + 最坏码型' },
+    [pscustomobject]@{ Name = 'conv-frame'; Tb = 'tb_conv_enc_compare';
+        Sources = @("$src\conv_enc.v");
         Defines = @(); Expect = 'status=PASS.*vectors=2166 compared=2166 errors=0';
-        ExpectFail = $false; Note = '1 块 2160 bit → 2166 拍（含 6 尾码字）' },
-    [pscustomobject]@{ Name = 'conv-rand'; Module = 'conv_enc'; Tb = 'tb_conv_enc_compare';
+        ExpectFail = $false; Note = 'conv_enc 1 块 2160 bit → 2166 拍（含 6 尾码字）' },
+    [pscustomobject]@{ Name = 'conv-rand'; Tb = 'tb_conv_enc_compare';
+        Sources = @("$src\conv_enc.v");
         Defines = @('CONV_CASE_RAND'); Expect = 'status=PASS.*vectors=17328 compared=17328 errors=0';
-        ExpectFail = $false; Note = '8 块背靠背：覆盖块边界、尾比特与弹性缓冲' },
-    [pscustomobject]@{ Name = 'conv-edge'; Module = 'conv_enc'; Tb = 'tb_conv_enc_compare';
+        ExpectFail = $false; Note = 'conv_enc 8 块背靠背：块边界、尾比特与弹性缓冲' },
+    [pscustomobject]@{ Name = 'conv-edge'; Tb = 'tb_conv_enc_compare';
+        Sources = @("$src\conv_enc.v");
         Defines = @('CONV_CASE_EDGE'); Expect = 'status=PASS.*vectors=8664 compared=8664 errors=0';
-        ExpectFail = $false; Note = '全 0 / 全 1 / 交替 / 首位单 1' },
-    [pscustomobject]@{ Name = 'frame-single'; Module = 'frame_tx'; Tb = 'tb_frame_tx_compare';
+        ExpectFail = $false; Note = 'conv_enc 全 0 / 全 1 / 交替 / 首位单 1' },
+    [pscustomobject]@{ Name = 'frame-single'; Tb = 'tb_frame_tx_compare';
+        Sources = @("$src\frame_tx.v");
         Defines = @(); Expect = 'status=PASS.*vectors=2160 compared=2160 errors=0';
-        ExpectFail = $false; Note = '1 帧：256 拍载荷 → 2160 拍比特流' },
-    [pscustomobject]@{ Name = 'frame-multi'; Module = 'frame_tx'; Tb = 'tb_frame_tx_compare';
+        ExpectFail = $false; Note = 'frame_tx 1 帧：256 拍载荷 → 2160 拍比特流' },
+    [pscustomobject]@{ Name = 'frame-multi'; Tb = 'tb_frame_tx_compare';
+        Sources = @("$src\frame_tx.v");
         Defines = @('FRAME_CASE_MULTI'); Expect = 'status=PASS.*vectors=17280 compared=17280 errors=0';
-        ExpectFail = $false; Note = '8 帧背靠背：帧号递增 + 双缓冲 + CRC 每帧重算' },
-    [pscustomobject]@{ Name = 'frame-edge'; Module = 'frame_tx'; Tb = 'tb_frame_tx_compare';
+        ExpectFail = $false; Note = 'frame_tx 8 帧背靠背：帧号递增 + 双缓冲 + CRC 每帧重算' },
+    [pscustomobject]@{ Name = 'frame-edge'; Tb = 'tb_frame_tx_compare';
+        Sources = @("$src\frame_tx.v");
         Defines = @('FRAME_CASE_EDGE'); Expect = 'status=PASS.*vectors=8640 compared=8640 errors=0';
-        ExpectFail = $false; Note = '载荷全 0 / 全 0xFF / 0xAA-0x55 / 单比特' },
-    [pscustomobject]@{ Name = 'neg-qpsk'; Module = 'qpsk_map'; Tb = 'tb_qpsk_map_compare';
+        ExpectFail = $false; Note = 'frame_tx 载荷全 0 / 全 0xFF / 0xAA-0x55 / 单比特' },
+    [pscustomobject]@{ Name = 'blk-frame'; Tb = 'tb_blk_inter_compare';
+        Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v");
+        Defines = @(); Expect = 'status=PASS.*vectors=2170 compared=2170 errors=0';
+        ExpectFail = $false; Note = 'blk_inter 1 块（真实编码帧激励）：2166 → 2170 拍' },
+    [pscustomobject]@{ Name = 'blk-rand'; Tb = 'tb_blk_inter_compare';
+        Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v");
+        Defines = @('BLK_CASE_RAND'); Expect = 'status=PASS.*vectors=17360 compared=17360 errors=0';
+        ExpectFail = $false; Note = 'blk_inter 8 块背靠背：双缓冲 + 补零 + 速率约束（节奏 1/2）' },
+    [pscustomobject]@{ Name = 'blk-edge'; Tb = 'tb_blk_inter_compare';
+        Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v");
+        Defines = @('BLK_CASE_EDGE'); Expect = 'status=PASS.*vectors=8680 compared=8680 errors=0';
+        ExpectFail = $false; Note = 'blk_inter 边界块：全 0 / 全 1 / 交替 / 首位单 1' },
+    [pscustomobject]@{ Name = 'blk-burst'; Tb = 'tb_blk_inter_burst';
+        Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v");
+        Defines = @(); Expect = '\[BURST-RESULT\].*restore=1 errors=10 rows=10 .*status=PASS';
+        ExpectFail = $false; Note = 'blk_inter 突发 10 bit → 打散到 10 个码字行（无交织 1 行）' },
+    [pscustomobject]@{ Name = 'neg-qpsk'; Tb = 'tb_qpsk_map_compare';
+        Sources = @("$src\qpsk_map.v");
         Defines = @('QPSK_NEG_SWAP'); Expect = 'status=FAIL';
-        ExpectFail = $true; Note = '证伪：I/Q 互换必须被判 FAIL' },
-    [pscustomobject]@{ Name = 'neg-conv'; Module = 'conv_enc'; Tb = 'tb_conv_enc_compare';
+        ExpectFail = $true; Note = '证伪：qpsk_map I/Q 互换必须被判 FAIL' },
+    [pscustomobject]@{ Name = 'neg-conv'; Tb = 'tb_conv_enc_compare';
+        Sources = @("$src\conv_enc.v");
         Defines = @('CONV_NEG_ORDER'); Expect = 'status=FAIL';
-        ExpectFail = $true; Note = '证伪：{g1,g2} 位序颠倒必须被判 FAIL' },
-    [pscustomobject]@{ Name = 'neg-frame'; Module = 'frame_tx'; Tb = 'tb_frame_tx_compare';
+        ExpectFail = $true; Note = '证伪：conv_enc {g1,g2} 位序颠倒必须被判 FAIL' },
+    [pscustomobject]@{ Name = 'neg-frame'; Tb = 'tb_frame_tx_compare';
+        Sources = @("$src\frame_tx.v");
         Defines = @('FRAME_NEG_CRC'); Expect = 'status=FAIL';
-        ExpectFail = $true; Note = '证伪：CRC 多项式换错必须被判 FAIL' }
+        ExpectFail = $true; Note = '证伪：frame_tx CRC 多项式换错必须被判 FAIL' },
+    [pscustomobject]@{ Name = 'neg-blk'; Tb = 'tb_blk_inter_compare';
+        Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v");
+        Defines = @('BLK_NEG_SWAP'); Expect = 'status=FAIL';
+        ExpectFail = $true; Note = '证伪：blk_inter 输出 {I,Q} 互换必须被判 FAIL' },
+    # 正式交付版存储：blk_mem_gen IP。跑同一套向量，位真结果必须与 RTL 推断版一致。
+    [pscustomobject]@{ Name = 'blk-ip-frame'; Tb = 'tb_blk_inter_compare';
+        Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v", $IpModel, $IpPrim);
+        Defines = @('BLK_INTER_USE_BRAM_IP'); Expect = 'status=PASS.*vectors=2170 compared=2170 errors=0';
+        ExpectFail = $false; Note = 'blk_inter（blk_mem_gen 版）1 块：与 RTL 推断版同向量同位真' },
+    [pscustomobject]@{ Name = 'blk-ip-burst'; Tb = 'tb_blk_inter_burst';
+        Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v", $IpModel, $IpPrim);
+        Defines = @('BLK_INTER_USE_BRAM_IP'); Expect = '\[BURST-RESULT\].*restore=1 errors=10 rows=10 .*status=PASS';
+        ExpectFail = $false; Note = 'blk_inter（blk_mem_gen 版）突发打散量化：同样 10 行' }
 )
 
 if ($Full) {
-    $suites += [pscustomobject]@{ Name = 'conv-long'; Module = 'conv_enc'; Tb = 'tb_conv_enc_compare';
+    $suites += [pscustomobject]@{ Name = 'conv-long'; Tb = 'tb_conv_enc_compare';
+        Sources = @("$src\conv_enc.v");
         Defines = @('CONV_CASE_LONG'); Expect = 'status=PASS.*vectors=1002858 compared=1002858 errors=0';
-        ExpectFail = $false; Note = '任务卡判据：463 块 = 1,000,080 bit 逐拍 0 错误' }
-    $suites += [pscustomobject]@{ Name = 'frame-long'; Module = 'frame_tx'; Tb = 'tb_frame_tx_compare';
+        ExpectFail = $false; Note = '任务卡判据：conv_enc 463 块 = 1,000,080 bit 逐拍 0 错误' }
+    $suites += [pscustomobject]@{ Name = 'frame-long'; Tb = 'tb_frame_tx_compare';
+        Sources = @("$src\frame_tx.v");
         Defines = @('FRAME_CASE_LONG'); Expect = 'status=PASS.*vectors=2160000 compared=2160000 errors=0';
-        ExpectFail = $false; Note = '任务卡判据：1000 随机帧逐拍 0 错误' }
+        ExpectFail = $false; Note = '任务卡判据：frame_tx 1000 随机帧逐拍 0 错误' }
 }
 
 # ---------------------------------------------------------------------
@@ -114,8 +177,8 @@ function Invoke-Suite {
 
     $xvlogArgs = @('-sv', '-i', $SrcDir)
     foreach ($define in $Suite.Defines) { $xvlogArgs += @('-d', $define) }
-    $xvlogArgs += @('-work', 'work', 'hdl/tb_vec_cmp.sv', "tb/$($Suite.Tb).sv",
-                    (Join-Path $SrcDir "$($Suite.Module).v"))
+    $xvlogArgs += @('-work', 'work', 'hdl/tb_vec_cmp.sv', "tb/$($Suite.Tb).sv")
+    foreach ($source in $Suite.Sources) { $xvlogArgs += $source }
 
     $result = [pscustomobject]@{ Exit = 127; Text = ''; Error = $null }
     $saved = $ErrorActionPreference
@@ -157,7 +220,8 @@ foreach ($suite in $suites) {
 
     $line = ''
     if ($null -eq $run.Error) {
-        $m = [regex]::Matches($run.Text, '\[VEC-RESULT\][^\r\n]*')
+        # 判据行有两类：逐拍比对器的 [VEC-RESULT] 与模块专属检查的 [BURST-RESULT]
+        $m = [regex]::Matches($run.Text, '\[(?:VEC|BURST)-RESULT\][^\r\n]*')
         if ($m.Count -gt 0) { $line = $m[$m.Count - 1].Value }
     }
 

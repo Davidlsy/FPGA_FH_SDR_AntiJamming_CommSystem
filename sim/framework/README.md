@@ -182,7 +182,7 @@ xsim snap_<module> -runall
 | `qpsk_map` | **已接入**（P1） | `rand` 4096、`edge` 196 | 1:1 |
 | `conv_enc` | **已接入**（P1） | `frame` / `rand` / `edge` / `long`（10⁶ bit） | N → N+6 |
 | `frame_tx` | **已接入**（P1） | `single` / `multi` / `edge` / `long`（1000 帧） | 256 → 2160 |
-| `blk_inter` | 待接入（P2） | — | 2166 → 2170（补零 2 bit） |
+| `blk_inter` | **已接入**（P2） | `frame` / `rand` / `edge` | 2166 → 2170（补零 8 bit = 4 拍） |
 | `srrc_duc` | 待接入（P3） | — | 符号:采样 = 1:4 |
 
 后两个都是 N:M，框架的两条新契约（长度解耦、激励节奏）正是为它们加的，接入时只需写
