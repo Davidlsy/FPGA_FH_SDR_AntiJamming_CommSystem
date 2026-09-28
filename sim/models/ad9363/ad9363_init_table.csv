@@ -1,0 +1,35 @@
+# AD9363 初始化表 —— 全工程唯一的人类可读来源
+#
+# 由 gen_init_table.py 消费，派生两份产物（两条独立编码路径，互不引用）：
+#   ad9363_init.mem          给 RTL 的 cfg_rom（$readmemh，32-bit 字）
+#   ad9363_init_expect.txt   给 TB 的逐条期望（(op,addr,data,gap_us) 四元组）
+# 两条路径独立，所以 .mem 的字段打包错误会被 TB 的逐条比对抓住。
+#
+# 【当前内容：烟测占位序列，不是 ADI 推荐上电初始化序列】
+# 本表的作用是把「表驱动状态机 → SPI 事务 → 器件模型」这条链路和逐条比对机制跑通。
+# 序列内容的正确性不在 S3 范围内（S3 只证明协议与逻辑正确，不证明真芯片能初始化），
+# 真机初始化序列的取值来源见 docs/report/s3_verification.md §5（BV-01 复核项）。
+#
+# 字段说明：
+#   op       : WRITE（写）| READV（读回校验）| DELAY（纯等待）| END（结束）
+#   addr     : 10-bit 寄存器地址，16 进制（DELAY/END 留空）
+#   data     : WRITE=写入值，READV=期望回读值，16 进制（DELAY/END 留空）
+#   delay_us : WRITE/READV=本事务完成后的短延时（0..255，字段 8-bit）
+#              DELAY=纯等待时间（0..2^28-1，字段 28-bit）
+#   note     : 人读备注，不参与编码
+#
+# 约束：软复位（写 0x000 = 0x81）必须是独立单字节写事务，不得与其他表项合并
+#       —— 见 src/spi_master.v 头注释"使用注意 3"。本表全部表项均为单字节事务。
+op,addr,data,delay_us,note
+WRITE,0x000,0x81,2,软复位：必须独立单字节写事务
+DELAY,,,50,复位后等待（PLL/校准建立时间的占位值）
+WRITE,0x013,0xA5,0,ENSM Mode（占位值）
+WRITE,0x020,0x33,0,Auto GPO（占位值）
+WRITE,0x004,0x11,0,Input Select（占位值）
+WRITE,0x005,0x22,0,RFPLL Dividers（占位值）
+READV,0x013,0xA5,0,回读校验 ENSM Mode
+READV,0x020,0x33,0,回读校验 Auto GPO
+DELAY,,,20,等待（占位值）
+WRITE,0x028,0xDE,0,GPO0 Rx Delay（占位值）
+READV,0x028,0xDE,0,回读校验 GPO0 Rx Delay
+END,,,0,结束：状态机转 S_DONE

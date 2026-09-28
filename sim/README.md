@@ -11,12 +11,13 @@ S1 与 S2 两条线在这里汇合：**S1（`golden_ref/`）给出「判据」�
 | `golden_ref/` | S1 | 浮点 + 定点黄金参考链（Python 包），`run_ber.py` 出 BER 曲线与 SNR 损失表 |
 | `float_ref/` | S1 | V2.x MATLAB 归档链重跑与对照（见 `docs/report/s1_archive_compare.md`） |
 | `framework/` | S2 | 自动比对框架：向量导出 + 逐拍比对器 + TB 模板（**所有 RTL 模块回归都靠它**） |
-| `models/ad9363/` | S2 | AD9363 SPI 行为模型（数字接口协议替身） |
+| `models/ad9363/` | S2 / S3 | AD9363 SPI 行为模型（板卡的仿真替身）+ S3 射频配置模块的验证落点 |
 | `models/channel/` | S2 | 信道模型库：AWGN / CFO / SFO / 多径 |
 | `models/jammer/` | S2 | 干扰注入源：单音 / 多音 / 扫频 / 部分频带 + JSR 标定 |
 | `vip/` | S2 | PS/PL 协同仿真环境：AXI VIP 主端发真实 AXI4-Lite 事务 |
 | `tb_fhss_top.v` | S0 | 工具链冒烟 testbench（`[SMOKE] PASS`） |
 | `run_s2_acceptance.ps1` / `.bat` | S2 | **统一验收**：五项串跑 + 唯一判据行（见 §3） |
+| `run_s3_acceptance.ps1` | S3 | **统一验收**：四项串跑（表一致性 + 三个 TB）+ 唯一判据行 `[S3 ACCEPTANCE]` |
 | `logs/` | — | 运行日志（`*.log` 未入库，可随时重跑重建） |
 
 ## 2. 五件套之间的关系
@@ -101,4 +102,8 @@ RF 数字基带侧（位宽/握手一致，可直接串联）
 
 - S2 待补：RF 侧链路冒烟（`golden_ref` 样点 → `ch_top` → `jm_top`，回 Python 用 S1 基线判 BER/JSR）——
   一次证明三件接口真正兼容，也是 S8 抗干扰增益验证的底座；验收结论见 `docs/report/s2_verification.md`。
-- S3 起：`spi_master` + `ad9363_cfg` 消费 `models/ad9363`，`tb_vec_cmp` 消费向量，框架开始被真实 DUT 使用。
+- S3 已落地的部分：`spi_master` + `ad9363_cfg` 消费 `models/ad9363`，逐条（地址, 数据, 延时）三元组
+  比对由「引脚波形嗅探 vs CSV 派生的期望」承担，入口 `run_s3_acceptance.ps1`，报告
+  `docs/report/s3_verification.md`。**待补**：初始化表内容仍是烟测占位（真表来源见报告 §8），
+  以及"全部状态可达、无锁死环"的形式化/可达性核查未做。
+- S4 起：`tb_vec_cmp` 消费向量，框架开始被真实 DUT 使用。

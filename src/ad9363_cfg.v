@@ -22,6 +22,12 @@
 // 接口约定: start 为 1 拍脉冲; busy 运行期间高; done 完成脉冲;
 //   error 为电平 (保持到下一次 start)。
 //
+// 暂停/恢复: pause 为电平输入, 在【表项边界】生效 —— 当前表项 (含其延时) 跑完
+//   后停在 S_PAUSED, pc 指向下一条未执行表项, prog_cnt 保持; pause 撤销后从
+//   断点继续, 已执行的表项不重复。两处刻意不暂停: SPI 事务中途 (会打断器件
+//   事务语义) 与延时中途 (该延时就是 PLL 建立时间, 冻结它会使延时失去意义)。
+//   暂停期间总看门狗冻结, 所以长时间暂停不会误报 error=3。
+//
 // 时钟域: 单一 clk, 同步复位 rst_n (低有效)。
 //   CLKS_PER_US = 每微秒的 clk 数 (50MHz -> 50)。
 //=====================================================================
@@ -35,7 +41,9 @@ module ad9363_cfg #(
     input  wire        rst_n,
 
     input  wire        start,          // 1 拍脉冲触发
+    input  wire        pause,          // 电平: 1=请求暂停 (表项边界生效)
     output wire        busy,
+    output wire        paused,         // 电平: 1=已停在表项边界
     output reg         done,           // 完成脉冲
     output reg  [3:0]  error,          // 见错误码
     output reg  [9:0]  fault_addr,     // 出错寄存器地址 (调试)
@@ -78,6 +86,7 @@ module ad9363_cfg #(
     localparam [3:0] S_RDDONE = 4'd8;
     localparam [3:0] S_DONE   = 4'd9;
     localparam [3:0] S_FAULT  = 4'd10;
+    localparam [3:0] S_PAUSED = 4'd11;
 
     localparam [3:0] ERR_OK     = 4'd0;
     localparam [3:0] ERR_SPI    = 4'd1;
@@ -125,7 +134,8 @@ module ad9363_cfg #(
     wire start_pulse = start && !start_d;
 
     //------------------------------ 主状态机 ------------------------------
-    assign busy = (state != S_IDLE);
+    assign busy   = (state != S_IDLE);
+    assign paused = (state == S_PAUSED);
     assign spi_cmd_nb_m1 = 3'd0;
     assign spi_cmd_div   = CMD_DIV;
 
@@ -153,6 +163,12 @@ module ad9363_cfg #(
             prog_cnt     <= 16'd0;
         end else begin
             done <= 1'b0;
+            // 握手请求默认撤销, 只在 S_WRCMD/S_RDCMD/S_WRDATA 内显式拉高。
+            // 这样看门狗(或任何强制跳转)把状态带走时, 请求不会悬在总线上:
+            // 否则 spi_master 会把残留的 valid 当成新命令执行, 产生一笔幽灵事务
+            // (R6 异常注入实测到: 故障解除瞬间多发一笔命令并挂死到主控看门狗)。
+            spi_cmd_valid  <= 1'b0;
+            spi_wbuf_valid <= 1'b0;
 
             case (state)
                 //----------------------------------------
@@ -172,7 +188,9 @@ module ad9363_cfg #(
                 // 解码当前表项并派发
                 //----------------------------------------
                 S_EXE: begin
-                    case (curop)
+                    if (pause) begin
+                        state <= S_PAUSED;      // 表项边界暂停, pc/prog_cnt 保持
+                    end else case (curop)
                         OP_WRITE: begin
                             wr_addr_r <= curaddr;
                             wr_data_r <= curdata;
@@ -200,6 +218,13 @@ module ad9363_cfg #(
                 end
 
                 //----------------------------------------
+                // 暂停: 停在表项边界, 等 pause 撤销后从 pc 续跑
+                //----------------------------------------
+                S_PAUSED: begin
+                    if (!pause) state <= S_EXE;
+                end
+
+                //----------------------------------------
                 // 写: 命令 -> 数据 -> 完成
                 //----------------------------------------
                 S_WRCMD: begin
@@ -207,16 +232,14 @@ module ad9363_cfg #(
                     spi_cmd_rd    <= 1'b0;
                     spi_cmd_addr  <= wr_addr_r;
                     if (spi_cmd_valid && spi_cmd_ready) begin
-                        spi_cmd_valid <= 1'b0;
-                        state         <= S_WRDATA;
+                        state <= S_WRDATA;
                     end
                 end
                 S_WRDATA: begin
                     spi_wbuf_valid <= 1'b1;
                     spi_wbuf_data  <= wr_data_r;
                     if (spi_wbuf_valid && spi_wbuf_rdy) begin
-                        spi_wbuf_valid <= 1'b0;
-                        state          <= S_WRDONE;
+                        state <= S_WRDONE;
                     end
                 end
                 S_WRDONE: begin
@@ -260,8 +283,7 @@ module ad9363_cfg #(
                     spi_cmd_rd    <= 1'b1;
                     spi_cmd_addr  <= rd_addr_r;
                     if (spi_cmd_valid && spi_cmd_ready) begin
-                        spi_cmd_valid <= 1'b0;
-                        state         <= S_RDDATA;
+                        state <= S_RDDATA;
                     end
                 end
                 S_RDDATA: begin
@@ -305,9 +327,10 @@ module ad9363_cfg #(
             endcase
 
             //----------------------------------------
-            // 看门狗 (运行期间按 us 累加)
+            // 看门狗 (运行期间按 us 累加; 暂停期间冻结)
             //----------------------------------------
-            if (state != S_IDLE && state != S_DONE && state != S_FAULT) begin
+            if (state != S_IDLE && state != S_DONE && state != S_FAULT
+                && state != S_PAUSED) begin
                 if (us_tick) begin
                     if (wd_us >= TIMEOUT_US - 24'd1) begin
                         fault_code <= ERR_WDT;

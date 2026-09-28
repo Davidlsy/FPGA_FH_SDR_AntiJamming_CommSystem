@@ -73,6 +73,13 @@ model, channel model library, jammer source, and the PS/PL AXI VIP environment �
 passes its acceptance run in one shot: 5/5 suites, 1538 checks, 0 errors, 47.6 s
 (`sim/run_s2_acceptance.ps1`; report in `docs/report/s2_verification.md`).
 
+The S3 RF-configuration pair (`spi_master` + `ad9363_cfg`) passes its own
+acceptance run the same way: 4/4 suites, 4718 checks, 0 errors, 21.7 s
+(`sim/run_s3_acceptance.ps1`; report in `docs/report/s3_verification.md`). Caveat
+worth stating: the register-sequence *content* is still a smoke placeholder
+pending the real table, so S3's evidence proves the table-driven state machine
+and the per-entry comparison mechanism — not the chip's bring-up.
+
 ## Build
 
 Requires Vivado / Vitis ML 2021.2. From a clean checkout:
@@ -103,7 +110,7 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S0 | 工具链冒烟：综合 → 实现 → bitstream + 行为仿真 | **完成** | `build/create_smoke_project.tcl`、`sim/tb_fhss_top.v`（`[SMOKE] PASS`） |
 | S1 | 浮点 / 定点黄金参考链 + BER 基线，定点规格书冻结 | **完成**（2026-09-22 冻结） | `sim/golden_ref/`、`data/s1_ber_baseline/`、`docs/spec/fixed_point_spec.md` |
 | S2 | 验证基础设施四件套（比对框架 / AD9363 模型 / 信道库 / 干扰源）+ PS-PL 协同仿真 | **完成**（2026-09-25 验收：5/5 套件、1538 项、0 错误） | `sim/run_s2_acceptance.ps1`、`docs/report/s2_verification.md` |
-| S3 | `spi_master` + `ad9363_cfg` 对 AD9363 模型做逐条（地址, 数据, 延时）比对 | **进行中** | `src/spi_master.v` 已入库；`src/ad9363_cfg.v` 与其 testbench 仍在工作区，尚未入库 |
+| S3 | `spi_master` + `ad9363_cfg` 对 AD9363 模型做逐条（地址, 数据, 延时）比对 | **进行中**（代码与机制完成，序列表内容待补，报告待评审） | 两模块 RTL 已入库；`sim/run_s3_acceptance.ps1` 四套件 4718 项 0 错误；`docs/report/s3_verification.md` |
 | S4+ | 发射链 / 接收链 / 跳频层 / 干扰感知 RTL | **未开始** | 仅 `sim/framework/vectors/qpsk_map/` 向量已就绪，等 S4-P1 接真实 DUT |
 
 ### 已知边界
@@ -138,7 +145,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 ├── src/                        # 【RTL 源码】
 │   ├── fhss_top.v              #   S0 冒烟顶层：50MHz 计数器 + LED 心跳
 │   ├── spi_master.v            #   S3 AD9363 SPI 主端
-│   ├── ad9363_cfg.v *          #   S3 AD9363 初始化序列状态机（仅在工作区，尚未入库）
+│   ├── ad9363_cfg.v            #   S3 AD9363 初始化序列状态机（表驱动 + cfg_rom，$readmemh 加载）
 │   └── constraints/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
@@ -149,8 +156,14 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── README.md               #   仿真树总入口：S2 五件套关系、约定与运行顺序
 │   ├── tb_fhss_top.v           #   S0 冒烟 testbench → [SMOKE] PASS/FAIL
 │   ├── run_s2_acceptance.ps1   #   S2 统一验收：五项串跑 → [S2 ACCEPTANCE] 判据行（另有 .bat）
+│   ├── run_s3_acceptance.ps1   #   S3 统一验收：四项串跑 → [S3 ACCEPTANCE] 判据行
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
-│   ├── models/ad9363/          #   S2 AD9363 SPI 行为模型（板卡的仿真替身）
+│   ├── models/ad9363/          #   S2 SPI 行为模型 + S3 射频配置模块的验证落点
+│   │   ├── ad9363_spi_model.sv #     S2 模型本体（寄存器堆 + 回读校验 + 异常注入）
+│   │   ├── ad9363_init_table.csv  #  S3 初始化表唯一人类可读来源（现为烟测占位序列，见 s3 报告 §8）
+│   │   ├── gen_init_table.py   #     CSV → .mem + expect 两条独立编码路径
+│   │   ├── tb_spi_master*.sv   #     spi_master 冒烟 / 1200 向量随机 + 五类异常
+│   │   └── tb_ad9363_cfg.sv    #     cfg 全链路 R1–R9（逐条三元组比对、暂停恢复、异常注入）
 │   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径）
 │   ├── models/jammer/          #   S2 干扰注入源（单音/多音/扫频/部分频带 + JSR 标定）
 │   ├── vip/                    #   S2 PS/PL 协同仿真环境（AXI VIP 主端 + PS 软件序列；gen/ 本地生成可重建）
@@ -196,7 +209,8 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
     │   ├── env.md              #   开发环境记录
     │   ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告
     │   ├── s1_spec_review.md   #   S1 定点规格书评审记录
-    │   └── s2_verification.md  #   S2 验收报告（5/5 套件，1538 项，0 错误）
+    │   ├── s2_verification.md  #   S2 验收报告（5/5 套件，1538 项，0 错误）
+    │   └── s3_verification.md  #   S3 验证报告（4/4 套件，4718 项，0 错误；含异常注入覆盖矩阵与遗留项）
     └── Xilinx-Zynq-7000 系列开发板AX7020/   # ALINX 官方资料（用户手册 / 管脚表 / 原理图 / PCB）
 ```
 
