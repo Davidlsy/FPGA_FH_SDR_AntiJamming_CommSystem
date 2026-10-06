@@ -29,6 +29,7 @@ from golden_ref.fixed_point.duc import gen_sin_lut  # noqa: E402
 REPO_ROOT = SIM_DIR.parent
 COEFF_PATH = REPO_ROOT / "src" / "srrc_coeff.vh"
 LUT_PATH = REPO_ROOT / "src" / "nco_lut.mem"
+COE_PATH = REPO_ROOT / "src" / "srrc_fir.coe"
 
 
 def render_coeff() -> str:
@@ -67,6 +68,18 @@ def render_lut() -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_coe() -> str:
+    """FIR Compiler 的 .coe：33 个系数（12 bit Q1.11，radix 10 十进制有符号，升序 h[0..32]）。"""
+    _, h_int = fixed_srrc_coeffs()
+    vals = [str(int(v)) for v in h_int]
+    lines = ["radix=10;", "coefdata="]
+    for i in range(0, len(vals), 8):
+        chunk = vals[i:i + 8]
+        sep = "," if i + 8 < len(vals) else ";"
+        lines.append(",".join(chunk) + sep)
+    return "\n".join(lines) + "\n"
+
+
 def write(path: Path, text: str) -> None:
     # newline="\n"：仓库 .gitattributes 要求文本文件 LF
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -77,10 +90,13 @@ def write(path: Path, text: str) -> None:
 def main(argv: list[str]) -> int:
     coeff = render_coeff()
     lut = render_lut()
+    coe = render_coe()
 
     if "--check" in argv:
         ok = True
-        for path, text, name in [(COEFF_PATH, coeff, "coeff"), (LUT_PATH, lut, "lut")]:
+        for path, text, name in [
+            (COEFF_PATH, coeff, "coeff"), (LUT_PATH, lut, "lut"), (COE_PATH, coe, "coe"),
+        ]:
             if not path.exists():
                 print(f"[SRRC-DUC] FAIL: 产物缺失 {path.relative_to(REPO_ROOT)}")
                 ok = False
@@ -96,10 +112,12 @@ def main(argv: list[str]) -> int:
 
     write(COEFF_PATH, coeff)
     write(LUT_PATH, lut)
+    write(COE_PATH, coe)
     _, h_int = fixed_srrc_coeffs()
     _, lut_int = gen_sin_lut()
     print(f"[SRRC-DUC] OK: {COEFF_PATH.relative_to(REPO_ROOT)} taps={len(h_int)}  "
-          f"{LUT_PATH.relative_to(REPO_ROOT)} lut={len(lut_int)}")
+          f"{LUT_PATH.relative_to(REPO_ROOT)} lut={len(lut_int)}  "
+          f"{COE_PATH.relative_to(REPO_ROOT)} coe")
     return 0
 
 
