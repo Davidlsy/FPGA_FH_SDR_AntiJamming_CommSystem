@@ -254,6 +254,17 @@ raw_capture/
 /sim/framework/vectors/*/long_expect.hex
 /sim/framework/vectors/*/long_meta.json
 
+# ============ Altium 生成的预览缓存 ============
+# docs/ 下的板卡资料包（如 AX7020_2017.4.1）来自厂商，其中 __Previews/ 是 Altium
+# 打开 PcbDoc/SchDoc 时自动生成的缩略图缓存，属产物而非资料内容，可由 Altium
+# 重新打开工程再生成。它还会绊住提交门禁：.PcbDocPreview 被判定为文本且末尾多
+# 一个空行，end-of-file-fixer 每次都想改写它；而它在工作区又存在未暂存改动，
+# 触发 pre-commit 的 "Stashed changes conflicted with hook auto-fixes... Rolling
+# back fixes" —— 钩子修复被整体回滚，提交陷入永久失败。故整目录不入库。
+# 同 raw_capture/ 的判据：__Previews 是描述性专用名，与源码目录重名概率极低，
+# 刻意不加锚点，使其对任意层级的资料包生效。
+__Previews/
+
 # ============ 交付物例外（必须置于所有忽略规则之后） ============
 # docs/ 是评审证据树：docs/report/ 下的综合日志（synth.log）、链接 map
 # （link.map）是交付物本身，不是构建噪声。

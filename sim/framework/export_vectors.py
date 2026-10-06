@@ -44,6 +44,7 @@ from golden_ref.float_chain.conv_encoder import conv_encode  # noqa: E402
 from golden_ref.float_chain.framing import build_frame_bits  # noqa: E402
 from golden_ref.float_chain.interleaver import block_interleave  # noqa: E402
 from golden_ref.fixed_point.fixed_modules import fixed_qpsk_modulate  # noqa: E402
+from golden_ref.fixed_point.duc import fixed_srrc_duc  # noqa: E402
 
 FRAMEWORK_DIR = Path(__file__).resolve().parent
 DEFAULT_OUT = FRAMEWORK_DIR / "vectors"
@@ -308,6 +309,61 @@ def _export_blk_inter(payload, seed: int):
 
 
 # ============================================================
+# srrc_duc
+# ============================================================
+# 一块 = 一帧的符号流：blk_inter 输出 2170 符号 → SRRC 上采样 ×4 + full 卷积 → 8712 采样
+# （4N+32，见 docs/spec/s4_tx_p3_freeze_draft.md 决策 1.5 ①）
+SRRC_N_SYMS = 2170
+
+
+def _srrc_duc_cases(seed: int):
+    """用例的"块"= 一帧符号（2170 个）；激励节奏 STIM_PERIOD=4（符号 1/4 节奏进）。"""
+    rng = np.random.default_rng(seed)
+
+    def rand_syms(n):
+        bits = rng.integers(0, 2, size=2 * n, dtype=np.int8)
+        return fixed_qpsk_modulate(bits)
+
+    edge_bits = np.zeros(2 * SRRC_N_SYMS, dtype=np.int8)
+    edge_bits[0:8] = [0, 0, 1, 1, 0, 1, 1, 0]      # 四星座点 00/11/01/10
+    edge_bits[16:272] = 0                            # 全 0 连续段（→ +724+724j）
+    edge_bits[512:768] = 1                           # 全 1 连续段（→ −724−724j）
+    edge_syms = fixed_qpsk_modulate(edge_bits)
+
+    return [
+        ("frame", [rand_syms(SRRC_N_SYMS)], "1 帧 2170 符号 → 8712 采样（full 卷积 4N+32）"),
+        ("edge", [edge_syms], "边界：四星座点 + 全 0/全 1 连续段"),
+    ]
+
+
+def _export_srrc_duc(payload, seed: int):
+    sym_blocks = payload
+    stim_hex, expect_hex = [], []
+    for syms in sym_blocks:
+        syms = np.asarray(syms)
+        for s in syms:
+            stim_hex.append(hex_of_int(
+                pack_fields((to_int(s.real, 12, 10), 12), (to_int(s.imag, 12, 10), 12)), 24))
+
+        i_out, q_out = fixed_srrc_duc(syms)
+        if len(i_out) != 4 * len(syms) + 32:
+            raise RuntimeError(f"参考 DUC 输出 {len(i_out)} != 4*{len(syms)}+32")
+        for i, q in zip(i_out, q_out):
+            expect_hex.append(hex_of_int(
+                pack_fields((to_int(i, 16, 11), 16), (to_int(q, 16, 11), 16)), 32))
+
+    meta = {
+        "stim": {"bits": 24, "packing": "{i_in[11:0], q_in[11:0]}", "frac": 10},
+        "expect": {"bits": 32, "packing": "{i_out[15:0], q_out[15:0]}", "frac": 11},
+        "sym_rows": len(sym_blocks[0]),
+        "stim_period": 4,
+        "upsample": 4,
+        "num_taps": 33,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -330,6 +386,11 @@ MODULES = {
         "cases": _blk_inter_cases,
         "export": _export_blk_inter,
         "golden_source": "golden_ref.float_chain.interleaver.block_interleave",
+    },
+    "srrc_duc": {
+        "cases": _srrc_duc_cases,
+        "export": _export_srrc_duc,
+        "golden_source": "golden_ref.fixed_point.duc.fixed_srrc_duc",
     },
 }
 

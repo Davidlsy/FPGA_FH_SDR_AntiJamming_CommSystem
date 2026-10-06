@@ -146,7 +146,16 @@ $suites = @(
     [pscustomobject]@{ Name = 'blk-ip-burst'; Tb = 'tb_blk_inter_burst';
         Sources = @("$src\blk_inter.v", "$src\blk_mem_1w1r.v", $IpModel, $IpPrim);
         Defines = @('BLK_INTER_USE_BRAM_IP'); Expect = '\[BURST-RESULT\].*restore=1 errors=10 rows=10 .*status=PASS';
-        ExpectFail = $false; Note = 'blk_inter（blk_mem_gen 版）突发打散量化：同样 10 行' }
+        ExpectFail = $false; Note = 'blk_inter（blk_mem_gen 版）突发打散量化：同样 10 行' },
+    # P3：srrc_duc = SRRC 多相滤波 + NCO 上变频 + DUC 混频（2170 符号 → 8712 采样 full 卷积）
+    [pscustomobject]@{ Name = 'srrc-frame'; Tb = 'tb_srrc_duc_compare';
+        Sources = @("$src\srrc_duc.v");
+        Defines = @(); Expect = 'status=PASS.*vectors=8712 compared=8712 errors=0';
+        ExpectFail = $false; Note = 'srrc_duc 2170 符号 → 8712 采样（full 卷积 4N+32 + NCO 混频）位真' },
+    [pscustomobject]@{ Name = 'srrc-edge'; Tb = 'tb_srrc_duc_compare';
+        Sources = @("$src\srrc_duc.v");
+        Defines = @('SRRC_CASE_EDGE'); Expect = 'status=PASS.*vectors=8712 compared=8712 errors=0';
+        ExpectFail = $false; Note = 'srrc_duc 边界符号：四星座点 + 全 0/全 1 连续段' }
 )
 
 if ($Full) {

@@ -1,0 +1,26 @@
+{
+  "module": "srrc_duc",
+  "case": "frame",
+  "stim_rows": 2170,
+  "expect_rows": 8712,
+  "count": 8712,
+  "case_note": "1 帧 2170 符号 → 8712 采样（full 卷积 4N+32）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.duc.fixed_srrc_duc",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-05T21:39:07+08:00",
+  "stim": {
+    "bits": 24,
+    "packing": "{i_in[11:0], q_in[11:0]}",
+    "frac": 10
+  },
+  "expect": {
+    "bits": 32,
+    "packing": "{i_out[15:0], q_out[15:0]}",
+    "frac": 11
+  },
+  "sym_rows": 2170,
+  "stim_period": 4,
+  "upsample": 4,
+  "num_taps": 33
+}

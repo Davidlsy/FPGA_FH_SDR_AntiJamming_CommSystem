@@ -118,3 +118,22 @@ FRAME_CRC_BITS = 16
 FRAME_COVERED_BITS = FRAME_HEADER_BITS + FRAME_PAYLOAD_BYTES * 8
 # 帧总长 = 同步字 + 帧头 + 载荷 + CRC
 FRAME_TOTAL_BITS = FRAME_SYNC_LEN + FRAME_COVERED_BITS + FRAME_CRC_BITS
+
+# ============================================================
+# S4-P3 DUC（数字上变频）参数 —— srrc_duc 的 NCO + 复数混频
+# 本组是 P3 新增（S1 冻结基线之外），位宽口径见 docs/spec/s4_tx_p3_freeze_draft.md 决策 1，
+# 并与 docs/spec/s4_tx_interface.md §5.2（NCO 相位连续语义，已冻结）一致。
+# 增删本组不触碰 S1 冻结基线（定点规格书 §0 的变更策略只管 FIXED_POINT_CONFIG）。
+# ============================================================
+DUC_CONFIG = {
+    # NCO 相位累加器位宽（§5.2 已冻结：16 bit，相位不清零）
+    "nco_phase_w": 16,
+    # sin/cos LUT 输出位宽与小数位（§5.2：LUT 16 bit、14 bit 小数，Q2.14，实际值域 [-1,1]）
+    "nco_lut_w": 16,
+    "nco_lut_frac": 14,
+    # DUC 复数混频输出位宽与小数位（决策 1：Q5.11，峰值 ≤ ±8 留 2 倍余量 → 表示 ±16）
+    "duc_out_w": 16,
+    "duc_out_frac": 11,
+    # S4 阶段固定上变频频点：f0 = fs/8，freq_word = 2^16 / 8 = 8192（决策 2 建议值）
+    "nco_freq_word": 8192,
+}
