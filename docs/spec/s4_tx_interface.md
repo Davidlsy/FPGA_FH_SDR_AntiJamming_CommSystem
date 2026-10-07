@@ -1,17 +1,20 @@
 # S4 发射链接口规格书 (TX Chain Interface Specification)
 
-> **版本**: v1.0
+> **版本**: v1.1
 > **适用模块**: `frame_tx` → `conv_enc` → `blk_inter` → `qpsk_map` → `srrc_duc`
-> **机器可读来源**: `sim/golden_ref/config.py`（`FRAME_*` 帧格式 + `FIXED_POINT_CONFIG` 位宽）
-> **相关规格**: `docs/spec/frame_format.md`（帧层）、`docs/spec/fixed_point_spec.md`（位宽）
+> **机器可读来源**: `sim/golden_ref/config.py`（`FRAME_*` 帧格式 + `FIXED_POINT_CONFIG` 位宽 + `DUC_CONFIG` DUC 位宽）
+> **相关规格**: `docs/spec/frame_format.md`（帧层）、`docs/spec/fixed_point_spec.md`（位宽）、
+> `docs/spec/s4_tx_p3_freeze_draft.md`（P3 决策 1/2/3 全文）
 
 ## 0. 冻结状态
 
-> **状态**: **本版冻结 §2–§5（含 P2 的 §4.3 四条决策）、§6.2、§7**；§6.1、§8.3 与 §10 列出的项按标注留待 P3 冻结
-> **冻结日期**: 2026-09-28（§4.3 于同日 P2 开工时补齐）
+> **状态**: **本版冻结 §2–§8 全部**（P2 的 §4.3 四条决策、P3 的 §6.1 位宽架构与 §8 三项），无遗留待冻结项
+> **冻结日期**: 2026-09-28（§2–§7，P0–P2）；2026-10-07（§6.1 + §8，P3 收口）
 > **冻结依据**: S4 任务卡「五模块位真验证」+ 计划书 §S4-P0「接口冻结」
 > **签核证据**: `sim/framework/run_selftest.ps1` → `[FRAMEWORK SELFTEST] PASS`（8 项，含 1:N 与激励节奏契约用例）；
-> `sim/run_s4_acceptance.ps1` → `[S4 ACCEPTANCE] suites=18 failed=0 status=PASS`
+> `sim/run_s4_acceptance.ps1` → `[S4 ACCEPTANCE] suites=18 failed=0 status=PASS`；
+> srrc_duc 手写版 `srrc-frame/edge` 与 FIR IP 版 `srrc-fir-frame/edge` 四套件均 `errors=0`；
+> `sim/golden_ref/sim/sfdr_analysis.py` → NCO/DUC SFDR −85.45 dBc（≤ −50 dBc 判据 PASS）
 > **变更策略**: 接口冻结后任何模块不得私改；改接口必须走 §9 流程并重跑全部 S4 向量
 
 为什么接口要先于 RTL 冻结：五个模块是**单方向线性串联**（图 1），上游一拍动的位序或节拍差一拍，
@@ -55,7 +58,7 @@
 | `conv_enc` | 2160 拍 × 1 bit | **2166 拍 × 2 bit** | 2160 信息位 + 6 尾比特，每拍出 `{g₁,g₂}` |
 | `blk_inter` | 2166 拍 × 2 bit (4332 bit) | **2170 拍 × 2 bit (4340 bit)** | 10 行 × 434 列，尾部补零 **8 bit** |
 | `qpsk_map` | 2170 拍 × 2 bit | 2170 拍 × 24 bit | 每符号 2 bit → 12 bit I / 12 bit Q |
-| `srrc_duc` | 2170 符号 | 8680 采样 | 上采样 ×4（`UPSAMPLE_FACTOR=4`） |
+| `srrc_duc` | 2170 符号 | **8712 采样** | 上采样 ×4 + full 卷积 32 拍拖尾（`4N+32`，见 §6.1） |
 
 补零 8 bit 的来历：编码后 4332 bit 不是交织深度 10 的整数倍，`ceil(4332/10)=434` 列 →
 4340 bit，故补齐 8 bit（= 4 拍，因为一拍送一个符号的 2 bit）。这与 S1 `block_interleave`
@@ -237,6 +240,37 @@ input  logic        freq_valid;   // 高电平时在下一拍载入 freq_word
    要把这拍算进去——比对器按 valid 对齐，所以只影响延迟，不影响判据。
 4. **比对是"逐拍"不是"逐帧"**：比对粒度到时钟沿，延迟差不会被误判为数据错。
 
+### 6.1 srrc_duc 位宽与架构（P3 冻结，2026-10-07）
+
+三段串接（采样时钟域，每采样节拍产出 1 个采样点）：
+
+1. **SRRC 33 抽头上采样 ×4 多相滤波**：符号 1/4 节奏进、采样连续出（多相分解 33 = 9+8+8+8，相位 0 有 9 抽头）；
+2. **NCO**：16 bit 相位累加器 + 四分之一波 sin/cos LUT（相位不清零，§5.2）；
+3. **DUC 复数混频**：`I′ = I·cos − Q·sin`，`Q′ = I·sin + Q·cos`，输出 Q5.11。
+
+位宽账本（单一来源 `config.py` 的 `FIXED_POINT_CONFIG` / `DUC_CONFIG`）：
+
+| 环节 | 位宽 | 小数 | 范围 |
+|---|---|---|---|
+| QPSK 符号（qpsk_map 输出） | 12 | 10 | ±0.707（±724） |
+| SRRC 系数 | 12 | 11 | [−1, 1) |
+| SRRC 输出 | 14 | 11 | [−4, 4)，峰值 ≈ ±2 |
+| NCO 相位累加器 | 16 | — | [0, 2π) |
+| NCO LUT | 16 | 14 | [−1, 1] |
+| DUC 混频输出 | 16 | 11 | [−16, 16)，峰值 ≤ ±8（留 2 倍余量） |
+
+三条位真一致硬口径（RTL 必须逐项复刻，否则手写版 / FIR IP 版 / golden_ref 三方在最后一位分叉）：
+
+- **输出拍数 = 4N + 32**（full 卷积）：符号流结束后再输出 32 拍拖尾（NUM_TAPS−1）。
+- **舍入 round half-to-even**（进位 `round_bit && (sticky || lsb)`），不是 half-up。
+- **NCO LUT 镜像公式** `mirror = 16383 − idx`，`cos(p) = sin(p + 2^14)`。
+
+双版实现（接口与位真一致，P3 验证）：
+
+- 手写版 `src/srrc_duc.v`：多相 MAC 组合逻辑，full convolution 无流水延迟；
+- FIR Compiler IP 版 `src/srrc_duc_fir.v`：2 × `fir_srrc`（Interpolation×4），3 拍 latency +
+  补 9 零符号（8 补 full-convolution 尾 + 1 补偿 latency 空转）后对齐 4N+32 输出。
+
 ## 7. 与任务卡的有意偏差（登记，不隐藏）
 
 | # | 任务卡写法 | 本规格做法 | 理由 |
@@ -245,13 +279,15 @@ input  logic        freq_valid;   // 高电平时在下一拍载入 freq_word
 | 2 | CRC16「并行 8-bit 查表，每拍一字节」 | **位串行 LFSR，每拍一比特** | `frame_tx` 输出是比特串行流，查表会在 2080 bit 之外多出 260 拍字节域；已登记在帧格式规格书 §5 |
 | 3 | — | `conv_enc` 增加 `blk_len` 配置端口 | 帧背靠背时 valid 不会拉低，编码器必须知道块长才能补尾比特 |
 
-## 8. 待冻结清单（P3 补，不阻塞 P0–P2）
+## 8. P3 冻结记录（2026-10-07，原"待冻结清单"三项已定）
 
-| 项 | 归属 | 需要定什么 |
-|---|---|---|
-| `srrc_duc` 输出位宽与小数位 | P3 | 建议 16 bit / 11 bit 小数、饱和输出（混频后 \|·\| ≤ 8，留 2 倍余量） |
-| `srrc_duc` 目标时钟与采样率 | P3 | 与顶层时钟方案一起定；本文档只冻结拍数关系，与时钟无关 |
-| SFDR 分析方法（理想 DAC 模型 + FFT 窗函数） | P3 | 单音 + 满量程随机两组激励 |
+| 项 | 冻结值 |
+|---|---|
+| `srrc_duc` 输出位宽与小数位 | 16 bit / 11 bit 小数（Q5.11），饱和输出；SRRC 本体 14 bit / 11 小数，详见 §6.1 |
+| `srrc_duc` 目标时钟与采样率 | 采样率 **fs = 2 MSPS**、符号率 **500 ksps**；RTL 用「采样节拍」抽象（每 clk 沿 = 1 采样节拍），拍数关系 1:4 与物理时钟域解耦 |
+| SFDR 分析方法 | SFDR 只测 **NCO/DUC 量化杂散**（纯单音 → DUC，实测 −85.45 dBc，≤ −50 dBc 判据 PASS）；SRRC 频谱纯度（多相一致性 −44.68 / 阻带抑制 −32.51 dBc）为**报告项**，不套 −50 判据 |
+
+三项决策的完整推导见 `docs/spec/s4_tx_p3_freeze_draft.md` 决策 1/2/3（含附录确认结果）。
 
 P2 开工时提出的三项（存储介质、读写冲突模式、输入速率约束）已在 §4.3 冻结，
 本表不再保留——**冻结的是决策与理由，不是"待办"**。

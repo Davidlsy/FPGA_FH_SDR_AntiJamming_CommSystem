@@ -8,7 +8,7 @@
   "seed": 20260924,
   "golden_source": "golden_ref.fixed_point.duc.fixed_srrc_duc",
   "golden_ref_version": "1.0.0",
-  "generated_at": "2026-10-05T21:39:07+08:00",
+  "generated_at": "2026-10-07T19:17:32+08:00",
   "stim": {
     "bits": 24,
     "packing": "{i_in[11:0], q_in[11:0]}",
