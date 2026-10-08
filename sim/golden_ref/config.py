@@ -137,3 +137,34 @@ DUC_CONFIG = {
     # S4 阶段固定上变频频点：f0 = fs/8，freq_word = 2^16 / 8 = 8192（决策 2 建议值）
     "nco_freq_word": 8192,
 }
+
+# ============================================================
+# S5 接收链参数（DDC / 同步环 / Viterbi）—— s5_rx_interface.md v1.1 §8 的机器可读来源
+# 本组是 P0 冻结的接收链口径（S1 冻结基线之外），位宽口径见该规格 §6.1。
+# 增删本组不触碰 S1 冻结基线（定点规格书 §0 的变更策略只管 FIXED_POINT_CONFIG）。
+# ============================================================
+RX_CONFIG = {
+    # --- DDC：CIC 抽取（输出 4 sps = 2 MSPS，与发射 ×4 严格对称，是其逆）---
+    # S5 验证档位 D = 4（f_adc = 8 MSPS）；板级最终值随 AD9363 配置（BV-01）
+    "adc_in_w": 12,          # ADC 复采样位宽（AD9363 原生 12 bit，有符号补码）
+    "cic_decim": 4,          # 抽取比 D
+    "cic_stages": 3,         # 级数 N（与 S1 预留 cic_stage_w 的 3 项对齐）
+    "cic_diff_delay": 1,     # 微分延迟 M
+    "cic_acc_w": 48,         # 积分器 / 梳状器累加器位宽（任务卡指定；DSP48E1 原生宽度）
+    # CIC 增益 = (D·M)^N = 4^3 = 64 = 2^6 → 输出右移 6 位还原单位增益（round half-to-even）
+    # --- 同步环（结构冻结；系数为初值，待 #5 收敛性验证标定后更新本组）---
+    "sync_acc_w": 16,        # 相位 / 定时累加器位宽（§4.2 冻结）
+    "sync_coeff_w": 20,      # 环路系数定点位宽
+    "sync_coeff_frac": 19,   # 环路系数小数位（Q1.19：Ki ~1e-4 才有足够分辨率）
+    # 二阶环初值：ζ = 0.707、归一化带宽 B_n ≈ 5e-3（B_L ≈ 2.5 kHz @ 500 ksps），
+    # 按 Kp = 4ζB_n/(1+2ζB_n+B_n²)、Ki = 4B_n²/(1+2ζB_n+B_n²) 取——
+    # **仅为初值**，判别器增益并入后须在 #5 重新标定（见 s5_rx_p0_freeze_draft.md §2.3）
+    "costas_kp": 0.0140,
+    "costas_ki": 0.000099,
+    "timing_kp": 0.0140,
+    "timing_ki": 0.000099,
+    "costas_damping": 0.707,
+    # --- Viterbi（位宽继承 S1 FIXED_POINT_CONFIG 的 viterbi_metric/pm）---
+    "viterbi_tb_depth": 96,  # 回溯深度（任务卡指定）
+    "viterbi_win_tb": 96,    # 滑窗回溯判决深度（= 深度 96；None 则全回溯，仅作理想对照）
+}
