@@ -1,0 +1,25 @@
+{
+  "module": "viterbi_dec",
+  "case": "frame",
+  "stim_rows": 2166,
+  "expect_rows": 2160,
+  "count": 2160,
+  "case_note": "一帧 4332 软比特（2166 符号）→ 2160 信息比特（64 态 / 回溯 96）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.rx_modules.fixed_viterbi_hw",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-08T21:05:17+08:00",
+  "stim": {
+    "bits": 16,
+    "packing": "{soft[2k], soft[2k+1]}",
+    "frac": 5
+  },
+  "expect": {
+    "bits": 1,
+    "packing": "信息比特（已去 6 尾比特）",
+    "frac": null
+  },
+  "states": 64,
+  "tb_depth": 96,
+  "stim_period": 1
+}

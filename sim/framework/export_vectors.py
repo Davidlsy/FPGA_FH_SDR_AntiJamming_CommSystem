@@ -32,19 +32,29 @@ SIM_DIR = Path(__file__).resolve().parents[1]
 if str(SIM_DIR) not in sys.path:
     sys.path.insert(0, str(SIM_DIR))
 
-import numpy as np  # noqa: E402
-
-from golden_ref import __version__ as GOLDEN_REF_VERSION  # noqa: E402
-from golden_ref.config import (  # noqa: E402
+import numpy as np
+from golden_ref import __version__ as GOLDEN_REF_VERSION
+from golden_ref.config import (
     FIXED_POINT_CONFIG,
     FRAME_PAYLOAD_BYTES,
     FRAME_TOTAL_BITS,
+    RX_CONFIG,
 )
-from golden_ref.float_chain.conv_encoder import conv_encode  # noqa: E402
-from golden_ref.float_chain.framing import build_frame_bits  # noqa: E402
-from golden_ref.float_chain.interleaver import block_interleave  # noqa: E402
-from golden_ref.fixed_point.fixed_modules import fixed_qpsk_modulate  # noqa: E402
-from golden_ref.fixed_point.duc import fixed_srrc_duc  # noqa: E402
+from golden_ref.fixed_point.duc import fixed_srrc_duc
+from golden_ref.fixed_point.fixed_modules import (
+    fixed_pulse_shape,
+    fixed_qpsk_modulate,
+)
+from golden_ref.fixed_point.rx_modules import (
+    fixed_ddc_rx,
+    fixed_viterbi_hw,
+    rx_adc_quantize,
+    soft_deinterleave,
+    upsample_bandlimited,
+)
+from golden_ref.float_chain.conv_encoder import conv_encode
+from golden_ref.float_chain.framing import build_frame_bits
+from golden_ref.float_chain.interleaver import block_interleave
 
 FRAMEWORK_DIR = Path(__file__).resolve().parent
 DEFAULT_OUT = FRAMEWORK_DIR / "vectors"
@@ -409,6 +419,158 @@ def _export_tx_chain(payloads, seed: int):
 
 
 # ============================================================
+# 接收链（S5）：ddc_rx / blk_deinter / viterbi_dec
+# ============================================================
+# 接收链是发射链的逆（见 docs/spec/s5_rx_interface.md §2/§3）。位真裁判来自
+# sim/golden_ref/fixed_point/rx_modules.py。
+#
+# sync_rx **暂不注册**：它的环路参数属 S5 的出口产物（#5 收敛性验证后才写入定点规格书
+# 修订版），现在导出向量等于把一个会变的参考固化下来，反而制造返工——待 #5 标定后再接入。
+RX_DECIM = RX_CONFIG["cic_decim"]
+# 接收链软判决 8bit/5 小数（S1 冻结）；理想强软值取 ±3.5（满量程 3.96875，避免饱和）
+RX_SOFT_STRONG = 3.5
+# ddc_rx 的激励行数 = D × (4·N+32)。取 N=2000 使 32128 行 < tb_vec_cmp 缺省 MAX_DEPTH(32768)，
+# 开箱即用；若要跑整帧 2170 符号（34848 行），TB 需显式调大 MAX_DEPTH。
+DDC_N_SYM = 2000
+
+
+def _rx_adc_input(syms):
+    """4 sps 成形信号 → f_adc 的 ADC 输入（带限上采样 ×D，AGC 到 ±0.9 满量程内）。
+
+    带限（FFT）上采样而非零插值：零插值不是真实过采样，会把 CIC 的增益/下垂测错。
+    AGC 按**峰值**归一，故弱信号段与强信号段的相对电平（如 −60 dB）被保留。
+    """
+    shaped = fixed_pulse_shape(syms)
+    peak = float(np.max(np.abs(shaped)))
+    return upsample_bandlimited(shaped / peak * 0.9, RX_DECIM)
+
+
+def _rx_frame_soft(seed: int):
+    """一帧的码流与其「交织序理想软值」（blk_deinter / viterbi_dec 共用）。
+
+    返回 (coded, interleaved_bits, soft_interleaved)：
+      coded            4332 hard bits（conv_encode 输出）
+      interleaved_bits 4340 bit（block_interleave 补零后）
+      soft_interleaved 4340 个 8bit/5 小数软值（bit0 → +3.5、bit1 → −3.5）
+    """
+    rng = np.random.default_rng(seed)
+    payload = rng.integers(0, 256, FRAME_PAYLOAD_BYTES, dtype=np.uint8).tobytes()
+    bits = build_frame_bits(payload, frame_no=0)
+    coded = conv_encode(bits)
+    inter = block_interleave(coded)
+    soft = np.where(inter == 0, RX_SOFT_STRONG, -RX_SOFT_STRONG)
+    return coded, inter, soft
+
+
+def _pack_soft_pair(soft):
+    """两个 8bit 软值打包成一个 16bit 字（高位在前）——与发射侧 2bit/符号同序。"""
+    sw = FIXED_POINT_CONFIG["viterbi_metric_w"]
+    sf = FIXED_POINT_CONFIG["viterbi_metric_frac"]
+    out = []
+    for k in range(0, len(soft) - 1, 2):
+        out.append(hex_of_int(
+            pack_fields((to_int(soft[k], sw, sf), sw), (to_int(soft[k + 1], sw, sf), sw)), 2 * sw))
+    return out
+
+
+def _ddc_rx_cases(seed: int):
+    rng = np.random.default_rng(seed)
+    rand_syms = fixed_qpsk_modulate(rng.integers(0, 2, 2 * DDC_N_SYM, dtype=np.int8))
+
+    # edge：四星座点 + 一段 −60 dB 弱信号（动态范围用例；峰值由强符号段决定，
+    #       故归一化不会把弱段抬回来，二者相对电平保持 −60 dB）
+    edge_bits = np.zeros(2 * 64, dtype=np.int8)
+    edge_bits[0:8] = [0, 0, 1, 1, 0, 1, 1, 0]
+    edge_syms = fixed_qpsk_modulate(edge_bits).copy()
+    edge_syms[32:] *= 1e-3
+
+    return [
+        ("rand", [rand_syms],
+         f"{DDC_N_SYM} 符号成形（4 sps）→ 带限上采样 ×{RX_DECIM} 到 f_adc → CIC 抽取 + 匹配 FIR"),
+        ("edge", [edge_syms], "边界：四星座点 + −60 dB 弱信号段（动态范围）"),
+    ]
+
+
+def _export_ddc_rx(payload, seed: int):
+    stim_hex, expect_hex = [], []
+    aw = RX_CONFIG["adc_in_w"]
+    ow = FIXED_POINT_CONFIG["srrc_out_w"]
+    of = FIXED_POINT_CONFIG["srrc_out_frac"]
+    for syms in payload:
+        adc = _rx_adc_input(np.asarray(syms))
+        # 激励写模型内部的**同一批 ADC 整数**（±2048 ↔ ±1.0），不另写一份量化
+        i_int, q_int = rx_adc_quantize(adc)
+        for i, q in zip(i_int, q_int):
+            stim_hex.append(hex_of_int(pack_fields((int(i), aw), (int(q), aw)), 2 * aw))
+        out, _ = fixed_ddc_rx(adc)
+        for s in out:
+            expect_hex.append(hex_of_int(
+                pack_fields((to_int(s.real, ow, of), ow), (to_int(s.imag, ow, of), ow)), 2 * ow))
+    meta = {
+        "stim": {"bits": 2 * aw, "packing": "{i[11:0], q[11:0]}", "frac": aw - 1,
+                 "rate": f"f_adc = {RX_DECIM} × 2 MSPS"},
+        "expect": {"bits": 2 * ow, "packing": "{i[13:0], q[13:0]}", "frac": of, "rate": "4 sps"},
+        "decim": RX_DECIM,
+        "cic_stages": RX_CONFIG["cic_stages"],
+        "cic_diff_delay": RX_CONFIG["cic_diff_delay"],
+        "stim_period": 1,
+        "max_depth_hint": "stim 行数须 ≤ tb_vec_cmp 的 MAX_DEPTH（缺省 32768）",
+    }
+    return stim_hex, expect_hex, meta
+
+
+def _blk_deinter_cases(seed: int):
+    return [
+        ("frame", [seed], "一帧软判决码流 4340 → 4332（逆 blk_inter 置换 + 去 8bit 补零）"),
+    ]
+
+
+def _export_blk_deinter(payload, seed: int):
+    stim_hex, expect_hex = [], []
+    for sd in payload:
+        _, _, soft = _rx_frame_soft(sd)
+        out = soft_deinterleave(soft, n_out=len(soft) - 8)
+        stim_hex += _pack_soft_pair(soft)
+        expect_hex += _pack_soft_pair(out)
+    sw = FIXED_POINT_CONFIG["viterbi_metric_w"]
+    sf = FIXED_POINT_CONFIG["viterbi_metric_frac"]
+    meta = {
+        "stim": {"bits": 2 * sw, "packing": "{soft[2k], soft[2k+1]}", "frac": sf},
+        "expect": {"bits": 2 * sw, "packing": "{soft[2k], soft[2k+1]}", "frac": sf},
+        "depth": 10,
+        "note": "输入 4340 个软值 / 输出 4332 个（去发射侧补的 8 bit）",
+        "stim_period": 1,
+    }
+    return stim_hex, expect_hex, meta
+
+
+def _viterbi_dec_cases(seed: int):
+    return [
+        ("frame", [seed], "一帧 4332 软比特（2166 符号）→ 2160 信息比特（64 态 / 回溯 96）"),
+    ]
+
+
+def _export_viterbi_dec(payload, seed: int):
+    stim_hex, expect_hex = [], []
+    for sd in payload:
+        _, _, soft = _rx_frame_soft(sd)
+        de = soft_deinterleave(soft, n_out=len(soft) - 8)
+        dec = fixed_viterbi_hw(de, win_tb=RX_CONFIG["viterbi_win_tb"])
+        stim_hex += _pack_soft_pair(de)
+        expect_hex += [hex_of_int(int(b), 1) for b in dec]
+    sw = FIXED_POINT_CONFIG["viterbi_metric_w"]
+    sf = FIXED_POINT_CONFIG["viterbi_metric_frac"]
+    meta = {
+        "stim": {"bits": 2 * sw, "packing": "{soft[2k], soft[2k+1]}", "frac": sf},
+        "expect": {"bits": 1, "packing": "信息比特（已去 6 尾比特）", "frac": None},
+        "states": 64,
+        "tb_depth": RX_CONFIG["viterbi_tb_depth"],
+        "stim_period": 1,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -441,6 +603,21 @@ MODULES = {
         "cases": _tx_chain_cases,
         "export": _export_tx_chain,
         "golden_source": "golden_ref 全链路（framing→conv→interleave→qpsk→srrc_duc）",
+    },
+    "ddc_rx": {
+        "cases": _ddc_rx_cases,
+        "export": _export_ddc_rx,
+        "golden_source": "golden_ref.fixed_point.rx_modules.fixed_ddc_rx（CIC 抽取 + 匹配 FIR）",
+    },
+    "blk_deinter": {
+        "cases": _blk_deinter_cases,
+        "export": _export_blk_deinter,
+        "golden_source": "golden_ref.fixed_point.rx_modules.soft_deinterleave",
+    },
+    "viterbi_dec": {
+        "cases": _viterbi_dec_cases,
+        "export": _export_viterbi_dec,
+        "golden_source": "golden_ref.fixed_point.rx_modules.fixed_viterbi_hw",
     },
 }
 

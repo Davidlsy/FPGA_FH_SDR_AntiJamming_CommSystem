@@ -1,0 +1,29 @@
+{
+  "module": "ddc_rx",
+  "case": "rand",
+  "stim_rows": 32128,
+  "expect_rows": 8064,
+  "count": 8064,
+  "case_note": "2000 符号成形（4 sps）→ 带限上采样 ×4 到 f_adc → CIC 抽取 + 匹配 FIR",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.rx_modules.fixed_ddc_rx（CIC 抽取 + 匹配 FIR）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-08T21:05:17+08:00",
+  "stim": {
+    "bits": 24,
+    "packing": "{i[11:0], q[11:0]}",
+    "frac": 11,
+    "rate": "f_adc = 4 × 2 MSPS"
+  },
+  "expect": {
+    "bits": 28,
+    "packing": "{i[13:0], q[13:0]}",
+    "frac": 11,
+    "rate": "4 sps"
+  },
+  "decim": 4,
+  "cic_stages": 3,
+  "cic_diff_delay": 1,
+  "stim_period": 1,
+  "max_depth_hint": "stim 行数须 ≤ tb_vec_cmp 的 MAX_DEPTH（缺省 32768）"
+}

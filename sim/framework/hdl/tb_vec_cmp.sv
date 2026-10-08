@@ -25,6 +25,10 @@
 //
 // 判据：错误数 0 且比对拍数 == n_exp → PASS；否则 FAIL 并 $fatal 退出，
 // 让批处理脚本能靠退出码而非日志肉眼判断。
+//
+// 前导窗口（S5 接收链扩展）：SKIP_OUT 指定"丢弃 DUT 最前面的多少个 dout_valid 拍"。
+// 接收链的同步环在锁定前输出的是过渡态，本就不可比；把它算进比对会把"未锁定"记成
+// "数据错"。被丢弃的拍既不计 compared 也不计 extra，只计入 skipped 供脚本核对。
 // =====================================================================
 `timescale 1ns/1ps
 
@@ -38,7 +42,11 @@ module tb_vec_cmp #(
     parameter int    DRAIN_CYCLES   = 64,
     parameter int    TIMEOUT_CYCLES = 0,      // 0 = 自动 (8*max(stim*n, n_exp) + 4096)
     parameter int    STIM_PERIOD    = 1,      // 激励节奏：每 STIM_PERIOD 拍送出一个激励拍
-    parameter int    MAX_MISMATCHES = 8
+    parameter int    MAX_MISMATCHES = 8,
+    // 跳过 DUT 的前 SKIP_OUT 个 dout_valid 拍再开始比对（S5 接收链扩展）：
+    // 同步环（Costas/定时）在锁定前的那段输出不具可比性，若从第 1 拍就比，
+    // 会把"尚未锁定"记成"数据错"。SKIP_OUT=0 时与老行为逐拍等价。
+    parameter int    SKIP_OUT       = 0
 ) (
     input  logic             clk,
     input  logic             rst_n,
@@ -57,6 +65,7 @@ module tb_vec_cmp #(
     int   drive_idx  = 0;
     int   exp_idx    = 0;      // 已发出的期望序号
     int   cmp_cnt    = 0;      // 已比对拍数
+    int   skip_cnt   = 0;      // 已丢弃的前导输出拍数（< SKIP_OUT）
     int   err_cnt    = 0;
     int   extra_cnt  = 0;      // 超出期望长度的多余有效拍
     int   first_idx  = -1;     // 首个失配序号（0 起）
@@ -113,10 +122,11 @@ module tb_vec_cmp #(
         end
 
         timeout = (TIMEOUT_CYCLES > 0) ? TIMEOUT_CYCLES
-                                       : (8 * (((n_stim * STIM_PERIOD) > n_exp) ? (n_stim * STIM_PERIOD) : n_exp)
+                                       : (8 * (((n_stim * STIM_PERIOD) > (n_exp + SKIP_OUT))
+                                               ? (n_stim * STIM_PERIOD) : (n_exp + SKIP_OUT))
                                           + 4096);
-        $display("[VEC] %0s  加载 %0s：激励 %0d 拍（节奏 1/%0d），期望 %0d 拍，看门狗 %0d 拍",
-                 TB_NAME, EXP_FILE, n_stim, STIM_PERIOD, n_exp, timeout);
+        $display("[VEC] %0s  加载 %0s：激励 %0d 拍（节奏 1/%0d），期望 %0d 拍，跳过前导 %0d 拍，看门狗 %0d 拍",
+                 TB_NAME, EXP_FILE, n_stim, STIM_PERIOD, n_exp, SKIP_OUT, timeout);
     end
 
     // ---------------------------------------------------------------
@@ -153,11 +163,15 @@ module tb_vec_cmp #(
         if (!rst_n) begin
             exp_idx   <= 0;
             cmp_cnt   <= 0;
+            skip_cnt  <= 0;
             err_cnt   <= 0;
             extra_cnt <= 0;
             bad_cnt   <= 0;
         end else if (dut_valid) begin
-            if (exp_idx >= n_exp) begin
+            if (skip_cnt < SKIP_OUT) begin
+                // 前导窗口：丢弃，不计入比对也不计入多余拍
+                skip_cnt <= skip_cnt + 1;
+            end else if (exp_idx >= n_exp) begin
                 extra_cnt <= extra_cnt + 1;
                 err_cnt   <= err_cnt + 1;
                 if (first_idx < 0) begin
@@ -217,13 +231,13 @@ module tb_vec_cmp #(
 
             // 机器可读结果行：纯 ASCII，脚本/CI 只认这一行，不受控制台代码页影响。
             // vectors = 期望行数（比对长度）；stim_rows 供 N:M 模块核对驱动节拍数。
-            $display("[VEC-RESULT] tb=%0s status=%0s vectors=%0d compared=%0d errors=%0d extra=%0d timeout=%0d first_mismatch=%0d first_expected=0x%h first_actual=0x%h stim_rows=%0d stim_period=%0d",
+            $display("[VEC-RESULT] tb=%0s status=%0s vectors=%0d compared=%0d errors=%0d extra=%0d timeout=%0d first_mismatch=%0d first_expected=0x%h first_actual=0x%h stim_rows=%0d stim_period=%0d skipped=%0d",
                      TB_NAME, status, n_exp, cmp_cnt, err_cnt, extra_cnt, timed_out ? 1 : 0,
-                     fm_idx, first_exp, first_act, n_stim, STIM_PERIOD);
+                     fm_idx, first_exp, first_act, n_stim, STIM_PERIOD, skip_cnt);
 
             $display("[VEC] ------------------------------------------------------------");
-            $display("[VEC] %0s  激励 %0d 拍 / 期望 %0d 拍  已比对 %0d (%0d%%)  错误 %0d  多余拍 %0d",
-                     TB_NAME, n_stim, n_exp, cmp_cnt, done_pct, err_cnt, extra_cnt);
+            $display("[VEC] %0s  激励 %0d 拍 / 期望 %0d 拍  已比对 %0d (%0d%%)  错误 %0d  多余拍 %0d  跳过前导 %0d",
+                     TB_NAME, n_stim, n_exp, cmp_cnt, done_pct, err_cnt, extra_cnt, skip_cnt);
 
             if (timed_out) begin
                 $display("[VEC] %0s  看门狗超时：%0d 拍内只收到 %0d/%0d 个输出",

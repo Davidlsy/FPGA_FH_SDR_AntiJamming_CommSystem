@@ -49,8 +49,8 @@
 |---|---|---|---|---|
 | `ddc_rx` | ADC 复采样 `{i,q}`（2×12 bit） | 4 sps 复采样（2×14 bit） | **D : 1**（D = f_adc / 2 MSPS，参数） | 冻结 |
 | `sync_rx` | 4 sps 复采样 | 1 sps 判决符号 + 软判决比特 | **4 : 1**（早迟门定取样相位） | 冻结 |
-| `blk_deinter` | 软判决比特（每符号 2 bit，先 I 后 Q） | 同宽比特流 | **4340 → 4332**（去 8 bit 补零） | 冻结（另立，S5 内可旁路） |
-| `viterbi_dec` | 软判决比特（8 bit/5 小数） | 译码信息比特 | **2N → N − 6**（N = 编码符号数） | 冻结 |
+| `blk_deinter` | 软符号 `{i_soft[7:0],q_soft[7:0]}`（16 bit/拍） | 同宽（16 bit） | **2170 → 2166**（4340 → 4332 软值，去 8 bit 补零） | 冻结（另立，S5 内可旁路） |
+| `viterbi_dec` | 软符号 `{i_soft[7:0],q_soft[7:0]}`（8 bit/5 小数） | 译码信息比特 | **2N → N − 6**（N = 编码符号数） | 冻结 |
 
 接收链与发射链的**逆映射关系**（本规格的核心约定）：
 
@@ -78,7 +78,7 @@
 | `ddc_rx` | `D × 8712` 采样 @ f_adc | **8712 采样 @ 4 sps** | 抽取到 4 sps（= 2 MSPS），与发射侧 8712 采样一一对应 |
 | `sync_rx` | 8712 采样 @ 4 sps | **2170 判决符号** | 4:1 取样（早迟门定相位），恢复 2170 符号 |
 | 软解调（挂 `sync_rx` 输出端） | 2170 符号 | **4340 软比特** | 每符号 I/Q 各 1 软比特，先 I 后 Q |
-| `blk_deinter` | 4340 比特 | **4332 比特** | 逆 `blk_inter`，去 8 bit 补零 |
+| `blk_deinter` | 2170 拍 × 2 软值（4340 软比特） | **2166 拍 × 2 软值（4332）** | 逆 `blk_inter` 置换 + 去 8 bit 补零 |
 | `viterbi_dec` | 4332 比特 = 2166 对 | **2160 信息比特** | 逆 `conv_enc`，去 6 尾比特 |
 
 **接收取样窗口（本版冻结）**：发射侧输出是 `4N + 32`（full 卷积拖尾，见 `s4_tx_interface.md` §6.1），
@@ -164,19 +164,25 @@ module blk_deinter #(
     parameter int DEPTH = 10,      // 交织深度，与 blk_inter 相同（不另设）
     parameter int N_COL = 434      // 列数 = ceil(4332 / DEPTH)，与 blk_inter 相同
 ) (
-    input  logic       clk,
-    input  logic       rst_n,
-    input  logic       din_valid,
-    input  logic [1:0] din_data,      // 一个符号的 {I, Q} 两比特
-    output logic       dout_valid,
-    output logic [1:0] dout_data
+    input  logic        clk,
+    input  logic        rst_n,
+    input  logic        din_valid,
+    input  logic [15:0] din_data,     // 一个"软符号"：{i_soft[7:0], q_soft[7:0]}（8bit/5 小数）
+    output logic        dout_valid,
+    output logic [15:0] dout_data
 );
 ```
+
+> **位宽口径（本版澄清，原稿 §4.3 写成 `[1:0]` 与 §2/§3 自相矛盾）**：本模块搬的是**软判决值**
+> （8 bit/5 小数），不是一个符号的 2 个硬比特。故总线 **16 bit**（一拍两个软值、高位在前），
+> 拍数是 **2170 → 2166**（不是 4340 → 4332 比特）。之所以同一个置换对"4340 个比特"和
+> "4340 个软值"都成立，是因为发射侧也是**一拍一个 2 bit 字**（`blk_inter` 的 2bit/符号），
+> 两侧的元素序完全一致——这也正是 {I,Q} 打包顺序必须全程一致的原因。
 
 - **逆 `blk_inter`**：发射侧"写行优先、读列优先"，本模块**写列优先、读行优先**，严格互逆；
 - **几何参数共用**：`DEPTH=10`、`N_COL=434` 必须与 `blk_inter` 取同一值，**不得另设**——
   两处几何不一致 = 位序整体错，且症状是"译码全错"而非"少一位"，最难查；
-- **去补零**：发射侧补的 8 bit（padded 序末 4 个字）在逆变换时丢弃 → 输出 4332 bit；
+- **去补零**：发射侧补的 8 bit（padded 序末 4 个字）在逆变换时丢弃 → 输出 4332 个软值（2166 拍）；
 - **位真裁判**：`float_chain/interleaver.py` 已有 `block_deinterleave`，经实测是 `block_interleave` 的
   **真逆**（含尾部 8 bit 补零）。但 `block_interleave` 内部用 `np.zeros(..., dtype=np.int8)` 建缓冲，
   **不能承载软值**（会把 float 强转 int8 而毁数据）。故 P1 在 `fixed_point/rx_modules.py` 增补

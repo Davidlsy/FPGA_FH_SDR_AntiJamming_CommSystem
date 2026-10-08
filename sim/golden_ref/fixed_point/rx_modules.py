@@ -106,6 +106,30 @@ def soft_deinterleave(values, depth=INTERLEAVER_DEPTH, n_out=None):
 
 
 # ============================================================
+# 信号工具：带限上采样（生成"更高采样率的同一信号"）
+# ============================================================
+def upsample_bandlimited(x, factor):
+    """
+    FFT 带限整数倍上采样。用途：把 4 sps 的发射成形信号变成 f_adc 的 ADC 输入，
+    作为 `ddc_rx` 的激励——用"零插值"会把 CIC 的增益/下垂测错（那不是真实过采样）。
+
+    参数:
+        x: 复基带序列
+        factor: 上采样倍数（= DDC 抽取比 D）
+    返回:
+        长度 len(x)*factor 的复序列
+    """
+    x = np.asarray(x, dtype=np.complex128)
+    n = len(x)
+    X = np.fft.fft(x)
+    Y = np.zeros(n * factor, dtype=np.complex128)
+    half = n // 2
+    Y[:half + 1] = X[:half + 1]
+    Y[-(n - half - 1):] = X[half + 1:]
+    return np.fft.ifft(Y) * factor
+
+
+# ============================================================
 # DDC：CIC 抽取 + 匹配 FIR
 # ============================================================
 def fixed_cic_decimate(x_int, decim=None, stages=None, diff_delay=None, acc_w=None):
@@ -157,6 +181,21 @@ def fixed_cic_decimate(x_int, decim=None, stages=None, diff_delay=None, acc_w=No
     return _round_shift_half_even(y, shift)
 
 
+def rx_adc_quantize(samples):
+    """
+    基带幅度 → ADC 整数（±2^(w-1) ↔ ±1.0，12 bit 饱和）。
+
+    单独提出来是因为**向量导出器必须写出与模型内部完全同一批整数**：
+    激励文件是 TB 真正驱动进 RTL 的值，如果导出器另写一份量化，就成了两套「真理」。
+    返回 (i_int, q_int)，均为 int64 数组。
+    """
+    scale = float(1 << (RX_CONFIG["adc_in_w"] - 1))
+    s = np.asarray(samples, dtype=np.complex128)
+    i_int = _sat_int(np.round(s.real * scale).astype(np.int64), RX_CONFIG["adc_in_w"])
+    q_int = _sat_int(np.round(s.imag * scale).astype(np.int64), RX_CONFIG["adc_in_w"])
+    return i_int, q_int
+
+
 def fixed_ddc_rx(samples, decim=None, h_q=None):
     """
     定点 DDC：CIC 抽取（f_adc → 4 sps）+ 匹配 FIR（与发射 SRRC **同源** 33 抽头系数）。
@@ -170,18 +209,12 @@ def fixed_ddc_rx(samples, decim=None, h_q=None):
         out_q:   Q3.11（14 bit / 11 小数）匹配滤波输出，长度 = ceil(len/D) + 32
         info:    诊断字典（CIC 峰值 / 匹配滤波峰值 / 是否饱和）
     """
-    cfg = RX_CONFIG
     fp = FIXED_POINT_CONFIG
     if h_q is None:
         h_q, _ = fixed_srrc_coeffs()
 
-    s = np.asarray(samples, dtype=np.complex128)
-
-    # 幅度 → ADC 整数刻度（±2048 ↔ ±1.0），并饱和到 12 bit
-    scale = float(1 << (cfg["adc_in_w"] - 1))          # 2048
-    i_int = _sat_int(np.round(s.real * scale).astype(np.int64), cfg["adc_in_w"])
-    q_int = _sat_int(np.round(s.imag * scale).astype(np.int64), cfg["adc_in_w"])
-
+    # 幅度 → ADC 整数刻度（±2048 ↔ ±1.0），12 bit 饱和（与向量导出器共用同一量化）
+    i_int, q_int = rx_adc_quantize(samples)
     i_dc = fixed_cic_decimate(i_int, decim=decim)
     q_dc = fixed_cic_decimate(q_int, decim=decim)
 

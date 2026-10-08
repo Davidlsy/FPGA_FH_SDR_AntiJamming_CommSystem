@@ -11,12 +11,15 @@
 //   -d SELFTEST_CASE_RATIO             1:N 路径 PASS（3 拍激励 → 9 拍期望）
 //   -d SELFTEST_CASE_RATIO -d SELF_TEST_STIM_PERIOD
 //                                      带节奏的激励 PASS（每 4 拍才出一个激励拍）
+//   -d SELFTEST_CASE_RX                接收链形状 PASS（4:1 抽取 + 跳过 5 拍前导）
 //
 //   负路径
 //   ------------------------------     ------------------------------
 //   -d SELF_TEST_NEGATIVE              框架判 FAIL，且首个失配必须落在第 1000 拍
 //   -d SELFTEST_CASE_RATIO + -d SELF_TEST_EXTRA_OUT
 //                                      桩每输入多吐 1 拍 → 多余拍必须被判 FAIL
+//   -d SELFTEST_CASE_RX + -d SELF_TEST_SKIP_OFF
+//                                      不跳前导 → 前导过渡拍必须被判 FAIL（证伪 SKIP_OUT）
 //
 // 1:N 路径（S4-P0 新增）用 `stub_ratio3` 覆盖：这个桩每个输入拍产出 3 拍输出
 // （k, k+1, k+2），对应成帧/上采样/补零类模块的真实形状。夹具向量只有 3+9 行，
@@ -143,16 +146,86 @@ endmodule
 
 
 // ---------------------------------------------------------------------
+// 自测桩（接收链形状，S5 新增）：前 WARMUP 拍是"同步未锁定"的过渡输出，
+// 之后按 DECIM:1 抽取输出。形状对应接收链的 ddc_rx / sync_rx：输入连续、
+// 输出慢于输入、且开头一段不可比。
+//
+// 手算（夹具 vectors/selftest_rx/）：激励 17 拍、WARMUP=5、DECIM=4
+//   · 前导段吐 5 拍过渡值（0xE0..0xE4），期间 dec 冻结、不消费输入；
+//   · 复位后第 1 个前导拍与 stim_valid 尚未拉高的那拍重叠，故实际只吃掉
+//     激励前 4 拍（0x10..0x13）——第 5 拍起才开始按 4:1 消费；
+//   · 于是输出取到激励第 8/12/16 拍（1 起）= 17/1B/1F。
+//   故 expect 3 行 = [17, 1B, 1F]，与 SKIP_OUT=5 配对时判 PASS。
+//   （这条 off-by-one 就是本用例存在的意义：它把"复位与激励的相位关系"钉住了。）
+// ---------------------------------------------------------------------
+module stub_rx_decim (
+    input  logic       clk,
+    input  logic       rst_n,
+    input  logic       din_valid,
+    input  logic [7:0] din_data,
+    output logic       dout_valid,
+    output logic [7:0] dout_data
+);
+
+    localparam int WARMUP = 5;   // 锁定前过渡拍数（由 SKIP_OUT 丢弃）
+    localparam int DECIM  = 4;   // 抽取比
+
+    logic [3:0] wu;
+    logic [2:0] dec;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            wu         <= 4'd0;
+            dec        <= 3'd0;
+            dout_valid <= 1'b0;
+            dout_data  <= 8'h00;
+        end else begin
+            dout_valid <= 1'b0;
+            if (wu < WARMUP) begin
+                // 前导段：不消费输入（dec 冻结），只吐过渡拍
+                dout_valid <= 1'b1;
+                dout_data  <= 8'hE0 + {4'b0, wu};
+                wu         <= wu + 4'd1;
+            end else if (din_valid) begin
+                if (dec == DECIM - 1) begin
+                    dout_valid <= 1'b1;
+                    dout_data  <= din_data;
+                    dec        <= 3'd0;
+                end else begin
+                    dec <= dec + 3'd1;
+                end
+            end
+        end
+    end
+
+endmodule
+
+
+// ---------------------------------------------------------------------
 // 自测 TB
 // ---------------------------------------------------------------------
 module tb_vector_selftest;
 
-`ifdef SELFTEST_CASE_RATIO
+`ifdef SELFTEST_CASE_RX
+    // 接收链形状（S5 新增）：连续激励 + 4:1 抽取 + 前导段跳过
+    localparam int    IN_W  = 8;
+    localparam int    OUT_W = 8;
+    localparam string TB_LABEL  = "tb_selftest_rx";
+    localparam string STIM_FILE = "vectors/selftest_rx/stim.hex";
+    localparam string EXP_FILE  = "vectors/selftest_rx/expect.hex";
+    localparam int    STIM_PERIOD = 1;
+`ifdef SELF_TEST_SKIP_OFF
+    localparam int    SKIP_OUT = 0;          // 不跳前导 → 必须被判 FAIL（证伪本判据）
+`else
+    localparam int    SKIP_OUT = 5;          // 跳过 5 拍前导 → 判 PASS
+`endif
+`elsif SELFTEST_CASE_RATIO
     localparam int    IN_W  = 8;
     localparam int    OUT_W = 8;
     localparam string TB_LABEL  = "tb_selftest_ratio";
     localparam string STIM_FILE = "vectors/selftest_ratio/stim.hex";
     localparam string EXP_FILE  = "vectors/selftest_ratio/expect.hex";
+    localparam int    SKIP_OUT = 0;
 `ifdef SELF_TEST_STIM_PERIOD
     localparam int    STIM_PERIOD = 4;      // 每 4 拍才出一个激励拍（多速率模块的形状）
 `else
@@ -163,6 +236,7 @@ module tb_vector_selftest;
     localparam int OUT_W = 24;
     localparam string TB_LABEL = "tb_vector_selftest";
     localparam int    STIM_PERIOD = 1;
+    localparam int    SKIP_OUT = 0;
 
 `ifdef SELFTEST_CASE_EDGE
     localparam string CASE_NAME = "edge";
@@ -193,6 +267,7 @@ module tb_vector_selftest;
         .STIM_FILE  (STIM_FILE),
         .EXP_FILE   (EXP_FILE),
         .STIM_PERIOD(STIM_PERIOD),
+        .SKIP_OUT   (SKIP_OUT),
         .TB_NAME    (TB_LABEL)
     ) u_cmp (
         .clk       (clk),
@@ -203,7 +278,16 @@ module tb_vector_selftest;
         .dut_data  (dut_data)
     );
 
-`ifdef SELFTEST_CASE_RATIO
+`ifdef SELFTEST_CASE_RX
+    stub_rx_decim u_dut (
+        .clk       (clk),
+        .rst_n     (rst_n),
+        .din_valid (stim_valid),
+        .din_data  (stim_data),
+        .dout_valid(dut_valid),
+        .dout_data (dut_data)
+    );
+`elsif SELFTEST_CASE_RATIO
     stub_ratio3 u_dut (
         .clk       (clk),
         .rst_n     (rst_n),

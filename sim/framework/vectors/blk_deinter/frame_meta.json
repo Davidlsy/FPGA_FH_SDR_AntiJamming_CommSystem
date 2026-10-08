@@ -1,0 +1,25 @@
+{
+  "module": "blk_deinter",
+  "case": "frame",
+  "stim_rows": 2170,
+  "expect_rows": 2166,
+  "count": 2166,
+  "case_note": "一帧软判决码流 4340 → 4332（逆 blk_inter 置换 + 去 8bit 补零）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.rx_modules.soft_deinterleave",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-08T21:05:17+08:00",
+  "stim": {
+    "bits": 16,
+    "packing": "{soft[2k], soft[2k+1]}",
+    "frac": 5
+  },
+  "expect": {
+    "bits": 16,
+    "packing": "{soft[2k], soft[2k+1]}",
+    "frac": 5
+  },
+  "depth": 10,
+  "note": "输入 4340 个软值 / 输出 4332 个（去发射侧补的 8 bit）",
+  "stim_period": 1
+}

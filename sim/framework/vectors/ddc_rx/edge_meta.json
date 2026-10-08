@@ -1,0 +1,29 @@
+{
+  "module": "ddc_rx",
+  "case": "edge",
+  "stim_rows": 1152,
+  "expect_rows": 320,
+  "count": 320,
+  "case_note": "边界：四星座点 + −60 dB 弱信号段（动态范围）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.rx_modules.fixed_ddc_rx（CIC 抽取 + 匹配 FIR）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-08T21:05:17+08:00",
+  "stim": {
+    "bits": 24,
+    "packing": "{i[11:0], q[11:0]}",
+    "frac": 11,
+    "rate": "f_adc = 4 × 2 MSPS"
+  },
+  "expect": {
+    "bits": 28,
+    "packing": "{i[13:0], q[13:0]}",
+    "frac": 11,
+    "rate": "4 sps"
+  },
+  "decim": 4,
+  "cic_stages": 3,
+  "cic_diff_delay": 1,
+  "stim_period": 1,
+  "max_depth_hint": "stim 行数须 ≤ tb_vec_cmp 的 MAX_DEPTH（缺省 32768）"
+}

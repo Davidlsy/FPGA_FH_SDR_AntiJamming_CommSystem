@@ -35,6 +35,7 @@ from golden_ref.fixed_point.rx_modules import (
     fixed_viterbi_hw,
     soft_deinterleave,
     soft_interleave,
+    upsample_bandlimited,
 )
 from golden_ref.float_chain.conv_encoder import conv_encode
 from golden_ref.float_chain.interleaver import block_deinterleave, block_interleave
@@ -58,18 +59,6 @@ def check(name, cond, detail=""):
 
 def section(title):
     print(f"\n=== {title} ===")
-
-
-def upsample_fft(x, factor):
-    """带限（FFT）整数倍上采样，作为"更高采样率的同一信号"的物理模型。"""
-    x = np.asarray(x, dtype=np.complex128)
-    n = len(x)
-    X = np.fft.fft(x)
-    Y = np.zeros(n * factor, dtype=np.complex128)
-    half = n // 2
-    Y[:half + 1] = X[:half + 1]
-    Y[-(n - half - 1):] = X[half + 1:]
-    return np.fft.ifft(Y) * factor
 
 
 # ============================================================
@@ -143,7 +132,7 @@ def test_ddc():
     n_samp = len(shaped4)
     peak = np.max(np.abs(shaped4))
     norm = shaped4 / peak * 0.9                       # AGC 归一化到 ±0.9（≤ ADC 满量程）
-    up = upsample_fft(norm, D)
+    up = upsample_bandlimited(norm, D)
     out, info = fixed_ddc_rx(up)
     check("3.1 输出长度 = ceil(N/D) + (taps−1)",
           len(out) == n_samp + 32, f"len={len(out)} 期望 {n_samp + 32}")

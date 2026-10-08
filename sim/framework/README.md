@@ -6,14 +6,14 @@
 > 的定点结果逐拍比对，一条命令给出 PASS/FAIL，让 5 个模块「写完即测、测完即绿」，
 > 而不是最后集中在整链里排障。
 
-框架本身也经过自测（4 项检查，见 §7）——一个抓不到错的比对器等于没有比对器。
+框架本身也经过自测（9 项检查，见 §7）——一个抓不到错的比对器等于没有比对器。
 
 ## 1. 组成
 
 | 文件 | 作用 |
 |---|---|
 | `export_vectors.py` | 向量导出器：调 `golden_ref` 定点模型 → `<case>_{stim,expect}.hex` + `<case>_meta.json` |
-| `hdl/tb_vec_cmp.sv` | **逐拍向量比对器**（参数化模块）：激励驱动 + 比对 + 首失配定位 + 看门狗 + PASS/FAIL |
+| `hdl/tb_vec_cmp.sv` | **逐拍向量比对器**（参数化模块）：激励驱动（含激励节奏）+ 前导跳过 + 比对 + 首失配定位 + 看门狗 + PASS/FAIL |
 | `tb/tb_module_template.sv` | 新模块 TB 模板，照着填 4 处即可 |
 | `tb/tb_vector_selftest.sv` | 框架自测 TB（含自测桩 `stub_qpsk_map`，三条路径） |
 | `run_selftest.ps1` / `.bat` | 一键自测：导出向量 + 4 项检查 + 日志 + 退出码 |
@@ -67,6 +67,10 @@ python export_vectors.py                             # 全部模块、全部用�
   带节奏的路径同样有专门的自测用例（§7 的 `positive cadence`）。
 - 比对只认 DUT 自己的 `dout_valid`：**先按各自 valid 对齐再比数值**，所以流水线延迟
   不会被误判为数据错（S4-P0「逐拍而非逐帧」的口径）；组合逻辑零延迟同样直接可用；
+- **前导跳过** `SKIP_OUT`（S5 接收链新增，默认 0）：丢弃 DUT 最前面的 N 个 `dout_valid` 拍
+  再开始比对。接收链的同步环在锁定前输出的是过渡态、本就不具可比性——若从第 1 拍就比，
+  "尚未锁定"会被记成"数据错"。被丢弃的拍**既不计 `compared` 也不计 `extra`**，
+  只出现在结果行的 `skipped` 字段里；`SKIP_OUT=0` 与老行为逐拍等价。
 - DUT 的输出拍数不必等于激励拍数：激励停止后 DUT 仍可继续吐输出（`conv_enc` 的 6 bit
   尾码字、`frame_tx` 的成帧尾段、`srrc_duc` 的上采样尾巴都靠这条），这些拍照常参与比对；
 - 送完 `stim_valid` 拉低，靠 `DRAIN_CYCLES`（默认 64）等流水线排空——深流水线
@@ -91,11 +95,12 @@ python export_vectors.py                             # 全部模块、全部用�
 同时打印一行纯 ASCII 的机器可读结果，脚本与 CI 只认这一行：
 
 ```
-[VEC-RESULT] tb=tb_qpsk_map_rand status=PASS vectors=4096 compared=4096 errors=0 extra=0 timeout=0 first_mismatch=-1 first_expected=0xxxxxxx first_actual=0xxxxxxx stim_rows=4096 stim_period=1
+[VEC-RESULT] tb=tb_qpsk_map_rand status=PASS vectors=4096 compared=4096 errors=0 extra=0 timeout=0 first_mismatch=-1 first_expected=0xxxxxxx first_actual=0xxxxxxx stim_rows=4096 stim_period=1 skipped=0
 ```
 
-`vectors` = 期望行数（比对长度），`stim_rows` = 激励行数，`stim_period` = 激励节奏；
-1:1 且无节奏的模块三者分别是"行数 / 同行数 / 1"。
+`vectors` = 期望行数（比对长度），`stim_rows` = 激励行数，`stim_period` = 激励节奏，
+`skipped` = 被 `SKIP_OUT` 丢弃的前导有效拍数；1:1 且无节奏、不跳前导的模块这三/四个字段分别是
+"行数 / 同行数 / 1 / 0"。
 
 ## 5. 运行
 
@@ -129,7 +134,7 @@ xsim snap_<module> -runall
 
 ## 7. 框架自测结论（本机实测）
 
-`.\run_selftest.ps1` → `[FRAMEWORK SELFTEST] PASS`，八项：
+`.\run_selftest.ps1` → `[FRAMEWORK SELFTEST] PASS`，十项：
 
 | 检查 | 路径 | 期望 | 实测 |
 |---|---|---|---|
@@ -137,12 +142,17 @@ xsim snap_<module> -runall
 | 正路径 edge | 短向量 / 边界码型 | PASS | `status=PASS compared=196 errors=0` |
 | 正路径 1:N | 桩每输入吐 3 拍（`vectors/selftest_ratio/`，3 行激励 → 9 行期望） | PASS | `status=PASS vectors=9 compared=9 errors=0 stim_rows=3` |
 | 正路径 节奏激励 | 同上，但每 4 拍才出一个激励拍 | PASS | `status=PASS compared=9 stim_rows=3 stim_period=4` |
+| 正路径 接收链形状 | 桩 4:1 抽取 + 前 5 拍过渡输出（`vectors/selftest_rx/`，17 行激励 → 3 行期望） | PASS | `status=PASS compared=3 errors=0 skipped=5` |
 | 负路径 注入 | 第 1000 拍翻 1 bit | FAIL 且定位 | `status=FAIL errors=1 first_mismatch=1000`，期望 `0xd2c2d4` 实际 `0xd2c2d5` |
 | 负路径 多吐 | 数据流不变，末尾多吐 3 拍 | FAIL 且计入 extra | `status=FAIL compared=9 errors=3 extra=3 first_mismatch=10` |
+| 负路径 不跳前导 | 接收链形状但 `SKIP_OUT=0` | FAIL 且定位第 1 拍 | `status=FAIL first_mismatch=1 skipped=0` |
 | 桩死 看门狗 | `dout_valid` 恒 0 | FAIL 且报超时 | `status=FAIL compared=0 timeout=1` |
 
-后四项是 S4-P0 加的：**新加一条判据，就必须同时加一条专门证伪它的用例**——否则"多余拍""长度解耦"
-"激励节奏"这三条路径都只是写在 README 里的说法，没有实测背书。
+后五项是 S4-P0（长度解耦 / 激励节奏 / 多余拍）与 S5（前导跳过）加的：
+**新加一条判据，就必须同时加一条专门证伪它的用例**——否则"多余拍""长度解耦""激励节奏"
+"前导跳过"这四条路径都只是写在 README 里的说法，没有实测背书。
+（`vectors/selftest_rx/` 的 3 行期望值 17/1B/1F 还顺带钉住了"复位与激励的相位关系"：
+复位后第 1 个前导拍与 `stim_valid` 尚未拉高同拍，故前导实际只吃掉激励前 4 拍。）
 
 自测桩 `stub_qpsk_map` / `stub_ratio3` 只是 golden 映射与 1:N 形状的镜像（前者四星座点
 ±`round(1/√2·2¹⁰)` = ±724），**不是设计交付物**，只服务于「证明框架可信」这件事。
@@ -172,10 +182,10 @@ xsim snap_<module> -runall
 | `.hex` 向量会不会被 gitignore 吞掉 | 不会——仓库有意不按扩展名全局忽略 `.hex`（它是存储器初始化源文件） | 向量正常入库，作为比对证据 |
 | 中文 `$display` 在 xsim 里显示正常 | xvlog 按字节透传 | 无需处理 |
 
-## 10. 接入进度（S4）
+## 10. 接入进度（S4 → S5）
 
-计划书的顺序是 `qpsk_map` → `conv_enc` → `frame_tx`（P1）→ `blk_inter`（P2）
-→ `srrc_duc`（P3，双版本各一份向量），逐个在 `MODULES` 里注册。
+发射链按 `qpsk_map` → `conv_enc` → `frame_tx`（P1）→ `blk_inter`（P2）→ `srrc_duc`（P3）
+逐个在 `MODULES` 里注册；接收链（S5）按 `ddc_rx` / `blk_deinter` / `viterbi_dec` 接入。
 
 | 模块 | 状态 | 用例（`vectors/<模块>/`） | 拍数关系 |
 |---|---|---|---|
@@ -183,7 +193,17 @@ xsim snap_<module> -runall
 | `conv_enc` | **已接入**（P1） | `frame` / `rand` / `edge` / `long`（10⁶ bit） | N → N+6 |
 | `frame_tx` | **已接入**（P1） | `single` / `multi` / `edge` / `long`（1000 帧） | 256 → 2160 |
 | `blk_inter` | **已接入**（P2） | `frame` / `rand` / `edge` | 2166 → 2170（补零 8 bit = 4 拍） |
-| `srrc_duc` | 待接入（P3） | — | 符号:采样 = 1:4 |
+| `srrc_duc` | **已接入**（P3） | `frame` / `edge` | 符号:采样 = 1:4（4N+32） |
+| `tx_chain` | **已接入**（P5） | `frame` / `edge` | 256 字节 → 8712 采样 |
+| `ddc_rx` | **已接入**（S5） | `rand` 32128→8064、`edge` 1152→320 | **D:1**（CIC 抽取 + 匹配 FIR） |
+| `blk_deinter` | **已接入**（S5） | `frame` 2170→2166 | 逆交织置换 + 去 8 bit 补零 |
+| `viterbi_dec` | **已接入**（S5） | `frame` 2166→2160 | 2N → N−6（64 态 / 回溯 96） |
+| `sync_rx` | **暂不接入** | — | 4:1（早迟门定时） |
 
-后两个都是 N:M，框架的两条新契约（长度解耦、激励节奏）正是为它们加的，接入时只需写
-`cases`/`export` 与 DUT 接线。整链环回（S8）复用同一比对器，只换顶层与向量。
+- N:M 模块靠框架的两条契约（长度解耦、激励节奏）接入，只需写 `cases`/`export` 与 DUT 接线；
+  接收链的同步环额外用上 S5 新增的第三条契约（`SKIP_OUT` 前导跳过）。
+- `ddc_rx` 的 `rand` 用例取 N=2000 符号（激励 32128 行）以适配 `tb_vec_cmp` 缺省的
+  `MAX_DEPTH=32768`，开箱即用；若要跑整帧 2170 符号（34848 行），TB 需显式调大 `MAX_DEPTH`。
+- **`sync_rx` 刻意不接入**：它的环路参数属 S5 的**出口产物**（#5 收敛性验证后才写入
+  `fixed_point_spec.md` 修订版），现在导出向量等于把一个会变的参考固化下来，反而制造返工。
+- 整链环回（S8）复用同一比对器，只换顶层与向量。
