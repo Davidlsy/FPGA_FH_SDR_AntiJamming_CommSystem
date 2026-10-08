@@ -114,7 +114,7 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S4-P0..P2 | 帧格式与接口冻结（P0）+ `frame_tx` / `conv_enc` / `qpsk_map`（P1）+ `blk_inter` 存储迁移（P2） | **完成**（2026-09-28 验收：18/18 套件、0 错误；`-Full` 另含 1000 帧与 10⁶ bit 长跑判据） | `sim/run_s4_acceptance.ps1`、`docs/report/s4_verification.md`、`docs/spec/{frame_format,s4_tx_interface}.md` |
 | S4-P3 | `srrc_duc` 手写多相版 + FIR Compiler IP 版 + NCO/DUC 混频；三项决策冻结 | **完成**（2026-10-07 收口：两版逐拍位真一致，四套件各 8712 拍 0 错误；NCO/DUC SFDR −85.45 dBc 达标） | `src/srrc_duc{,_fir}.v`、`sim/run_srrc{,_fir}_check.bat`、`docs/spec/s4_tx_interface.md` §6.1/§8、`docs/spec/s4_tx_p3_freeze_draft.md`、`sim/golden_ref/sim/sfdr_analysis.py`；**S4 报告尚未补 P3 章节** |
 | S4-P4 | IP vs 手写三栏对比（资源 / Fmax / SFDR） | **完成**（2026-10-08：手写版 LUT 5581/FF 523/DSP 18/Fmax 33.79 MHz；FIR IP 版 LUT 5261/FF 1256/DSP 18/Fmax 59.13 MHz；两版 61.44 MHz 下均时序违规，见已知边界） | `build/p4_compare.tcl`、`docs/report/s4-p4-ip-vs-handwritten-comparison.html` |
-| S4-P5 | 五模块整链收口（`frame_tx`→`conv_enc`→`blk_inter`→`qpsk_map`→`srrc_duc` 串联位真比对） | **未开始** | `docs/report/s4_verification.md` §9 |
+| S4-P5 | 五模块整链收口（`frame_tx`→`conv_enc`→`blk_inter`→速率适配→`qpsk_map`→`srrc_duc` 串联位真比对） | **完成**（2026-10-08：随机帧载荷端到端 256 字节 → 8712 采样，frame/edge 两用例各 8712 拍 0 错误，**S4 出口门槛达成**） | `src/tx_chain_top.v`、`sim/run_tx_chain_check.bat`、`sim/framework/tb/tb_tx_chain_compare.sv`、`sim/framework/export_vectors.py`（新增 tx_chain 端到端向量） |
 
 ### 已知边界
 
@@ -129,8 +129,15 @@ vivado -mode batch -source build/create_smoke_project.tcl
   原实现只支持一入一出，装不下成帧（256 拍进 / 2160 拍出）与上采样这类 N:M 模块。框架自测因此从
   4 项扩到 8 项，每条新判据都配了专门证伪它的用例。**尚未用过框架的是接收链与跳频层**。
 - S4 的五个模块现已全部落地（`frame_tx` / `conv_enc` / `blk_inter` / `qpsk_map` / `srrc_duc` 双版），
-  P0–P4 已收口，P5（五模块整链收口）**未开始**，故任务卡的 S4 出口门槛**尚未达成**——
-  `docs/report/s4_verification.md` §6 已登记，不得被引用为 "S4 已通过"。
+  P0–P5 已收口，**任务卡的 S4 出口门槛已达成**（五模块位真比对全过：单模块 + IP 对比 + 整链端到端）。
+  `docs/report/s4_verification.md` 尚未补 P3–P5 章节，引用 P3/P4/P5 结论分别以
+  `docs/spec/s4_tx_interface.md` §0/§6.1/§8、`docs/report/s4-p4-ip-vs-handwritten-comparison.html`、
+  `src/tx_chain_top.v` + `sim/run_tx_chain_check.bat` 为准。
+- **P5 整链的速率衔接（关键设计点）**：前三级与 `qpsk_map` 都在"符号节拍"下工作，而 `blk_inter`
+  的读侧是"写满 bank 后连续 2170 拍吐符号"（突发，与输入快慢无关），`srrc_duc` 却需要"每 4 拍
+  1 个符号"（符号率 = 采样率/4）。二者相差 4 倍，故 `tx_chain_top` 在 `blk_inter`→`qpsk_map` 之间
+  插了一个符号速率适配器（收 2170 个 2 bit 符号入缓冲，再以 1/4 节拍放出；放这里而非 `qpsk_map`
+  之后，是因为此刻只有 2 bit/符号，比 24 bit 小一个数量级）。
 - **P4 时序收敛问题（待处理，后续 S10 前解决）**：两版 `srrc_duc` 在 61.44 MHz 目标下均时序违规——
   手写版 WNS = −13.32 ns（Fmax 33.79 MHz，被 SRRC 组合 MAC 路径拖死）、FIR IP 版 WNS = −0.64 ns
   （Fmax 59.13 MHz）；NCO LUT 分布式 ROM 占约 75% LUT。报告建议「NCO LUT 改 BRAM 同步 ROM +

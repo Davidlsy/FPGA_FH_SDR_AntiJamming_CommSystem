@@ -1,0 +1,24 @@
+{
+  "module": "tx_chain",
+  "case": "edge",
+  "stim_rows": 256,
+  "expect_rows": 8712,
+  "count": 8712,
+  "case_note": "边界载荷（全 0）端到端",
+  "seed": 20260924,
+  "golden_source": "golden_ref 全链路（framing→conv→interleave→qpsk→srrc_duc）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-08T16:29:44+08:00",
+  "stim": {
+    "bits": 8,
+    "packing": "载荷字节（每帧 256 个）",
+    "frac": null
+  },
+  "expect": {
+    "bits": 32,
+    "packing": "{i_out[15:0], q_out[15:0]}",
+    "frac": 11
+  },
+  "frames": 1,
+  "stim_period": 9
+}

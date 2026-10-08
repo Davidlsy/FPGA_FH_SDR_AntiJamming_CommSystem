@@ -364,6 +364,51 @@ def _export_srrc_duc(payload, seed: int):
 
 
 # ============================================================
+# tx_chain（S4-P5 整链端到端）
+# ============================================================
+def _tx_chain_cases(seed: int):
+    """用例的"块"= 一帧端到端：256 载荷字节 → 五模块串联 → 8712 采样。
+
+    golden 链路与 RTL 逐级同构：
+      build_frame_bits → conv_encode → block_interleave → fixed_qpsk_modulate → fixed_srrc_duc
+    （2160 bit → 4332 bit → 4340 bit → 2170 符号 → 8712 采样）。
+    """
+    rng = np.random.default_rng(seed)
+    rand_payload = rng.integers(0, 256, FRAME_PAYLOAD_BYTES, dtype=np.uint8).tobytes()
+    return [
+        ("frame", [rand_payload],
+         "单帧随机载荷端到端：256 字节 → 2160 bit → 4332 bit → 4340 bit → 2170 符号 → 8712 采样"),
+        ("edge", [b"\x00" * FRAME_PAYLOAD_BYTES], "边界载荷（全 0）端到端"),
+    ]
+
+
+def _export_tx_chain(payloads, seed: int):
+    stim_hex, expect_hex = [], []
+    for frame_no, payload in enumerate(payloads):
+        stim_hex += [hex_of_int(b, 8) for b in payload]
+
+        bits = build_frame_bits(payload, frame_no=frame_no)
+        coded = conv_encode(bits)
+        inter = block_interleave(coded)
+        syms = fixed_qpsk_modulate(inter)
+        i_out, q_out = fixed_srrc_duc(syms)
+        if len(i_out) != 4 * len(syms) + 32:
+            raise RuntimeError(f"参考 DUC 输出 {len(i_out)} != 4*{len(syms)}+32")
+        for i, q in zip(i_out, q_out):
+            expect_hex.append(hex_of_int(
+                pack_fields((to_int(i, 16, 11), 16), (to_int(q, 16, 11), 16)), 32))
+
+    meta = {
+        "stim": {"bits": 8, "packing": "载荷字节（每帧 256 个）", "frac": None},
+        "expect": {"bits": 32, "packing": "{i_out[15:0], q_out[15:0]}", "frac": 11},
+        "frames": len(payloads),
+        # 载荷 1 字节 / 9 拍：满足接口规格 §4.1 的 ≥8.44 拍/字节速率约束
+        "stim_period": 9,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -391,6 +436,11 @@ MODULES = {
         "cases": _srrc_duc_cases,
         "export": _export_srrc_duc,
         "golden_source": "golden_ref.fixed_point.duc.fixed_srrc_duc",
+    },
+    "tx_chain": {
+        "cases": _tx_chain_cases,
+        "export": _export_tx_chain,
+        "golden_source": "golden_ref 全链路（framing→conv→interleave→qpsk→srrc_duc）",
     },
 }
 
