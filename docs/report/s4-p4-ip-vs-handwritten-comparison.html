@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S4-P4 · IP vs 手写对比实验报告（实测数据版）</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --bg2: #111826;
+    --surface: #111826;
+    --surface-muted: #151f30;
+    --ink: #e6edf7;
+    --text-secondary: #c3cddb;
+    --muted: #8b98ac;
+    --disabled: #5d6b80;
+    --rule: #1f2a3a;
+    --border: #1f2a3a;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --accent-active: #93c5fd;
+    --accent-soft: #14243d;
+    --accent2: #a78bfa;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ff5c5c;
+    --mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+    --sans: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+    --max: 960px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body { font-family: var(--sans); color: var(--ink); background: var(--bg); line-height: 1.7; font-size: 14px; padding: 2rem 0; }
+  .wrap { width: calc(100% - 2rem); max-width: var(--max); margin: 0 auto; }
+  header.intro { background: var(--accent-soft); border-radius: 12px; padding: 40px; margin-bottom: 40px; }
+  header.intro .kicker { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--accent); margin-bottom: 12px; }
+  header.intro h1 { font-size: 24px; line-height: 1.35; }
+  header.intro .meta { margin-top: 16px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  header.intro p.summary { margin-top: 14px; color: var(--text-secondary); font-size: 15px; max-width: 72ch; }
+  h2 { font-size: 19px; line-height: 1.35; margin: 40px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: 15px; margin: 24px 0 8px; }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  strong { color: var(--ink); }
+  code { font-family: var(--mono); font-size: .88em; background: var(--surface-muted); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px; color: var(--accent-active); }
+  .table-title { font-size: 13px; font-weight: 600; color: var(--ink); margin: 20px 0 8px; }
+  .table-wrap { overflow-x: auto; margin: 0 0 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 9px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  thead th { background: var(--surface); color: var(--ink); font-weight: 600; border-bottom: 1.5px solid var(--border); white-space: nowrap; }
+  tbody th { color: var(--ink); font-weight: 600; }
+  tbody tr:hover td { background: var(--surface); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); white-space: nowrap; }
+  .bad { color: var(--danger); font-weight: 600; }
+  .warn { color: var(--warning); font-weight: 600; }
+  .ok { color: var(--success); font-weight: 600; }
+  .callout { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 13.5px; }
+  .callout__label { font-weight: 700; font-size: 12px; letter-spacing: .05em; margin-bottom: 6px; }
+  .callout--note .callout__label { color: var(--accent); }
+  .callout--warn .callout__label { color: var(--warning); }
+  ul.flat { list-style: none; margin: 8px 0 16px; }
+  ul.flat li { padding-left: 1.1em; position: relative; margin: 6px 0; color: var(--text-secondary); }
+  ul.flat li::before { content: "–"; position: absolute; left: 0; color: var(--accent); }
+  ol.steps { padding-left: 1.5em; margin: 8px 0 16px; }
+  ol.steps li { margin: 5px 0; color: var(--text-secondary); }
+  footer { border-top: 1px solid var(--rule); padding-top: 20px; margin-top: 40px; font-size: 12.5px; color: var(--muted); }
+  @media (max-width: 768px) { header.intro { padding: 24px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="intro">
+  <div class="kicker">S4 发射链 · P4 · 实测数据已回填</div>
+  <h1>IP vs 手写对比实验报告<br><span style="font-weight:400;font-size:18px;color:var(--text-secondary)">33-tap SRRC：FIR Compiler 版 × DSP48E1 手写多相版</span></h1>
+  <p class="summary">对 <code>srrc_duc</code>（手写多相 SRRC）与 <code>srrc_duc_fir</code>（FIR Compiler IP 版）做三栏对比（资源 / Fmax / SFDR）。资源与 Fmax 来自 Vivado 2021.2 布局布线实测；输出误差与 SFDR 由 P3 位真一致结论给出（两版逐拍 0 误差 → SFDR 相同）。</p>
+  <div class="meta">
+    <span>器件 xc7z020clg400-2（-2 档）</span>
+    <span>目标时钟 61.44 MHz（period 16.276 ns）</span>
+    <span>OOC 模式 + Explore 指令，已路由</span>
+    <span>系数 12-bit 同源 <code>srrc_fir.coe</code> / <code>srrc_coeff.vh</code></span>
+  </div>
+</header>
+
+<section>
+  <h2>1. 实验方法（取数口径）</h2>
+  <ol class="steps">
+    <li>两版分别以各自原顶层作 top（<code>srrc_duc</code> / <code>srrc_duc_fir</code>），Vivado batch + <code>out_of_context</code> 模式综合与布局布线，端口不插 IOB，聚焦内部寄存器→寄存器的模块级 Fmax。</li>
+    <li>统一约束：<code>create_clock -period 16.276 clk</code>；综合/实现固定 <code>Explore</code> 指令，保证两版可比。</li>
+    <li>资源取 <code>report_utilization -hierarchical</code>（Routed）；时序取 <code>report_timing_summary -delay_type max</code>，Fmax = 1 / (period − WNS)。</li>
+    <li>输出误差 / SFDR 不在本表实测——P3 已证两版与 <code>golden_ref.fixed_point.duc</code> 逐拍位真一致（8712 拍 0 错误），故两版 SFDR 数学上一致。</li>
+  </ol>
+</section>
+
+<section>
+  <h2>2. 三栏对比表（实测）</h2>
+  <div class="table-title">表 1 · IP vs 手写对比数据</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:14%">栏</th><th style="width:22%">指标</th><th style="width:24%">手写 <code>srrc_duc</code></th><th style="width:24%">FIR IP <code>srrc_duc_fir</code></th><th>备注</th></tr></thead>
+      <tbody>
+        <tr><th rowspan="4">资源</th><td>LUT</td><td class="num">5432</td><td class="num">5073</td><td>手写 +359（全在 SRRC 组合乘法/加法树）</td></tr>
+        <tr><td>FF</td><td class="num">523</td><td class="num">1256</td><td>FIR +733（IP 内部流水/延迟线）</td></tr>
+        <tr><td>DSP48E1</td><td class="num">18</td><td class="num">18</td><td>打平</td></tr>
+        <tr><td>RAMB36 / RAMB18</td><td class="num">0 / 0</td><td class="num">0 / 0</td><td>NCO LUT 走分布式，未用 BRAM</td></tr>
+        <tr><th rowspan="2">Fmax</th><td>WNS @ 61.44 MHz</td><td class="num bad">−13.320 ns</td><td class="num warn">−0.636 ns</td><td>两版均未收敛</td></tr>
+        <tr><td>Fmax</td><td class="num bad">≈ 33.8 MHz</td><td class="num warn">≈ 59.1 MHz</td><td>1/(period − WNS)</td></tr>
+        <tr><th>SFDR</th><td>逐拍输出一致</td><td class="num ok" colspan="2" style="text-align:center">0 误差（位真一致）→ 两版 SFDR 相同</td><td>P3 结论</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>3. 结论解读</h2>
+  <ul class="flat">
+    <li><strong>DSP「打平」而非手写更省</strong>：手写版 66 个 12×12 乘累加里，Vivado 仅把约 14 个映到 DSP48E1（组合路径中 DSP 级联的 PCOUT→PCIN 链路反而拖慢时序），其余落入 LUT；FIR IP 侧为 7 DSP×2=14，加两版共享的 DUC 复数混频 4 DSP，故都停在 18。因此「手写省 DSP」在本例中不成立，差别转移到 LUT/FF 上。</li>
+    <li><strong>Fmax 手写版被 SRRC 组合路径拖死</strong>：最差路径为 <code>out_phase_reg → 6 级 DSP48E1 级联(MAC) → 加法树 → round-half-to-even 量化 → DUC 混频(2 DSP) → 量化 → 输出寄存器</code>，全部一拍完成，到达 30.34 ns → 33.8 MHz。FIR 版因 IP 内部三级流水吸收了成形段，只剩 DUC/量化段 → 59.1 MHz。</li>
+    <li><strong>两版都未达到 61.44 MHz，且瓶颈不在滤波器</strong>：FIR 版最差路径源是 <code>phase_acc_reg</code>（NCO 相位累加器）→ <code>dout_data_reg</code>，即「16K×16 NCO 分布式 ROM 的组合查表 + DUC 复数混频 + 量化」这段——它两版共享、且没有流水寄存器。结论是：要整链收敛到 61.44 MHz，需在 NCO→混频路径补一级流水（P5 整链收口事项），而非仅调 SRRC。</li>
+    <li><strong>资源被共享 NCO LUT 主导</strong>：16K×16 的 NCO 四分之一波 LUT 以分布式 ROM 实现（约 4096 LUT6，两版一致，可从 FIR 版顶层 wrapper 的 4783 LUT 反推），占 LUT 总量约 75%。后续若要压面积，把 NCO LUT 改 BRAM 同步 ROM 是比调 SRRC 更大的杠杆。</li>
+    <li><strong>选型结论</strong>：以 Fmax 与交付稳定性看，FIR IP 版明显优于手写版（59.1 vs 33.8 MHz，代价仅 +733 FF）；手写版若保留，必须给 SRRC 乘累加加流水。二者输出位真一致，SFDR 无差异。</li>
+  </ul>
+  <div class="callout callout--warn">
+    <div class="callout__label">P4 遗留（转入 P5 · 五模块整链收口）</div>
+    <p>本阶段结论不是「选型即闭环」：两版在 61.44 MHz 下均未收敛（手写 −13.32 ns / FIR −0.64 ns），根因是共享的 NCO/DUC 组合路径无流水。建议 P5 优先处理「NCO LUT 改 BRAM 同步 ROM + 混频前插一级流水」，再复查整链时序与资源。</p>
+  </div>
+</section>
+
+<footer>
+  S4-P4 · IP vs 手写对比实验 · 实测数据版 V1.0<br>
+  数据来源：build/p4_compare/srrc_duc/*.rpt 与 srrc_duc_fir/*.rpt（Vivado 2021.2 布局布线后报告，2026-10-07）。输出误差/SFDR 采自 P3 位真一致结论。
+</footer>
+
+</div>
+</body>
+</html>

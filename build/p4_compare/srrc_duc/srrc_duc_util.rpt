@@ -1,0 +1,27 @@
+Copyright 1986-2021 Xilinx, Inc. All Rights Reserved.
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2021.2 (win64) Build 3367213 Tue Oct 19 02:48:09 MDT 2021
+| Date         : Wed Oct  7 22:03:01 2026
+| Host         : LAPTOP-NLI2SH3R running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file D:/My_project/FPGA_FH_SDR_AntiJamming_CommSystem/build/p4_compare/srrc_duc/srrc_duc_util.rpt
+| Design       : srrc_duc
+| Device       : xc7z020clg400-2
+| Speed File   : -2
+| Design State : Routed
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++----------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+| Instance | Module | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++----------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+| srrc_duc |  (top) |       5432 |       5432 |       0 |    0 | 523 |      0 |      0 |         18 |
++----------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining

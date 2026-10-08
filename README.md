@@ -110,9 +110,11 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S0 | 工具链冒烟：综合 → 实现 → bitstream + 行为仿真 | **完成** | `build/create_smoke_project.tcl`、`sim/tb_fhss_top.v`（`[SMOKE] PASS`） |
 | S1 | 浮点 / 定点黄金参考链 + BER 基线，定点规格书冻结 | **完成**（2026-09-22 冻结） | `sim/golden_ref/`、`data/s1_ber_baseline/`、`docs/spec/fixed_point_spec.md` |
 | S2 | 验证基础设施四件套（比对框架 / AD9363 模型 / 信道库 / 干扰源）+ PS-PL 协同仿真 | **完成**（2026-09-25 验收：5/5 套件、1538 项、0 错误） | `sim/run_s2_acceptance.ps1`、`docs/report/s2_verification.md` |
-| S3 | `spi_master` + `ad9363_cfg` 对 AD9363 模型做逐条（地址, 数据, 延时）比对 | **进行中**（代码与机制完成，序列表内容待补，报告待评审） | 两模块 RTL 已入库；`sim/run_s3_acceptance.ps1` 四套件 4718 项 0 错误；`docs/report/s3_verification.md` |
+| S3 | `spi_master` + `ad9363_cfg` 对 AD9363 模型做逐条（地址, 数据, 延时）比对 | **进行中**（代码与机制完成，序列表内容待补，报告待评审） | 两模块 RTL 已入库；`sim/run_s3_acceptance.ps1` 四套件 4718 项 0 错误；`docs/report/s3_verification.md`、评审清单 `docs/report/s3_review.md`（结论待填） |
 | S4-P0..P2 | 帧格式与接口冻结（P0）+ `frame_tx` / `conv_enc` / `qpsk_map`（P1）+ `blk_inter` 存储迁移（P2） | **完成**（2026-09-28 验收：18/18 套件、0 错误；`-Full` 另含 1000 帧与 10⁶ bit 长跑判据） | `sim/run_s4_acceptance.ps1`、`docs/report/s4_verification.md`、`docs/spec/{frame_format,s4_tx_interface}.md` |
-| S4-P3..P5 | `srrc_duc` 双版 SRRC + NCO / IP vs 手写对比 / 整链收口 | **未开始**（接口已冻结，可直接开工） | `docs/spec/s4_tx_interface.md` §8 待冻结清单 |
+| S4-P3 | `srrc_duc` 手写多相版 + FIR Compiler IP 版 + NCO/DUC 混频；三项决策冻结 | **完成**（2026-10-07 收口：两版逐拍位真一致，四套件各 8712 拍 0 错误；NCO/DUC SFDR −85.45 dBc 达标） | `src/srrc_duc{,_fir}.v`、`sim/run_srrc{,_fir}_check.bat`、`docs/spec/s4_tx_interface.md` §6.1/§8、`docs/spec/s4_tx_p3_freeze_draft.md`、`sim/golden_ref/sim/sfdr_analysis.py`；**S4 报告尚未补 P3 章节** |
+| S4-P4 | IP vs 手写三栏对比（资源 / Fmax / SFDR） | **完成**（2026-10-08：手写版 LUT 5581/FF 523/DSP 18/Fmax 33.79 MHz；FIR IP 版 LUT 5261/FF 1256/DSP 18/Fmax 59.13 MHz；两版 61.44 MHz 下均时序违规，见已知边界） | `build/p4_compare.tcl`、`docs/report/s4-p4-ip-vs-handwritten-comparison.html` |
+| S4-P5 | 五模块整链收口（`frame_tx`→`conv_enc`→`blk_inter`→`qpsk_map`→`srrc_duc` 串联位真比对） | **未开始** | `docs/report/s4_verification.md` §9 |
 
 ### 已知边界
 
@@ -122,13 +124,29 @@ vivado -mode batch -source build/create_smoke_project.tcl
   均在板卡到货后补。人读引脚表与状态总览见 `docs/pins.md`。
 - S2 五项之间没有联合仿真：RF 侧（信道 + 干扰源）接口一致但未串联，控制侧（SPI / AXI）与 RF 侧
   也无交叉；登记见 `sim/README.md` §6 与 `docs/report/s2_verification.md` §5/§6。
-- `sim/framework/` 的比对框架现已由**三个真实模块**（`frame_tx` / `conv_enc` / `qpsk_map`）
-  在使用，并为此扩展成"激励/期望长度解耦 + 激励节奏"（S4-P0）：原实现只支持一入一出，
-  装不下成帧（256 拍进 / 2160 拍出）与上采样这类 N:M 模块。框架自测因此从 4 项扩到 8 项，
-  每条新判据都配了专门证伪它的用例。**尚未用过框架的是接收链与跳频层**。
-- S4 的五个模块已完成四个：`srrc_duc` 双版 + NCO（P3）、IP vs 手写对比（P4）、整链收口（P5）
-  未开始，故任务卡的 S4 出口门槛**尚未达成**——`docs/report/s4_verification.md`
-  §6 已登记，不得被引用为"S4 已通过"。
+- `sim/framework/` 的比对框架现已由**六个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
+  / `srrc_duc` 手写版与 FIR IP 版）在使用，并为此扩展成"激励/期望长度解耦 + 激励节奏"（S4-P0）：
+  原实现只支持一入一出，装不下成帧（256 拍进 / 2160 拍出）与上采样这类 N:M 模块。框架自测因此从
+  4 项扩到 8 项，每条新判据都配了专门证伪它的用例。**尚未用过框架的是接收链与跳频层**。
+- S4 的五个模块现已全部落地（`frame_tx` / `conv_enc` / `blk_inter` / `qpsk_map` / `srrc_duc` 双版），
+  P0–P4 已收口，P5（五模块整链收口）**未开始**，故任务卡的 S4 出口门槛**尚未达成**——
+  `docs/report/s4_verification.md` §6 已登记，不得被引用为 "S4 已通过"。
+- **P4 时序收敛问题（待处理，后续 S10 前解决）**：两版 `srrc_duc` 在 61.44 MHz 目标下均时序违规——
+  手写版 WNS = −13.32 ns（Fmax 33.79 MHz，被 SRRC 组合 MAC 路径拖死）、FIR IP 版 WNS = −0.64 ns
+  （Fmax 59.13 MHz）；NCO LUT 分布式 ROM 占约 75% LUT。报告建议「NCO LUT 改 BRAM 同步 ROM +
+  混频前插一级流水」后再复查整链时序。注意：决策 2 冻结的**起步采样率 2 MSPS 下两版均够用**
+  （33.79 MHz ≫ 2 MHz），61.44 MHz 是最终吞吐目标，收敛问题留待后续处理。
+- **P3 的证据口径**：四条 srrc 判据（手写版 `srrc-frame` / `srrc-edge`、FIR IP 版
+  `srrc-fir-frame` / `srrc-fir-edge`，各 8712 拍 0 错误）由分项脚本 `sim/run_srrc_check.bat` 与
+  `sim/run_srrc_fir_check.bat` 给出。统一入口 `sim/run_s4_acceptance.ps1` 的套件表虽已加入
+  `srrc-frame` / `srrc-edge`，但 `sim/logs/s4_acceptance.log` 仍停在 2026-09-28 那次 18 套件的
+  `-Full` 运行，**加套件后未重跑**；FIR IP 版两套件不在统一入口内，且必须先跑
+  `build/gen_fir_compiler.tcl` 生成 IP。`docs/report/s4_verification.md` 也尚未补 P3 章节（该报告
+  仍写"P3–P5 未开始"），引用 P3 结论时以 `docs/spec/s4_tx_interface.md` §0/§6.1/§8 为准。
+- `srrc_duc` 用 S1 冻结的 **33 抽头**（`span 8 × sps 4 + 1`），与任务卡写的"31 抽头"是有意偏差：
+  位真裁判必须同源，改抽头数要重跑 S1 BER 基线。登记在 `docs/spec/s4_tx_interface.md` §7。
+- `docs/spec/freeze_status.json` 只覆盖 S1 定点规格（v1.0），未覆盖 S4 接口规格 v1.1；S4 的冻结
+  状态以 `docs/spec/s4_tx_interface.md` §0 为准。
 - `blk_inter` 的两种存储实现（`blk_mem_gen` IP 版与 RTL 推断版）已跑同一套向量、位真一致；
   资源/时序的定量对比属 P4，本阶段不出口径。
 - S4 长跑判据（1000 帧 / 10⁶ bit）的向量体积约 9 MB，按 `.gitignore` 的"S4 长跑向量"段不入库，
@@ -156,12 +174,17 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── fhss_top.v              #   S0 冒烟顶层：50MHz 计数器 + LED 心跳
 │   ├── spi_master.v            #   S3 AD9363 SPI 主端
 │   ├── ad9363_cfg.v            #   S3 AD9363 初始化序列状态机（表驱动 + cfg_rom，$readmemh 加载）
-│   ├── frame_tx.v              #   S4 帧成形：Gold 同步字 + 帧头 + 256B + CRC16（双缓冲）
-│   ├── frame_tx_sync.vh        #   S4 同步字常量（生成物，见 sim/golden_ref/gen_frame_sync.py）
-│   ├── conv_enc.v              #   S4 卷积编码 (171,133)₈，含 6 bit 归零尾比特与输入弹性缓冲
-│   ├── blk_inter.v             #   S4 块交织（写行读列，双缓冲 + 输入弹性缓冲）
-│   ├── blk_mem_1w1r.v          #   S4 存储器副本：blk_mem_gen IP 版 / RTL 推断版同接口
-│   ├── qpsk_map.v              #   S4 QPSK 直移映射（纯组合）
+│   ├── frame_tx.v              #   S4-P1 帧成形：Gold 同步字 + 帧头 + 256B + CRC16（双缓冲）
+│   ├── frame_tx_sync.vh        #   S4-P1 同步字常量（生成物，见 sim/golden_ref/gen_frame_sync.py）
+│   ├── conv_enc.v              #   S4-P1 卷积编码 (171,133)₈，含 6 bit 归零尾比特与输入弹性缓冲
+│   ├── blk_inter.v             #   S4-P2 块交织（写行读列，双缓冲 + 输入弹性缓冲）
+│   ├── blk_mem_1w1r.v          #   S4-P2 存储器副本：blk_mem_gen IP 版 / RTL 推断版同接口
+│   ├── qpsk_map.v              #   S4-P1 QPSK 直移映射（纯组合）
+│   ├── srrc_duc.v              #   S4-P3 手写 33 抽头多相 SRRC(×4) + NCO + DUC 混频（位真基准）
+│   ├── srrc_duc_fir.v          #   S4-P3 同功能 FIR Compiler IP 版（与手写版逐拍位真一致）
+│   ├── srrc_coeff.vh           #   S4-P3 SRRC 33 抽头系数（生成物，见 sim/golden_ref/gen_srrc_duc.py）
+│   ├── srrc_fir.coe            #   S4-P3 FIR Compiler 系数源（.coe → IP，产物 build/ip/fir_compiler/）
+│   ├── nco_lut.mem             #   S4-P3 NCO 四分之一波 LUT（16384 × 16 bit，$readmemh 加载）
 │   └── constraints/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
@@ -169,39 +192,71 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   └── fhss_zynq_pins.xdc      #   物理属性（每板一份，换板只替换此文件；当前仅 sys_clk + 4 LED 已填，AD9363 / 按键为占位）
 │
 ├── sim/                        # 【仿真】入口见 sim/README.md
-│   ├── README.md               #   仿真树总入口：S2 五件套关系、约定与运行顺序
+│   ├── README.md               #   仿真树总入口：两条线如何汇合、五件套关系、约定与运行顺序
 │   ├── tb_fhss_top.v           #   S0 冒烟 testbench → [SMOKE] PASS/FAIL
 │   ├── run_s2_acceptance.ps1   #   S2 统一验收：五项串跑 → [S2 ACCEPTANCE] 判据行（另有 .bat）
 │   ├── run_s3_acceptance.ps1   #   S3 统一验收：四项串跑 → [S3 ACCEPTANCE] 判据行
 │   ├── run_s4_acceptance.ps1   #   S4 统一验收：位真比对 + 证伪用例 → [S4 ACCEPTANCE]（-Full 带长跑判据）
+│   ├── run_srrc_check.bat      #   S4-P3 srrc_duc 手写版分项跑（frame / edge 两套件）
+│   ├── run_srrc_fir_check.bat  #   S4-P3 srrc_duc_fir FIR IP 版分项跑（需先建 build/ip/fir_compiler）
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
-│   │   └── tb/                 #     S4-P1 起接真实 DUT：tb_{frame_tx,conv_enc,qpsk_map}_compare.sv
+│   │   ├── README.md           #     向量契约 / TB 时序契约 / 判据 / 自测结论 / 有意偏离
+│   │   ├── export_vectors.py   #     从 golden_ref 确定性导出向量（--case long 出长跑向量，不入库）
+│   │   ├── run_selftest.ps1    #     框架自测 8 项（含 1:N 长度解耦与激励节奏契约；另有 .bat）
+│   │   ├── hdl/tb_vec_cmp.sv   #     逐拍比对器：stim/expect 长度解耦 + stim_period 节奏 + stim_count
+│   │   ├── tb/                 #     各模块 TB（见下）
+│   │   │   ├── tb_vector_selftest.sv        #   框架自测用例
+│   │   │   ├── tb_module_template.sv        #   新模块 TB 模板（照 README §6 十分钟起一个）
+│   │   │   ├── tb_{qpsk_map,conv_enc,frame_tx,blk_inter,srrc_duc}_compare.sv  # 五模块位真 TB（-d 切用例）
+│   │   │   ├── tb_srrc_duc_fir_compare.sv   #   FIR IP 版 SRRC TB（与手写版同向量同判据）
+│   │   │   ├── tb_blk_inter_burst.sv        #   blk_inter 突发打散量化（TB 侧带独立解交织模型）
+│   │   │   └── tb_fir_check.sv              #   FIR Compiler IP 单体对齐核验（延迟 / 前 3 拍空转）
+│   │   ├── run_fir_check.bat   #     FIR IP 版 SRRC 的独立核验入口（tb_fir_check）
+│   │   ├── fir_srrc.mif        #     FIR IP 系数档（与 src/srrc_fir.coe 同源，.bat 会拷到工作目录）
+│   │   ├── vectors/            #     各用例向量：{stim,expect}.hex + meta.json（长跑向量按 .gitignore 不入库）
+│   │   ├── logs/ *             #     分项日志（本地生成）
+│   │   ├── snap_*.wdb *        #     波形快照（本地生成）
+│   │   └── xsim.dir/ *         #     编译与仿真数据库（本地生成）
 │   ├── models/ad9363/          #   S2 SPI 行为模型 + S3 射频配置模块的验证落点
+│   │   ├── README.md           #     模型与 TB 的约定、CPOL/CPHA 口径
 │   │   ├── ad9363_spi_model.sv #     S2 模型本体（寄存器堆 + 回读校验 + 异常注入）
+│   │   ├── ad9363_defs.vh      #     SPI 事务帧格式与指令位域常量
+│   │   ├── ad9363_regs_def.vh  #     寄存器地址与位域定义（cfg 表、模型、TB 共用）
 │   │   ├── ad9363_init_table.csv  #  S3 初始化表唯一人类可读来源（现为烟测占位序列，见 s3 报告 §8）
-│   │   ├── gen_init_table.py   #     CSV → .mem + expect 两条独立编码路径
+│   │   ├── gen_init_table.py   #     CSV → ad9363_init.mem + ad9363_init_expect.txt 两条独立编码路径
+│   │   ├── spi_slave_gen.sv    #     通用 CPOL/CPHA 从机 BFM
 │   │   ├── tb_spi_master*.sv   #     spi_master 冒烟 / 1200 向量随机 + 五类异常
-│   │   └── tb_ad9363_cfg.sv    #     cfg 全链路 R1–R9（逐条三元组比对、暂停恢复、异常注入）
-│   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径）
-│   ├── models/jammer/          #   S2 干扰注入源（单音/多音/扫频/部分频带 + JSR 标定）
+│   │   ├── tb_ad9363_spi_model.sv  #  S2 模型自测
+│   │   ├── tb_ad9363_cfg.sv    #     cfg 全链路 R1–R9（逐条三元组比对、暂停恢复、异常注入）
+│   │   └── run_*.bat / run_iv.sh   #  分项运行入口（含 iverilog 交叉核对）
+│   ├── models/channel/         #   S2 信道模型库（AWGN / CFO / SFO / 多径 + ch_top）；核验脚本 → data/s2_channel_stats/
+│   ├── models/jammer/          #   S2 干扰注入源（单音/多音/扫频/部分频带 + JSR 标定）；核验 → data/s2_jammer_stats/
 │   ├── vip/                    #   S2 PS/PL 协同仿真环境（AXI VIP 主端 + PS 软件序列；gen/ 本地生成可重建）
 │   ├── golden_ref/             #   S1 黄金参考链（Python 包 golden_ref）——全工程唯一正确性基准
-│   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）+ FRAME_*（帧格式）
+│   │   ├── README.md           #     复现入口与包内约定
+│   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）+ FRAME_* + DUC_CONFIG
 │   │   ├── run_ber.py          #     BER 仿真入口 → data/s1_ber_baseline/
 │   │   ├── generate_spec.py    #     生成定点规格书 → docs/spec/
 │   │   ├── gen_frame_sync.py   #     S4 帧同步字 → src/frame_tx_sync.vh（带 --check）
+│   │   ├── gen_srrc_duc.py     #     S4-P3 系数与 LUT → src/srrc_coeff.vh、src/nco_lut.mem、src/srrc_fir.coe
 │   │   ├── float_chain/        #     浮点模块（卷积/交织/QPSK/SRRC/AWGN/同步/Viterbi）
 │   │   │   └── framing.py      #       S4 帧层裁判：m 序列 / Gold / CRC16 / 成帧与解析
 │   │   ├── fixed_point/        #     定点模块 + 量化器
-│   │   └── sim/                #     链路 BER 仿真 + SNR 损失分析 + S4 帧层自检 check_framing.py
+│   │   │   └── duc.py          #       S4-P3 DUC 裁判：NCO 相位累加 + 四分之一波 LUT + 复数混频
+│   │   └── sim/                #     链路 BER 仿真 + SNR 损失分析 + 帧层 / DUC / SFDR 自检
+│   │       └── sfdr_analysis.py  #    S4-P3 SFDR：NCO/DUC 判据项（−85.45 dBc）+ SRRC 频谱报告项
 │   ├── float_ref/              #   V2.x MATLAB 归档链重跑与对照（对照证据，不是基准）
-│   │   ├── run_ber_sweep.m     #     归档脚本重跑 → results/
+│   │   ├── run_ber_sweep.m     #     归档脚本重跑 → results/（另 run_ber_sweep_export.m 导数据）
+│   │   ├── compare_matlab_python.py  # MATLAB 归档链 vs golden_ref 的对照脚本
 │   │   └── results/            #     归档 BER 数据（csv / mat）
-│   └── logs/                   #   运行日志（*.log 本地生成）
+│   └── logs/ *                 #   运行日志（*.log 本地生成）
 │
 ├── build/                      # 【一键重建脚本】
 │   ├── create_smoke_project.tcl  # Vivado batch：建工程→综合→实现→bit（`-tclargs sim` 只跑行为仿真）
-│   ├── gen_blk_mem_gen.tcl     # S4 生成 blk_inter 用的 blk_mem_gen（产物 build/ip/ 不入库，约 40 s）
+│   ├── gen_blk_mem_gen.tcl     # S4-P2 生成 blk_inter 用的 blk_mem_gen（产物 build/ip/ 不入库，约 40 s）
+│   ├── gen_fir_compiler.tcl    # S4-P3 生成 srrc_duc_fir 用的 fir_srrc（FIR Compiler 7.2，插值 ×4）
+│   ├── run_fir.bat             # 上面那支 tcl 的一键入口（日志落 build/fir_gen.log）
+│   ├── ip/ *                   #   IP 产物：blk_mem_gen/blk_mem_gen_1w1r、fir_compiler/fir_srrc（tcl 即单一来源）
 │   └── vivado_smoke/ *         #   冒烟工程与实现产物（每次运行整目录重建）
 │
 ├── sw/                         # 【上位机 / 软件】当前只有 .gitkeep（Python 上位机待开发；产物 sw/**/build、sw/dist 不入库）
@@ -214,8 +269,8 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   ├── ber_float.npz       #     浮点原始数据
 │   │   ├── ber_fixed.npz       #     定点原始数据
 │   │   └── snr_loss_table.csv  #     SNR 损失表（链路 + 节点位宽）
-│   ├── s2_channel_stats/       #   S2 信道模型核验表
-│   └── s2_jammer_stats/        #   S2 干扰源核验表
+│   ├── s2_channel_stats/       #   S2 信道模型核验表（channel_stats_table.csv）
+│   └── s2_jammer_stats/        #   S2 干扰源核验表（jammer_stats_table.csv）
 │
 └── docs/                       # 【文档】
     ├── fpga-fhss-amd-implementation-plan.html  # 实施手册 V3.0.1（主线，阶段号 P0′–P7′）
@@ -226,22 +281,26 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
     ├── spec/
     │   ├── fixed_point_spec.md #   S1 定点规格书（评审冻结基准，由 generate_spec.py 生成）
     │   ├── frame_format.md     #   S4 帧格式规格书（帧层首次定义，已冻结）
-    │   ├── s4_tx_interface.md  #   S4 发射链接口规格书（流控 / 位序 / 拍数账本 / NCO 语义）
-    │   └── freeze_status.json  #   冻结状态的机器可读来源
+    │   ├── s4_tx_interface.md  #   S4 发射链接口规格书 v1.1（流控 / 位序 / 拍数账本 / NCO 语义 / §8 P3 冻结记录）
+    │   ├── s4_tx_p3_freeze_draft.md  # S4-P3 三项冻结决策全文（含 2026-10-07 评审确认结果）
+    │   └── freeze_status.json  #   S1 定点规格冻结状态的机器可读来源
     ├── report/
     │   ├── env.md              #   开发环境记录
     │   ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告
     │   ├── s1_spec_review.md   #   S1 定点规格书评审记录
     │   ├── s2_verification.md  #   S2 验收报告（5/5 套件，1538 项，0 错误）
     │   ├── s3_verification.md  #   S3 验证报告（4/4 套件，4718 项，0 错误；含异常注入覆盖矩阵与遗留项）
-    │   └── s4_verification.md  #   S4 验证报告（P0+P1：13/13 套件，0 错误；含证伪用例与有意偏差登记）
-    └── Xilinx-Zynq-7000 系列开发板AX7020/   # ALINX 官方资料（用户手册 / 管脚表 / 原理图 / PCB）
+    │   ├── s3_review.md        #   S3 报告评审清单与记录（清单已建，结论待填）
+    │   └── s4_verification.md  #   S4 验证报告（P0–P2：18/18 套件，0 错误；P3 章节待补，见 §6/§7）
+    └── AX7020_2017.4.1/        #   ALINX 官方资料（现仅用户手册 V2.2；原理图 / PCB / DDR3 / TRM 等大文件已移出仓库）
+        └── ALINX黑金AX7020开发板用户手册V2.2.pdf
 ```
 
 > **图例**：无标记 = 已入库，clone 即可获得；`*` = 本地生成、不入库，可重建。仓库内另有
 > `desktop.ini`（Windows 系统文件）与 `.ruff_cache/` 等本地产物，均按 `.gitignore` 忽略。
-> `docs/Xilinx-Zynq-7000 系列开发板AX7020/` 是仓库内唯一的中文文件名目录，按交付纪律需在收尾时
-> 改为英文目录名。
+> `docs/AX7020_2017.4.1/` 的目录名已改英文，但内部那份用户手册 PDF 仍是中文文件名，按交付纪律
+> 可在收尾时一并改掉；该目录下原理图 / PCB / DDR3 / TRM 等大文件已移出仓库，需要时从 ALINX 官方
+> 资料包重新取回。
 
 ## License
 
