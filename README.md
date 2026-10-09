@@ -118,6 +118,7 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S5-P0/预备 | 接收链接口冻结 + 黄金参考补齐（DDC/同步/Viterbi/解交织）+ 框架 `SKIP_OUT` 与接收链向量导出 | **完成**（2026-10-08：P0 四项决策冻结；黄金模型自检 24/24、框架自测 9/9） | `docs/spec/s5_rx_interface.md`、`sim/golden_ref/fixed_point/rx_modules.py`、`sim/framework/export_vectors.py` |
 | S5 #2 | `ddc_rx` 数字下变频：CIC 3 级抽取（D=4，48 bit 卷绕）+ 33 抽头匹配 FIR，RTL + 位真比对 | **完成**（2026-10-09：rand 8064 拍、edge 320 拍逐拍 0 错误；黄金模型自检 27/27） | `src/ddc_rx.v`、`sim/run_ddc_rx_check.bat`、`sim/framework/tb/tb_ddc_rx_compare.sv` |
 | S5 #3 | `sync_rx` 符号级同步：位真语义 + **同步环参数标定冻结**（Q1.19）+ RTL + 位真比对 | **完成**（2026-10-09：rand/freq/rate/edge 四用例共 2160 符号逐符号 0 错误；标定 126 例全过） | `src/sync_rx.v`、`sim/run_sync_rx_check.bat`、`sim/framework/tb/tb_sync_rx_compare.sv`、`docs/spec/fixed_point_spec.md` v1.1 §3.4 |
+| S5 #4 | `blk_deinter` 块解交织：逆 `blk_inter` 置换 + 去 8 bit 补零（乒乓双缓冲），RTL + 位真比对 | **完成**（2026-10-09：frame 2166 拍、rand 8664 拍逐拍 0 错误；黄金模型自检 27/27） | `src/blk_deinter.v`、`sim/run_blk_deinter_check.bat`、`sim/framework/tb/tb_blk_deinter_compare.sv` |
 
 ### 已知边界
 
@@ -127,12 +128,12 @@ vivado -mode batch -source build/create_smoke_project.tcl
   均在板卡到货后补。人读引脚表与状态总览见 `docs/pins.md`。
 - S2 五项之间没有联合仿真：RF 侧（信道 + 干扰源）接口一致但未串联，控制侧（SPI / AXI）与 RF 侧
   也无交叉；登记见 `sim/README.md` §6 与 `docs/report/s2_verification.md` §5/§6。
-- `sim/framework/` 的比对框架现已由**九个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
-  / `srrc_duc` 手写版与 FIR IP 版 / `tx_chain` / `sync_rx` / `ddc_rx`）在使用，并为此扩展成"激励/期望长度解耦 +
+- `sim/framework/` 的比对框架现已由**十个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
+  / `srrc_duc` 手写版与 FIR IP 版 / `tx_chain` / `sync_rx` / `ddc_rx` / `blk_deinter`）在使用，并为此扩展成"激励/期望长度解耦 +
   激励节奏 + 前导跳过"（S4-P0 / S5）：原实现只支持一入一出，装不下成帧（256 拍进 / 2160 拍出）、
   上采样这类 N:M 模块与 4:1 同步环。每加一条判据都配了专门证伪它的用例（`sim/framework/README.md` §7）。
-  **尚未用过框架的只剩跳频层**；接收链中 `sync_rx` / `ddc_rx` 已完整位真接入（0 错误），`blk_deinter`
-  / `viterbi_dec` 只到"向量已导出"，RTL/TB 待做。
+  **尚未用过框架的只剩跳频层**；接收链中 `sync_rx` / `ddc_rx` / `blk_deinter` 已完整位真接入（0 错误），
+  `viterbi_dec` 只到"向量已导出"，RTL/TB 待做。
 - S4 的五个模块现已全部落地（`frame_tx` / `conv_enc` / `blk_inter` / `qpsk_map` / `srrc_duc` 双版），
   P0–P5 已收口，**任务卡的 S4 出口门槛已达成**（五模块位真比对全过：单模块 + IP 对比 + 整链端到端）。
   `docs/report/s4_verification.md` 尚未补 P3–P5 章节，引用 P3/P4/P5 结论分别以
@@ -211,6 +212,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── tx_chain_top.v          #   S4-P5 发射链整链串联顶层（五模块 + blk_inter→qpsk_map 符号速率适配）
 │   ├── ddc_rx.v                #   S5 数字下变频：CIC 3 级抽取（D=4）+ 33 抽头匹配 FIR（12 bit ADC → 4 sps Q3.11）
 │   ├── sync_rx.v               #   S5 符号级同步：二阶 Costas + 早迟门定时 + 软解调（1/符号更新）
+│   ├── blk_deinter.v           #   S5 块解交织：逆 blk_inter 置换 + 去 8 bit 补零（乒乓双缓冲）
 │   └── constraints/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
@@ -228,6 +230,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── run_tx_chain_check.bat  #   S4-P5 发射链整链位真比对（frame / edge 两用例）
 │   ├── run_ddc_rx_check.bat    #   S5 ddc_rx 位真比对（rand / edge 两用例串跑）
 │   ├── run_sync_rx_check.bat   #   S5 sync_rx 位真比对（rand / freq / rate / edge 四用例串跑）
+│   ├── run_blk_deinter_check.bat  # S5 blk_deinter 位真比对（frame / rand 两用例串跑）
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
 │   │   ├── README.md           #     向量契约 / TB 时序契约 / 判据 / 自测结论 / 有意偏离
 │   │   ├── export_vectors.py   #     从 golden_ref 确定性导出向量（--case long 出长跑向量，不入库）
@@ -237,7 +240,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   │   ├── tb_vector_selftest.sv        #   框架自测用例
 │   │   │   ├── tb_module_template.sv        #   新模块 TB 模板（照 README §6 十分钟起一个）
 │   │   │   ├── tb_{qpsk_map,conv_enc,frame_tx,blk_inter,srrc_duc}_compare.sv  # 五模块位真 TB（-d 切用例）
-│   │   │   ├── tb_{tx_chain,sync_rx,ddc_rx}_compare.sv  #  S4-P5 整链 / S5 sync_rx、ddc_rx 位真 TB
+│   │   │   ├── tb_{tx_chain,sync_rx,ddc_rx,blk_deinter}_compare.sv  #  S4-P5 整链 / S5 sync_rx、ddc_rx、blk_deinter 位真 TB
 │   │   │   ├── tb_srrc_duc_fir_compare.sv   #   FIR IP 版 SRRC TB（与手写版同向量同判据）
 │   │   │   ├── tb_blk_inter_burst.sv        #   blk_inter 突发打散量化（TB 侧带独立解交织模型）
 │   │   │   └── tb_fir_check.sv              #   FIR Compiler IP 单体对齐核验（延迟 / 前 3 拍空转）

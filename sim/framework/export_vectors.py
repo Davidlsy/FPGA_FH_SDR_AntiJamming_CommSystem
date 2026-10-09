@@ -523,8 +523,12 @@ def _export_ddc_rx(payload, seed: int):
 
 
 def _blk_deinter_cases(seed: int):
+    # 用例载荷 = 一个种子列表，每个种子出一帧软判决码流（2170 拍进 → 2166 拍出）。
+    # rand 多帧背靠背验证乒乓双缓冲与块边界：输出 2166 < 输入 2170，双缓冲天然追得上。
     return [
         ("frame", [seed], "一帧软判决码流 4340 → 4332（逆 blk_inter 置换 + 去 8bit 补零）"),
+        ("rand", [seed + k for k in range(4)],
+         "4 帧背靠背 17360 → 17328（乒乓双缓冲连续流式，覆盖块边界）"),
     ]
 
 

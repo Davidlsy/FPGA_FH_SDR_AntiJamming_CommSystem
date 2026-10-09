@@ -21,7 +21,8 @@
 > **技术证据**：`sync_rx` 四用例（rand/freq/rate/edge）位真比对 `errors=0`、同步环参数标定 126 例全过
 > （`sim/run_sync_rx_check.bat`、`sim/golden_ref/calib_sync_rx.py`，2026-10-09）已补；
 > `ddc_rx` 两用例（rand 8064 拍 / edge 320 拍）位真比对 `errors=0`（`sim/run_ddc_rx_check.bat`，2026-10-09，任务 #2）已补；
-> 其余（`blk_deinter` / `viterbi_dec` 各套件 `errors=0`、Viterbi BER 对比图）仍属后续产物，
+> `blk_deinter` 两用例（frame 2166 拍 / rand 8664 拍）位真比对 `errors=0`（`sim/run_blk_deinter_check.bat`，2026-10-09，任务 #4）已补；
+> 其余（`viterbi_dec` 套件 `errors=0`、Viterbi BER 对比图）仍属后续产物，
 > 本规格不冒充已有
 > **变更策略**: 冻结后任何模块不得私改；改接口必须走 §9 流程并重跑全部 S5 向量；
 > 触及位宽的变更还须按 `fixed_point_spec.md` §5 重跑 S1 BER 基线

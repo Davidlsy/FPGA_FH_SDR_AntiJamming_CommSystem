@@ -198,7 +198,7 @@ xsim snap_<module> -runall
 | `srrc_duc` | **已接入**（P3） | `frame` / `edge` | 符号:采样 = 1:4（4N+32） |
 | `tx_chain` | **已接入**（P5） | `frame` / `edge` | 256 字节 → 8712 采样 |
 | `ddc_rx` | **已接入**（S5 #2） | `rand` 32128→8064、`edge` 1152→320 | **D:1**（CIC 抽取 + 匹配 FIR） |
-| `blk_deinter` | **向量已接入**（S5；RTL/TB 待做） | `frame` 2170→2166 | 逆交织置换 + 去 8 bit 补零 |
+| `blk_deinter` | **已接入**（S5 #4） | `frame` 2170→2166、`rand` 8680→8664 | 逆交织置换 + 去 8 bit 补零 |
 | `viterbi_dec` | **向量已接入**（S5；RTL/TB 待做） | `frame` 2166→2160 | 2N → N−6（64 态 / 回溯 96） |
 | `sync_rx` | **已接入**（S5 #3） | `rand` / `freq` / `rate` / `edge`（共 2160 符号） | 4:1（早迟门定时，4 sps → 1 sps） |
 
@@ -216,4 +216,8 @@ xsim snap_<module> -runall
   `tb/tb_sync_rx_compare.sv`、分项入口 `sim/run_sync_rx_check.bat`（rand/freq/rate/edge 四用例
   串跑），位真比对 `errors=0`（2026-10-09）。激励与 golden 同源自 `calib_sync_rx.py` 的
   `mk_mf_int` / `impair`，`rate` 用例的 mu 扫过近 ±2 采样，把抽头窗 `j0` 的四个取值全踩到。
+- `blk_deinter` 位真比对 **已完整接入**（S5 #4，2026-10-09）：TB `tb/tb_blk_deinter_compare.sv`、
+  分项入口 `sim/run_blk_deinter_check.bat`（frame / rand 两用例串跑），`errors=0`
+  （frame 2166 拍、rand 8664 拍）。`rand` 用例是 **4 帧背靠背**（8680→8664 拍），专打乒乓双缓冲
+  的块边界——输出 2166 < 输入 2170，双缓冲天然追得上，写读两 bank 永不相撞。
 - 整链环回（S8）复用同一比对器，只换顶层与向量。
