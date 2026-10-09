@@ -1,14 +1,14 @@
 {
   "module": "viterbi_dec",
-  "case": "frame",
+  "case": "edge",
   "stim_rows": 2166,
   "expect_rows": 2160,
   "count": 2160,
-  "case_note": "一帧理想软值 4332 软比特 → 2160 信息比特（64 态 / 回溯 96）",
+  "case_note": "满量程 ±127/32 软值：PM 16bit 饱和 + ACS 哨兵 32768 取舍边界",
   "seed": 20260924,
   "golden_source": "golden_ref.fixed_point.rx_modules.fixed_viterbi_hw",
   "golden_ref_version": "1.0.0",
-  "generated_at": "2026-10-09T16:00:21+08:00",
+  "generated_at": "2026-10-09T16:00:22+08:00",
   "stim": {
     "bits": 16,
     "packing": "{soft[2k], soft[2k+1]}",
@@ -23,7 +23,7 @@
   "tb_depth": 96,
   "frames": 1,
   "styles": [
-    "ideal"
+    "edge"
   ],
   "stim_period": 1
 }

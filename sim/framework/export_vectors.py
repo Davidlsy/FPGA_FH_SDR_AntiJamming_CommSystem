@@ -552,18 +552,46 @@ def _export_blk_deinter(payload, seed: int):
 
 
 def _viterbi_dec_cases(seed: int):
+    # 用例载荷 = (种子, 软值风格) 列表，每个元素出一帧（2166 拍进 → 2160 bit 出）。
+    # rand 4 帧背靠背：打「帧尾补吐与下一帧 ACS 并行」的重叠与帧界清零；
+    # noise/edge 让 PM 归一化、16 bit 饱和、ACS 并列取舍真正受力——理想软值谁都能对。
     return [
-        ("frame", [seed], "一帧 4332 软比特（2166 符号）→ 2160 信息比特（64 态 / 回溯 96）"),
+        ("frame", [(seed, "ideal")],
+         "一帧理想软值 4332 软比特 → 2160 信息比特（64 态 / 回溯 96）"),
+        ("rand", [(seed + k, "noise") for k in range(4)],
+         "4 帧背靠背噪声软值 17328 软比特 → 8640 信息比特（含 0 值段打并列取舍）"),
+        ("edge", [(seed, "edge")],
+         "满量程 ±127/32 软值：PM 16bit 饱和 + ACS 哨兵 32768 取舍边界"),
     ]
+
+
+def _viterbi_soft(de, sd: int, style: str):
+    """按风格造一帧 Q3.5 **格点**软值（正 = 更可能为 0）；golden 与向量共用同一批值。
+
+    格点化后再交给 golden/to_int，避免半格点舍入（half-to-even vs half-away）分歧。
+    """
+    if style == "ideal":
+        return de
+    if style == "edge":
+        return np.where(de > 0, 3.96875, -3.96875)   # ±127/32 满量程
+    # noise：±3.5 + 高斯（σ=1.5），钳到 ±127/32 后量化到 1/32 格点；
+    # 中段 32 个软值置 0 → 路径度量并列密集出现，专打「严格小于、先到者赢」的取舍。
+    rng = np.random.default_rng(sd ^ 0x5A5A)
+    q = np.clip(np.asarray(de) + rng.normal(0.0, 1.5, len(de)), -3.96875, 3.96875)
+    q = np.round(q * 32) / 32
+    q[len(q) // 2 - 16:len(q) // 2 + 16] = 0.0
+    return q
 
 
 def _export_viterbi_dec(payload, seed: int):
     stim_hex, expect_hex = [], []
-    for sd in payload:
+    for sd, style in payload:
         _, _, soft = _rx_frame_soft(sd)
         de = soft_deinterleave(soft, n_out=len(soft) - 8)
-        dec = fixed_viterbi_hw(de, win_tb=RX_CONFIG["viterbi_win_tb"])
-        stim_hex += _pack_soft_pair(de)
+        q = _viterbi_soft(de, sd, style)
+        # 逐帧 fresh call（PM 复位、回溯窗从零起）——与 RTL 的「帧尾清零再开下一帧」同构
+        dec = fixed_viterbi_hw(q, win_tb=RX_CONFIG["viterbi_win_tb"])
+        stim_hex += _pack_soft_pair(q)
         expect_hex += [hex_of_int(int(b), 1) for b in dec]
     sw = FIXED_POINT_CONFIG["viterbi_metric_w"]
     sf = FIXED_POINT_CONFIG["viterbi_metric_frac"]
@@ -572,6 +600,8 @@ def _export_viterbi_dec(payload, seed: int):
         "expect": {"bits": 1, "packing": "信息比特（已去 6 尾比特）", "frac": None},
         "states": 64,
         "tb_depth": RX_CONFIG["viterbi_tb_depth"],
+        "frames": len(payload),
+        "styles": [st for _, st in payload],
         "stim_period": 1,
     }
     return stim_hex, expect_hex, meta

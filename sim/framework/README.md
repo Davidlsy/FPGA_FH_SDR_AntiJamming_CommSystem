@@ -199,7 +199,7 @@ xsim snap_<module> -runall
 | `tx_chain` | **已接入**（P5） | `frame` / `edge` | 256 字节 → 8712 采样 |
 | `ddc_rx` | **已接入**（S5 #2） | `rand` 32128→8064、`edge` 1152→320 | **D:1**（CIC 抽取 + 匹配 FIR） |
 | `blk_deinter` | **已接入**（S5 #4） | `frame` 2170→2166、`rand` 8680→8664 | 逆交织置换 + 去 8 bit 补零 |
-| `viterbi_dec` | **向量已接入**（S5；RTL/TB 待做） | `frame` 2166→2160 | 2N → N−6（64 态 / 回溯 96） |
+| `viterbi_dec` | **已接入**（S5 #5） | `frame`/`edge` 2166→2160、`rand` 8664→8640 | 2N → N−6（64 态 / 回溯 96） |
 | `sync_rx` | **已接入**（S5 #3） | `rand` / `freq` / `rate` / `edge`（共 2160 符号） | 4:1（早迟门定时，4 sps → 1 sps） |
 
 - N:M 模块靠框架的两条契约（长度解耦、激励节奏）接入，只需写 `cases`/`export` 与 DUT 接线；
@@ -220,4 +220,10 @@ xsim snap_<module> -runall
   分项入口 `sim/run_blk_deinter_check.bat`（frame / rand 两用例串跑），`errors=0`
   （frame 2166 拍、rand 8664 拍）。`rand` 用例是 **4 帧背靠背**（8680→8664 拍），专打乒乓双缓冲
   的块边界——输出 2166 < 输入 2170，双缓冲天然追得上，写读两 bank 永不相撞。
+- `viterbi_dec` 位真比对 **已完整接入**（S5 #5，2026-10-09）：TB `tb/tb_viterbi_dec_compare.sv`、
+  分项入口 `sim/run_viterbi_dec_check.bat`（frame / rand / edge 三用例串跑），`errors=0`
+  （frame 2160、rand 8640、edge 2160 bit）。`rand` 是 **4 帧背靠背**（8664→8640 拍），打帧尾补吐
+  与下一帧 ACS 并行的重叠；`rand`（噪声 + 0 值段）与 `edge`（±127/32 满量程）让 PM 归一化、
+  16 bit 饱和与 ACS 并列取舍真正受力——noise 用例对原始载荷含 2.3e-3 歧义比特，期望值确由
+  并列取舍决定，比对不是"理想软值谁都能对"的空判据。
 - 整链环回（S8）复用同一比对器，只换顶层与向量。
