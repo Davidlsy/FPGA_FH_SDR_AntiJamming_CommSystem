@@ -1,0 +1,27 @@
+{
+  "module": "fh_ctrl",
+  "case": "edge",
+  "stim_rows": 804,
+  "expect_rows": 768,
+  "count": 768,
+  "case_note": "边界种子 [1, 32768, 65535, 23130] + 每 8 跳穿插加载（加载拍不出数 / 清 hop_index）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.fh_pattern.sim_fh_ctrl（LFSR-16 跳频图案）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-09T17:34:05+08:00",
+  "stim": {
+    "bits": 17,
+    "packing": "{seed_load, seed[15:0]}",
+    "frac": null
+  },
+  "expect": {
+    "bits": 24,
+    "packing": "{hop_index[19:0], channel[3:0]}",
+    "frac": null
+  },
+  "poly": "x^16+x^15+x^13+x^4+1（掩码 0x1A011，周期 65535）",
+  "reset_seed": 1,
+  "n_hops": 768,
+  "n_loads": 36,
+  "stim_period": 1
+}

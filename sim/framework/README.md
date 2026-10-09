@@ -187,7 +187,8 @@ xsim snap_<module> -runall
 ## 10. 接入进度（S4 → S5）
 
 发射链按 `qpsk_map` → `conv_enc` → `frame_tx`（P1）→ `blk_inter`（P2）→ `srrc_duc`（P3）
-逐个在 `MODULES` 里注册；接收链（S5）按 `ddc_rx` / `blk_deinter` / `viterbi_dec` 接入。
+逐个在 `MODULES` 里注册；接收链（S5）按 `ddc_rx` / `blk_deinter` / `viterbi_dec` 接入；
+跳频层（S6）自 `fh_ctrl` 起接入。
 
 | 模块 | 状态 | 用例（`vectors/<模块>/`） | 拍数关系 |
 |---|---|---|---|
@@ -201,6 +202,7 @@ xsim snap_<module> -runall
 | `blk_deinter` | **已接入**（S5 #4） | `frame` 2170→2166、`rand` 8680→8664 | 逆交织置换 + 去 8 bit 补零 |
 | `viterbi_dec` | **已接入**（S5 #5） | `frame`/`edge` 2166→2160、`rand` 8664→8640 | 2N → N−6（64 态 / 回溯 96） |
 | `sync_rx` | **已接入**（S5 #3） | `rand` / `freq` / `rate` / `edge`（共 2160 符号） | 4:1（早迟门定时，4 sps → 1 sps） |
+| `fh_ctrl` | **已接入**（S6 #1） | `seq` 16384→16384、`rand` 16388→16384、`edge` 804→768 | 命令:跳 = M:1（加载拍不出数，N:M 解耦直用） |
 
 - N:M 模块靠框架的两条契约（长度解耦、激励节奏）接入，只需写 `cases`/`export` 与 DUT 接线；
   接收链另备第三条契约（`SKIP_OUT` 前导跳过，自测 `positive 接收链形状` 覆盖），但 `sync_rx`
@@ -226,4 +228,11 @@ xsim snap_<module> -runall
   与下一帧 ACS 并行的重叠；`rand`（噪声 + 0 值段）与 `edge`（±127/32 满量程）让 PM 归一化、
   16 bit 饱和与 ACS 并列取舍真正受力——noise 用例对原始载荷含 2.3e-3 歧义比特，期望值确由
   并列取舍决定，比对不是"理想软值谁都能对"的空判据。
+- `fh_ctrl` 位真比对 **已完整接入**（S6 #1，2026-10-09）：TB `tb/tb_fh_ctrl_compare.sv`、
+  分项入口 `sim/run_fh_ctrl_check.bat`（seq / rand / edge 三用例 + `tb_fh_ctrl_long` 长跑串跑），
+  逐跳 `errors=0`（seq 16384 跳、rand 16384 跳、edge 768 跳）。激励总线 17 bit
+  `{seed_load, seed}`、期望总线 24 bit `{hop_index, channel}`；**加载拍不出数**直接落在
+  长度解耦上（rand 16388 命令 → 16384 跳，edge 804 → 768）。10⁶ 跳长跑 `tb_fh_ctrl_long`
+  自含激励不读向量（7 MB 向量不入库），收发双实例互比 mismatches=0 + 驻留均匀性 PASS，
+  前 8 跳黄金锚点把长跑钉在 `check_fh_pattern.py` 上。
 - 整链环回（S8）复用同一比对器，只换顶层与向量。

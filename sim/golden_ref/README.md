@@ -23,8 +23,8 @@ sim/golden_ref/
 ├── run_viterbi_ber.py  # S5 viterbi_dec BER 三路同序列对比入口（含 MATLAB vitdec 交叉）
 ├── generate_spec.py    # 从 config 生成定点规格书
 ├── float_chain/        # 浮点模块
-├── fixed_point/        # 定点模块与量化器
-└── sim/                # 浮点/定点链路仿真与 SNR 损失分析
+├── fixed_point/        # 定点模块与量化器（含 fh_pattern.py：S6 fh_ctrl 跳频图案裁判）
+└── sim/                # 浮点/定点链路仿真与 SNR 损失分析（含 check_fh_pattern.py 自检）
 ```
 
 ## 运行

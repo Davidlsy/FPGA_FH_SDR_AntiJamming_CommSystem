@@ -41,6 +41,11 @@ from golden_ref.config import (
     RX_CONFIG,
 )
 from golden_ref.fixed_point.duc import fixed_srrc_duc
+from golden_ref.fixed_point.fh_pattern import (
+    FH_DEFAULT_SEED,
+    FH_INDEX_MASK,
+    sim_fh_ctrl,
+)
 from golden_ref.fixed_point.fixed_modules import (
     fixed_pulse_shape,
     fixed_qpsk_modulate,
@@ -712,6 +717,59 @@ def _export_sync_rx(payload, seed: int):
 
 
 # ============================================================
+# fh_ctrl（S6）：LFSR-16 跳频图案发生器 —— 口径 docs/spec/s6_fh_interface.md §2
+# ============================================================
+# 激励 = {seed_load, seed[15:0]}（17 bit）每拍一命令；expect = {hop_index[19:0], channel[3:0]}
+# （24 bit，高位在前）。加载拍不出数 → stim/expect 长度解耦（框架契约直接支持）。
+def _fh_ctrl_cases(seed: int):
+    # 用例载荷 = 命令流 (seed_load, seed_val) 列表。
+    # seq：不发加载拍——打「复位默认种子 SEED 参数」路径；16384 跳 = 4×2^16 bit，
+    #      覆盖 LFSR 全周期 + 跨周期平铺边界。
+    # rand：随机种子重载 ×4 段 × 4096 跳——打加载语义与多种子。
+    # edge：边界种子 + 加载拍密集穿插（每 8 跳插一次加载），打「加载清 hop_index」
+    #      与「加载拍不出数」两条语义在密集节奏下的正确性。
+    seq = [(0, 0)] * 16384
+
+    rng = np.random.default_rng(seed)
+    rand = []
+    rand_seeds = [int(s) for s in rng.integers(1, 1 << 16, 4)]
+    for s in rand_seeds:
+        rand += [(1, s)] + [(0, 0)] * 4096
+
+    edge = []
+    edge_seeds = [0x0001, 0x8000, 0xFFFF, 0x5A5A]
+    for s in edge_seeds:
+        edge += [(1, s)] + [(0, 0)] * 128          # 一段长的
+        for _ in range(8):                          # 密集加载段
+            edge += [(1, s)] + [(0, 0)] * 8
+
+    return [
+        ("seq", seq, "单种子（复位默认 SEED）16384 跳 = 4×2^16 bit，覆盖 LFSR 全周期平铺边界"),
+        ("rand", rand, f"随机种子 {rand_seeds} 重载 ×4 段 × 4096 跳（加载语义 + 多种子）"),
+        ("edge", edge, f"边界种子 {edge_seeds} + 每 8 跳穿插加载（加载拍不出数 / 清 hop_index）"),
+    ]
+
+
+def _export_fh_ctrl(payload, seed: int):
+    stim_hex, expect_hex = [], []
+    for load, val in payload:
+        stim_hex.append(hex_of_int(pack_fields((1 if load else 0, 1), (val & 0xFFFF, 16)), 17))
+    # 初态 = 复位默认种子（RTL 参数 SEED），与 seq 用例不发加载拍的口径一致
+    for idx, ch in sim_fh_ctrl(payload, seed=FH_DEFAULT_SEED):
+        expect_hex.append(hex_of_int(pack_fields((idx & FH_INDEX_MASK, 20), (ch, 4)), 24))
+    meta = {
+        "stim": {"bits": 17, "packing": "{seed_load, seed[15:0]}", "frac": None},
+        "expect": {"bits": 24, "packing": "{hop_index[19:0], channel[3:0]}", "frac": None},
+        "poly": "x^16+x^15+x^13+x^4+1（掩码 0x1A011，周期 65535）",
+        "reset_seed": FH_DEFAULT_SEED,
+        "n_hops": len(expect_hex),
+        "n_loads": sum(1 for l, _ in payload if l),
+        "stim_period": 1,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -764,6 +822,11 @@ MODULES = {
         "cases": _sync_rx_cases,
         "export": _export_sync_rx,
         "golden_source": "golden_ref.fixed_point.rx_modules.fixed_sync_rx_hw（Costas + 早迟门 + 软解调）",
+    },
+    "fh_ctrl": {
+        "cases": _fh_ctrl_cases,
+        "export": _export_fh_ctrl,
+        "golden_source": "golden_ref.fixed_point.fh_pattern.sim_fh_ctrl（LFSR-16 跳频图案）",
     },
 }
 

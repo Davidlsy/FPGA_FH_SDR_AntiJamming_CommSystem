@@ -1,0 +1,27 @@
+{
+  "module": "fh_ctrl",
+  "case": "rand",
+  "stim_rows": 16388,
+  "expect_rows": 16384,
+  "count": 16384,
+  "case_note": "随机种子 [24306, 4321, 4581, 10244] 重载 ×4 段 × 4096 跳（加载语义 + 多种子）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.fh_pattern.sim_fh_ctrl（LFSR-16 跳频图案）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-09T17:34:05+08:00",
+  "stim": {
+    "bits": 17,
+    "packing": "{seed_load, seed[15:0]}",
+    "frac": null
+  },
+  "expect": {
+    "bits": 24,
+    "packing": "{hop_index[19:0], channel[3:0]}",
+    "frac": null
+  },
+  "poly": "x^16+x^15+x^13+x^4+1（掩码 0x1A011，周期 65535）",
+  "reset_seed": 1,
+  "n_hops": 16384,
+  "n_loads": 4,
+  "stim_period": 1
+}
