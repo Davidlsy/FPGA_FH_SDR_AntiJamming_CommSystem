@@ -23,8 +23,10 @@
 > `ddc_rx` 两用例（rand 8064 拍 / edge 320 拍）位真比对 `errors=0`（`sim/run_ddc_rx_check.bat`，2026-10-09，任务 #2）已补；
 > `blk_deinter` 两用例（frame 2166 拍 / rand 8664 拍）位真比对 `errors=0`（`sim/run_blk_deinter_check.bat`，2026-10-09，任务 #4）已补；
 > `viterbi_dec` 三用例（frame 2160 bit / rand 8640 bit / edge 2160 bit）位真比对 `errors=0`（`sim/run_viterbi_dec_check.bat`，2026-10-09，任务 #5）已补；
-> 其余（Viterbi BER 对比图）仍属后续产物，
-> 本规格不冒充已有
+> `viterbi_dec` BER 三路同序列对比（§4.4 第二、三条判据）最大 SNR 损失 0.004 dB、无平底、
+> MATLAB `vitdec` 同序列 2.48 Mbit 叠图一致（`sim/golden_ref/run_viterbi_ber.py`、
+> `data/s5_viterbi_ber/`、分析 `docs/report/s5_viterbi_ber.md`，2026-10-09，任务 #5）已补；
+> §4.4 三条验证判据至此全部有据
 > **变更策略**: 冻结后任何模块不得私改；改接口必须走 §9 流程并重跑全部 S5 向量；
 > 触及位宽的变更还须按 `fixed_point_spec.md` §5 重跑 S1 BER 基线
 

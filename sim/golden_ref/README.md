@@ -20,6 +20,7 @@
 sim/golden_ref/
 ├── config.py           # 系统参数与 FIXED_POINT_CONFIG
 ├── run_ber.py          # BER 仿真入口
+├── run_viterbi_ber.py  # S5 viterbi_dec BER 三路同序列对比入口（含 MATLAB vitdec 交叉）
 ├── generate_spec.py    # 从 config 生成定点规格书
 ├── float_chain/        # 浮点模块
 ├── fixed_point/        # 定点模块与量化器
@@ -35,6 +36,9 @@ python run_ber.py --quick          # 快速冒烟
 python run_ber.py                  # 标准 Eb/N0 0–8 dB
 python run_ber.py --float-only     # 仅浮点
 python run_ber.py --export-loss-only  # 仅从已有 npz 导出损失表
+python run_viterbi_ber.py             # S5 viterbi_dec BER 三路同序列对比（需 scipy + MATLAB）
+python run_viterbi_ber.py --quick     # 冒烟（跑通 Python↔MATLAB 流水线）
+python run_viterbi_ber.py --skip-matlab  # 只跑 Python 两路
 python generate_spec.py            # 重新生成规格书到 docs/spec/
 ```
 
@@ -45,6 +49,8 @@ python generate_spec.py            # 重新生成规格书到 docs/spec/
 - `data/s1_ber_baseline/ber_curve.png`
 - `data/s1_ber_baseline/snr_loss_table.csv`
 - `docs/spec/fixed_point_spec.md`（generate_spec）
+- `data/s5_viterbi_ber/`（run_viterbi_ber：三线叠图 / SNR 损失表 / npz；分析见
+  `docs/report/s5_viterbi_ber.md`，MATLAB 过路 .mat 不入库）
 
 ## 出口门槛
 

@@ -284,6 +284,11 @@ __Previews/
 !docs/**/*.zip
 !docs/**/*.7z
 
+# S5 viterbi BER 的 Python↔MATLAB 过路交换文件（data/s5_viterbi_ber/matlab_io/）：
+# run_viterbi_ber.py 按固定种子确定性再生成，不是证据本体；证据 = 同目录
+# ber_curve_viterbi.png / snr_loss_table_viterbi.csv / ber_viterbi.npz。
+data/s5_viterbi_ber/matlab_io/
+
 # 如需归档提交版比特流：把 bitstream 放入 releases/ 并取消下行注释
 # !releases/*.bit
 # !releases/*.mcs

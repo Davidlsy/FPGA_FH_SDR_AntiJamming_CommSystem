@@ -119,7 +119,7 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S5 #2 | `ddc_rx` 数字下变频：CIC 3 级抽取（D=4，48 bit 卷绕）+ 33 抽头匹配 FIR，RTL + 位真比对 | **完成**（2026-10-09：rand 8064 拍、edge 320 拍逐拍 0 错误；黄金模型自检 27/27） | `src/ddc_rx.v`、`sim/run_ddc_rx_check.bat`、`sim/framework/tb/tb_ddc_rx_compare.sv` |
 | S5 #3 | `sync_rx` 符号级同步：位真语义 + **同步环参数标定冻结**（Q1.19）+ RTL + 位真比对 | **完成**（2026-10-09：rand/freq/rate/edge 四用例共 2160 符号逐符号 0 错误；标定 126 例全过） | `src/sync_rx.v`、`sim/run_sync_rx_check.bat`、`sim/framework/tb/tb_sync_rx_compare.sv`、`docs/spec/fixed_point_spec.md` v1.1 §3.4 |
 | S5 #4 | `blk_deinter` 块解交织：逆 `blk_inter` 置换 + 去 8 bit 补零（乒乓双缓冲），RTL + 位真比对 | **完成**（2026-10-09：frame 2166 拍、rand 8664 拍逐拍 0 错误；黄金模型自检 27/27） | `src/blk_deinter.v`、`sim/run_blk_deinter_check.bat`、`sim/framework/tb/tb_blk_deinter_compare.sv` |
-| S5 #5 | `viterbi_dec` 软判决 Viterbi 译码：64 态 ACS + 16 bit PM 归一化 + 回溯 96（寄存器交换），RTL + 位真比对 | **完成**（2026-10-09：frame 2160 bit、rand 8640 bit、edge 2160 bit 逐比特 0 错误；黄金模型自检 27/27） | `src/viterbi_dec.v`、`sim/run_viterbi_dec_check.bat`、`sim/framework/tb/tb_viterbi_dec_compare.sv` |
+| S5 #5 | `viterbi_dec` 软判决 Viterbi 译码：64 态 ACS + 16 bit PM 归一化 + 回溯 96（寄存器交换），RTL + 位真比对 + **BER 三路同序列对比** | **完成**（2026-10-09：frame 2160 bit、rand 8640 bit、edge 2160 bit 逐比特 0 错误；黄金模型自检 27/27；BER 对比最大 SNR 损失 0.004 dB、无平底、MATLAB `vitdec` 同序列 2.48 Mbit 叠图一致） | `src/viterbi_dec.v`、`sim/run_viterbi_dec_check.bat`、`sim/framework/tb/tb_viterbi_dec_compare.sv`、`sim/golden_ref/run_viterbi_ber.py`、`docs/report/s5_viterbi_ber.md` |
 
 ### 已知边界
 
@@ -272,6 +272,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   ├── README.md           #     复现入口与包内约定
 │   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）+ RX_CONFIG（接收链）+ FRAME_* + DUC_CONFIG
 │   │   ├── run_ber.py          #     BER 仿真入口 → data/s1_ber_baseline/
+│   │   ├── run_viterbi_ber.py  #     S5 viterbi_dec BER 三路同序列对比入口（含 MATLAB vitdec 交叉）→ data/s5_viterbi_ber/
 │   │   ├── generate_spec.py    #     生成定点规格书 → docs/spec/
 │   │   ├── gen_frame_sync.py   #     S4 帧同步字 → src/frame_tx_sync.vh（带 --check）
 │   │   ├── gen_srrc_duc.py     #     S4-P3 系数与 LUT → src/srrc_coeff.vh、src/nco_lut.mem、src/srrc_fir.coe
@@ -285,6 +286,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │       └── sfdr_analysis.py  #    S4-P3 SFDR：NCO/DUC 判据项（−85.45 dBc）+ SRRC 频谱报告项
 │   ├── float_ref/              #   V2.x MATLAB 归档链重跑与对照（对照证据，不是基准）
 │   │   ├── run_ber_sweep.m     #     归档脚本重跑 → results/（另 run_ber_sweep_export.m 导数据）
+│   │   ├── run_viterbi_vitdec.m  #   S5 viterbi_dec BER 对比的 MATLAB 侧桥（vitdec 同序列）
 │   │   ├── compare_matlab_python.py  # MATLAB 归档链 vs golden_ref 的对照脚本
 │   │   └── results/            #     归档 BER 数据（csv / mat）
 │   └── logs/ *                 #   运行日志（*.log 本地生成）
@@ -308,7 +310,8 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   ├── ber_fixed.npz       #     定点原始数据
 │   │   └── snr_loss_table.csv  #     SNR 损失表（链路 + 节点位宽）
 │   ├── s2_channel_stats/       #   S2 信道模型核验表（channel_stats_table.csv）
-│   └── s2_jammer_stats/        #   S2 干扰源核验表（jammer_stats_table.csv）
+│   ├── s2_jammer_stats/        #   S2 干扰源核验表（jammer_stats_table.csv）
+│   └── s5_viterbi_ber/         #   S5 viterbi_dec BER 三路同序列对比（三线叠图 / SNR 损失表 / npz；matlab_io/ 过路 .mat 不入库）
 │
 └── docs/                       # 【文档】
     ├── fpga-fhss-amd-implementation-plan.html  # 实施手册 V3.0.1（主线，阶段号 P0′–P7′）
@@ -331,7 +334,8 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
     │   ├── s2_verification.md  #   S2 验收报告（5/5 套件，1538 项，0 错误）
     │   ├── s3_verification.md  #   S3 验证报告（4/4 套件，4718 项，0 错误；含异常注入覆盖矩阵与遗留项）
     │   ├── s3_review.md        #   S3 报告评审清单与记录（清单已建，结论待填）
-    │   └── s4_verification.md  #   S4 验证报告（P0–P2：18/18 套件，0 错误；P3 章节待补，见 §6/§7）
+    │   ├── s4_verification.md  #   S4 验证报告（P0–P2：18/18 套件，0 错误；P3 章节待补，见 §6/§7）
+    │   └── s5_viterbi_ber.md   #   S5 viterbi_dec BER 三路同序列对比报告（§4.4 判据：0.004 dB / 无平底 / vitdec 叠图）
     └── AX7020_2017.4.1/        #   ALINX 官方资料（现仅用户手册 V2.2；原理图 / PCB / DDR3 / TRM 等大文件已移出仓库）
         └── ALINX黑金AX7020开发板用户手册V2.2.pdf
 ```
