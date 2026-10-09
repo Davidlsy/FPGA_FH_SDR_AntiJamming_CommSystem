@@ -1,0 +1,32 @@
+{
+  "module": "tod",
+  "case": "rand",
+  "stim_rows": 6101,
+  "expect_rows": 4921,
+  "count": 4921,
+  "case_note": "随机换挡 + 随机装订/对齐 + 20% 停表空隙（6101 拍，装订值含高位掩码）",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.tod.sim_tod（1 ms tick + 截断 TOD 外推跳沿）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-09T20:05:24+08:00",
+  "stim": {
+    "bits": 43,
+    "packing": "{din_valid, rate_sel[1:0], tod_load, align_valid, align_tod[5:0], tod_value[31:0]}",
+    "frac": null
+  },
+  "expect": {
+    "bits": 34,
+    "packing": "{tick, tod[31:0], hop_edge}",
+    "frac": null
+  },
+  "tick_samples": 10,
+  "tod_w": 8,
+  "param_note": "缩参比对（冻结 TICK_SAMPLES=8000/TOD_W=32 由 tb_tod_align_long + 黄金自检覆盖）",
+  "n_samples": 4921,
+  "n_ticks": 841,
+  "n_hop_edges": 612,
+  "n_loads": 223,
+  "n_aligns": 577,
+  "n_frozen": 1180,
+  "stim_period": 1
+}

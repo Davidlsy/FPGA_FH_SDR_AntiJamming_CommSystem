@@ -188,7 +188,7 @@ xsim snap_<module> -runall
 
 发射链按 `qpsk_map` → `conv_enc` → `frame_tx`（P1）→ `blk_inter`（P2）→ `srrc_duc`（P3）
 逐个在 `MODULES` 里注册；接收链（S5）按 `ddc_rx` / `blk_deinter` / `viterbi_dec` 接入；
-跳频层（S6）按 `fh_ctrl` → `nco_hop` 接入。
+跳频层（S6）按 `fh_ctrl` → `nco_hop` → `tod` 接入。
 
 | 模块 | 状态 | 用例（`vectors/<模块>/`） | 拍数关系 |
 |---|---|---|---|
@@ -204,6 +204,7 @@ xsim snap_<module> -runall
 | `sync_rx` | **已接入**（S5 #3） | `rand` / `freq` / `rate` / `edge`（共 2160 符号） | 4:1（早迟门定时，4 sps → 1 sps） |
 | `fh_ctrl` | **已接入**（S6 #1） | `seq` 16384→16384、`rand` 16388→16384、`edge` 804→768 | 命令:跳 = M:1（加载拍不出数，N:M 解耦直用） |
 | `nco_hop` | **已接入**（S6 #2） | `seq` 2048→2048、`rand` 4099→3171、`edge` 209→201 | 冻结拍不出数（din_valid 门控，N:M 解耦直用） |
+| `tod` | **已接入**（S6 #3） | `seq` 2881→2881、`rand` 6101→4921、`edge` 581→568 | 时基停表拍不出数（din_valid 门控，N:M 解耦直用） |
 
 - N:M 模块靠框架的两条契约（长度解耦、激励节奏）接入，只需写 `cases`/`export` 与 DUT 接线；
   接收链另备第三条契约（`SKIP_OUT` 前导跳过，自测 `positive 接收链形状` 覆盖），但 `sync_rx`
@@ -244,4 +245,14 @@ xsim snap_<module> -runall
   向量送完后被 `tb_vec_cmp` 保持的末行数据喂出无限续吐（实测踩过，登记为接线口径）。
   3×10⁵ 跳长跑 `tb_nco_hop_long` 自含激励（fh_ctrl 实例产跳事件，`din_hop_valid` 同拍耦合
   §5.3 契约），相位轨迹断言 cont_err=0 / FTW 生效延迟断言 delay_err=0，三档真实节拍各 4 跳。
+- `tod` 位真比对 **已完整接入**（S6 #3，2026-10-09）：TB `tb/tb_tod_compare.sv`、
+  分项入口 `sim/run_tod_check.bat`（seq / rand / edge 三用例 + `tb_tod_align_long` 长跑串跑），
+  逐拍 `{tick, tod[31:0], hop_edge}` `errors=0`（seq 2881、rand 4921、edge 568 拍）。激励总线 43 bit
+  `{din_valid, tod_load, align_valid, rate_sel[1:0], align_tod[5:0], tod_value[31:0]}`、
+  期望总线 34 bit `{tick, tod[31:0], hop_edge}`；**din_valid 是数据位**（停表拍要能进向量），
+  停表拍不出数直接落在长度解耦上（rand 6101 → 4921、edge 581 → 568）。
+  比对缩参 `TICK_SAMPLES=10 / TOD_W=8`（冻结 8000/32 单 tick 占 8000 行、2^32 回绕不可达），
+  语义对参数无依赖；冻结值本身由 `tb_tod_align_long`（真实 8000/32 + 时序判据）与黄金自检覆盖。
+  7 相位长跑自含激励（双 `tod` + 双 `fh_ctrl` 收发互比）：对齐误差 max 100 拍 ≤ ±2000 判据、
+  tick 节拍 0 错、`hop_index`/`channel` 逐跳相等、40 tick 自由外推 `drift_err=0`。
 - 整链环回（S8）复用同一比对器，只换顶层与向量。

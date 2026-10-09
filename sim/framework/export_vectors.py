@@ -47,6 +47,7 @@ from golden_ref.fixed_point.fh_pattern import (
     sim_fh_ctrl,
 )
 from golden_ref.fixed_point.nco_hop import NCO_HOP_FTW_TABLE, sim_nco_hop
+from golden_ref.fixed_point.tod import sim_tod
 from golden_ref.fixed_point.fixed_modules import (
     fixed_pulse_shape,
     fixed_qpsk_modulate,
@@ -842,6 +843,121 @@ def _export_nco_hop(payload, seed: int):
 
 
 # ============================================================
+# tod（S6）：TOD 时基（1 ms tick + 帧头截断 TOD 外推跳沿）—— 口径 docs/spec/s6_fh_interface.md §7
+# ============================================================
+# 激励 = {din_valid, rate_sel[1:0], tod_load, align_valid, align_tod[5:0], tod_value[31:0]}
+# （43 bit）每拍一行——din_valid 是数据位，停表拍也是激励行；expect = {tick, tod[31:0],
+# hop_edge}（34 bit）。停表拍无输出 → stim/expect 长度解耦（框架契约直接支持）。
+#
+# 比对参数（与 tb_tod_compare.sv 同步冻结）：TICK_SAMPLES=10、TOD_W=8。
+# 冻结值 8000/32 一个 tick 就占 8000 行（tb_vec_cmp MAX_DEPTH=32768 装不下几个 tick），
+# 2^32 回绕也不可达；§7.4 语义对参数无依赖，缩参后 8 bit 回绕每 256 tick 可见
+# （§7.1「比对口径里含窄位宽回绕自检」）。冻结值本身由 tb_tod_align_long（真实
+# 8000/32 + tick 精确性/对齐误差断言）与黄金自检 [1][5][7] 覆盖。
+TOD_CMP_TICK_SAMPLES = 10
+TOD_CMP_TOD_W = 8
+
+
+def _tod_cases(seed: int):
+    # 用例载荷 = 命令流 (din_valid, rate_sel, tod_load, align_valid, align_tod, tod_value)。
+    # seq：装订 tod=200 后纯自然步进 288 tick（2881 拍）——三档跳速各驻留 + rate_sel=3
+    #      兜底（按 1000），tod 200→232 跨 8 bit 回绕，扫全 tick 节拍与跳沿网格。
+    # rand：随机换挡 + 随机装订/对齐 + 20% 停表空隙——事件混流打密集语义；
+    #      装订值含 >255 的高位（打 din_tod_value 按 TOD_W 截断）。
+    # edge：语义边界集中处（停表拍携命令 / 装订=声明边界 / 同拍脉冲合并 /
+    #      对齐早·晚检测 / snap 牵引 ±32·±33 负例 / 装订优先 / 换挡重网格）。
+    ts = TOD_CMP_TICK_SAMPLES
+
+    seq = [(1, 0, 1, 0, 0, 200)]
+    for sel, n_ticks in ((0, 128), (1, 64), (2, 64), (3, 32)):
+        for _ in range(n_ticks):
+            seq += [(1, sel, 0, 0, 0, 0)] * ts
+
+    rng = np.random.default_rng(seed)
+    rand = [(1, 0, 1, 0, 0, 0x10)]
+    while len(rand) < 6000:
+        sel = int(rng.integers(0, 4))
+        for _ in range(int(rng.integers(4, 25)) * ts):
+            v = 0 if rng.random() < 0.2 else 1
+            load = 1 if rng.random() < 0.04 else 0
+            align = 0 if load else (1 if rng.random() < 0.10 else 0)
+            rand.append((v, sel, load, align,
+                         int(rng.integers(0, 64)), int(rng.integers(0, 1 << 12))))
+
+    edge = []
+    # [0] 复位后停表拍携带装订/对齐命令：整拍冻结，命令必须被忽略
+    edge += [(0, 0, 1, 0, 0, 77)] * 2 + [(0, 2, 0, 1, 33, 0)] * 2
+    # [1] 装订 = 声明边界（决策 #14）：网格点 tod=20（≡0 mod 10）发 tick + hop
+    edge += [(1, 2, 1, 0, 0, 20)] + [(1, 2, 0, 0, 0, 0)] * 100   # 10 tick：tod 21..30，hop 只在 30
+    # [2] 装订到非网格点 tod=21：只发 tick
+    edge += [(1, 2, 1, 0, 0, 21)] + [(1, 2, 0, 0, 0, 0)] * 100   # 10 tick：tod 22..31，hop 只在 30
+    # [3] 装订与自然 tick 同拍：两边界恰重合，脉冲合并为一拍（不双发）
+    edge += [(1, 0, 1, 0, 0, 40)] + [(1, 0, 0, 0, 0, 0)] * 9 + [(1, 0, 1, 0, 0, 41)]
+    edge += [(1, 0, 0, 0, 0, 0)] * 20
+    # [4] 对齐晚检测（自然 tick 已发边界 51）：snap 不改 tod → 不补发，仅相位重锚
+    edge += [(1, 0, 1, 0, 0, 50)] + [(1, 0, 0, 0, 0, 0)] * 11 + [(1, 0, 0, 1, 51, 0)]
+    edge += [(1, 0, 0, 0, 0, 0)] * 20
+    # [5] 对齐早检测（tick 前 1 拍）：补发声明边界 61，次拍自然步进不得双发
+    edge += [(1, 0, 1, 0, 0, 60)] + [(1, 0, 0, 0, 0, 0)] * 8 + [(1, 0, 0, 1, 61, 0)]
+    edge += [(1, 0, 0, 0, 0, 0)] * 20
+    # [6] snap 牵引（§7.4）：±32 边界保持 / ±33 牵引失败负例（§7.6 #1）/ 64 窗跨窗 / 回绕端
+    edge += [(1, 0, 1, 0, 0, 0x00), (1, 0, 0, 1, 0x20, 0)]   # sd=+32 保持 → 0x20
+    edge += [(1, 0, 1, 0, 0, 0x00), (1, 0, 0, 1, 0x21, 0)]   # sd=+33 → −64 → 0xE1（留 −31）
+    edge += [(1, 0, 1, 0, 0, 0x21), (1, 0, 0, 1, 0x00, 0)]   # sd=−33 → +64 → 0x40（留 +31）
+    edge += [(1, 0, 1, 0, 0, 0x20), (1, 0, 0, 1, 0x40, 0)]   # sd=+32 保持 → 0x40
+    edge += [(1, 0, 1, 0, 0, 0x60), (1, 0, 0, 1, 0x40, 0)]   # sd=−32 保持 → 0x40
+    edge += [(1, 0, 1, 0, 0, 0x3F), (1, 0, 0, 1, 0x00, 0)]   # 64 窗跨窗：sd=−63 → +64 → 0x40
+    edge += [(1, 0, 1, 0, 0, 0xFF), (1, 0, 0, 1, 0x01, 0)]   # 窄位宽回绕端：→ 0x01
+    # [7] 装订 + 对齐同拍：装订优先，对齐被忽略（tod=0x55，非 snap 值）
+    edge += [(1, 0, 1, 1, 0x33, 0x55)] + [(1, 0, 0, 0, 0, 0)] * 10
+    # [8] 装订值高位掩码：0xFFFFFF9C → tod=0x9C（din_tod_value[TOD_W-1:0]）
+    edge += [(1, 0, 1, 0, 0, 0xFFFFFF9C)] + [(1, 0, 0, 0, 0, 0)] * 10
+    # [9] 换挡重网格：跳沿按新分频即时重排、仍只落 tick 边界
+    edge += [(1, 0, 1, 0, 0, 0)] + [(1, 0, 0, 0, 0, 0)] * 29   # 3 tick @ht=1
+    edge += [(1, 2, 0, 0, 0, 0)] * 100                          # 10 tick @ht=10：hop 只在 tod=10
+    edge += [(1, 1, 0, 0, 0, 0)] * 60                           # 6 tick @ht=2
+    # [10] 事件间混停表拍 + 解冻后 frac/tod 保持（tick 节拍只数有效拍）
+    edge += [(1, 0, 1, 0, 0, 0x70)] + [(0, 0, 0, 0, 0, 0)] * 5 + [(1, 0, 0, 0, 0, 0)] * 15
+    edge += [(0, 0, 1, 0, 0, 0x99)] * 2 + [(0, 1, 0, 1, 0x11, 0)] * 2
+    edge += [(1, 1, 0, 0, 0, 0)] * 30
+
+    return [
+        ("seq", seq, "装订 200 后自然步进 288 tick（2881 拍）：三档跳速 + rate_sel=3 兜底 + 8 bit 回绕"),
+        ("rand", rand, f"随机换挡 + 随机装订/对齐 + 20% 停表空隙（{len(rand)} 拍，装订值含高位掩码）"),
+        ("edge", edge, "停表携命令 / 装订=声明边界 / 同拍脉冲合并 / 对齐早·晚检测 / snap ±32·±33 / 装订优先 / 换挡"),
+    ]
+
+
+def _export_tod(payload, seed: int):
+    stim_hex, expect_hex = [], []
+    for v, sel, load, align, a, val in payload:
+        stim_hex.append(hex_of_int(pack_fields(
+            (v, 1), (sel, 2), (load, 1), (align, 1), (a, 6), (val, 32)), 43))
+    out = sim_tod(payload, tick_samples=TOD_CMP_TICK_SAMPLES, tod_w=TOD_CMP_TOD_W)
+    for tick, tod_v, hop in out:
+        expect_hex.append(hex_of_int(pack_fields((tick, 1), (tod_v, 32), (hop, 1)), 34))
+    meta = {
+        "stim": {
+            "bits": 43,
+            "packing": "{din_valid, rate_sel[1:0], tod_load, align_valid, align_tod[5:0], tod_value[31:0]}",
+            "frac": None,
+        },
+        "expect": {"bits": 34, "packing": "{tick, tod[31:0], hop_edge}", "frac": None},
+        "tick_samples": TOD_CMP_TICK_SAMPLES,
+        "tod_w": TOD_CMP_TOD_W,
+        "param_note": "缩参比对（冻结 TICK_SAMPLES=8000/TOD_W=32 由 tb_tod_align_long + 黄金自检覆盖）",
+        "n_samples": len(expect_hex),
+        "n_ticks": sum(1 for t, _, _ in out if t),
+        "n_hop_edges": sum(1 for _, _, h in out if h),
+        "n_loads": sum(1 for c in payload if c[2]),
+        "n_aligns": sum(1 for c in payload if c[3]),
+        "n_frozen": sum(1 for c in payload if not c[0]),
+        "stim_period": 1,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -904,6 +1020,11 @@ MODULES = {
         "cases": _nco_hop_cases,
         "export": _export_nco_hop,
         "golden_source": "golden_ref.fixed_point.nco_hop.sim_nco_hop（FTW 表 + 相位连续 NCO）",
+    },
+    "tod": {
+        "cases": _tod_cases,
+        "export": _export_tod,
+        "golden_source": "golden_ref.fixed_point.tod.sim_tod（1 ms tick + 截断 TOD 外推跳沿）",
     },
 }
 
