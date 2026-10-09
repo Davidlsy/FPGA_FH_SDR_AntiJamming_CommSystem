@@ -48,6 +48,8 @@ from golden_ref.fixed_point.fh_pattern import (
 )
 from golden_ref.fixed_point.nco_hop import NCO_HOP_FTW_TABLE, sim_nco_hop
 from golden_ref.fixed_point.tod import sim_tod
+from golden_ref.fixed_point.sync_acq import SYNC_WORD as SYNC_ACQ_SYNC_WORD
+from golden_ref.fixed_point.sync_acq import sim_sync_acq
 from golden_ref.fixed_point.fixed_modules import (
     fixed_pulse_shape,
     fixed_qpsk_modulate,
@@ -958,6 +960,176 @@ def _export_tod(payload, seed: int):
 
 
 # ============================================================
+# sync_acq（S6）：同步字捕获（滑动相关 + 恒虚警门限 + M/N 帧槽确认）
+# —— 口径 docs/spec/s6_fh_interface.md §8
+# ============================================================
+# 激励 = {din_valid, din_bit}（2 bit）每拍一行——din_valid 是数据位，停表拍也是激励行；
+# expect = {hit, acq, frame_start, corr[6:0], thresh[6:0]}（17 bit）。停表拍无输出 →
+# stim/expect 长度解耦（框架契约直接支持）。
+#
+# 比对参数（与 tb_sync_acq_compare.sv 同步冻结）：FRAME_LEN=200（缩参，§8.6 #4）。
+# 冻结 2160 一帧就占 2160 行，多帧状态机长跑装不下；相关/门限语义对 FRAME_LEN 无依赖、
+# 帧槽语义同构。冻结值 2160/M=2/N=3 由 tb_sync_acq_long + stat_sync_acq + 黄金自检覆盖。
+SYNC_ACQ_CMP_FRAME_LEN = 200
+SYNC_ACQ_ANTI_WORD = SYNC_ACQ_SYNC_WORD ^ ((1 << 64) - 1)   # 反相同步字 → corr=0 必 miss
+
+
+def _sync_acq_forced_stream(length: int, forces: dict, seed: int) -> list[int]:
+    """伪随机底 + 强制窗 {窗口末位拍: 64 bit 字（MSB=最早 bit）}。
+
+    强制窗互不重叠（间隔 ≥64）；窗口外伪随机填充（意外命中率 ≈ 2e-7/拍，可忽略，
+    且黄金产出 expect 本身就是真值——比对只对 DUT==黄金）。
+    """
+    rng = np.random.default_rng(seed)
+    bits = [int(b) for b in rng.integers(0, 2, length)]
+    prev = -10**9
+    for t, word in sorted(forces.items()):
+        if not (63 <= t < length) or t - prev < 64:
+            raise RuntimeError(f"强制窗位置非法 t={t} prev={prev} length={length}")
+        for i in range(64):
+            bits[t - 63 + i] = (word >> (63 - i)) & 1
+        prev = t
+    return bits
+
+
+def _sync_acq_cmds(bits: list[int], gaps: list[tuple[int, int]] | None = None):
+    """bit 列表 → (din_valid, din_bit) 命令流；gaps = [(有效拍序号, 拍数)] **插入式**停表。
+
+    停表拍不携带 bit（整拍冻结），有效比特序列不变——冻结语义的不变式
+    （停表版与连续版有效拍输出逐行相等）由黄金自检 [7] 锁定。
+    """
+    gap_at: dict[int, int] = {}
+    for pos, n in gaps or []:
+        gap_at[pos] = gap_at.get(pos, 0) + n
+    out: list[tuple[int, int]] = []
+    for i, b in enumerate(bits):
+        out.append((1, b))
+        out.extend([(0, 0)] * gap_at.get(i, 0))
+    return out
+
+
+def _sync_acq_eq_word(n_flips: int, want_corr: int) -> int:
+    """等号边界用字：翻 n_flips 位的同步字变体，窗末拍 corr == want_corr 且
+    近 16 拍历史和落 [504,519]（est=32 → thresh=52，§8.1 等号语义实拍可见）。
+    历史含滑入段的中间 corr，故按 trial 撒种子搜构造（与黄金自检 [5] 同法）。"""
+    base = [0] * 200
+    for trial in range(400):
+        rng = np.random.default_rng(1000 + trial)
+        flips = rng.choice(64, n_flips, replace=False)
+        word = SYNC_ACQ_SYNC_WORD ^ sum(1 << (63 - int(p)) for p in flips)
+        bits = base + [(word >> (63 - i)) & 1 for i in range(64)]
+        rows = sim_sync_acq([(1, b) for b in bits], frame_len=SYNC_ACQ_CMP_FRAME_LEN)
+        s = sum(r[3] for r in rows[-17:-1])
+        if rows[-1][3] == want_corr and 504 <= s <= 519:
+            return word
+    raise RuntimeError(f"等号边界构造失败 n_flips={n_flips} want_corr={want_corr}")
+
+
+def _sync_acq_cases(seed: int):
+    # 用例载荷 = (din_valid, din_bit) 命令流。
+    # seq：缩参帧流 24 帧×200 bit（帧 = 64 bit 同步字 + 136 bit 伪随机载荷）——
+    #      规则节拍：hit@帧同步字末位拍开候选/槽 2 确认，acq 每 2 帧、fs 每帧。
+    # rand：随机流 + 随机注入同步字/反相同步字 + 20% 插入式停表空隙（事件混流）。
+    # edge：语义边界集中处（零填窗 / hit 等号两侧 / M/N 全边界 / 锁定期 / 伪峰吞真峰 /
+    #      弃候选重开 / 停表拆同步字）。
+    fl = SYNC_ACQ_CMP_FRAME_LEN
+
+    def _word_bits(word: int):
+        return [(word >> (63 - i)) & 1 for i in range(64)]
+
+    # ---- seq：帧流（同步字每 200 bit 一帧）----
+    rng = np.random.default_rng(seed)
+    seq_bits = []
+    for _ in range(24):
+        seq_bits += _word_bits(SYNC_ACQ_SYNC_WORD)
+        seq_bits += [int(b) for b in rng.integers(0, 2, fl - 64)]
+    seq = [(1, b) for b in seq_bits]
+
+    # ---- rand：随机 + 注入同步字/反相同步字 + 停表 ----
+    forces = {}
+    t = 100
+    for k in range(24):
+        forces[t] = SYNC_ACQ_SYNC_WORD if k % 2 == 0 else SYNC_ACQ_ANTI_WORD
+        t += int(rng.integers(64, 400))
+    rand_bits = _sync_acq_forced_stream(6000, forces, seed + 1)
+    gaps = []
+    for i in range(0, 6000, 37):                        # ~20% 拍后插 1..3 停表拍
+        gaps.append((i, int(rng.integers(1, 4))))
+    rand = _sync_acq_cmds(rand_bits, gaps)
+
+    # ---- edge：语义边界（强制窗驱动，末位拍为锚点）----
+    t0 = 63
+    forces_e = {
+        # [A] 复位零填窗（前 64 bit 即同步字 → 63 拍 corr=64）+ 槽 2 确认（延迟 1 帧）
+        t0: SYNC_ACQ_SYNC_WORD,
+        t0 + fl: SYNC_ACQ_SYNC_WORD,
+        # [B] 槽 3 凑满确认（声明优先于弃候选）：hit / miss / hit
+        463: SYNC_ACQ_SYNC_WORD,
+        463 + fl: SYNC_ACQ_ANTI_WORD,
+        463 + 2 * fl: SYNC_ACQ_SYNC_WORD,
+        # [C] 弃候选（hit / miss / miss）后无粘滞重开并槽 2 确认
+        1063: SYNC_ACQ_SYNC_WORD,
+        1063 + fl: SYNC_ACQ_ANTI_WORD,
+        1063 + 2 * fl: SYNC_ACQ_ANTI_WORD,
+        1563: SYNC_ACQ_SYNC_WORD,
+        1563 + fl: SYNC_ACQ_SYNC_WORD,
+        # [D] 锁定期 hit 忽略且 timer 不重置：开候选 + 100 拍的 hit 被吞，槽 2 仍在 +200
+        1963: SYNC_ACQ_SYNC_WORD,
+        2063: SYNC_ACQ_SYNC_WORD,
+        2163: SYNC_ACQ_SYNC_WORD,
+        # [E] 伪峰吞真峰后重捕：伪峰开候选 → 真峰落锁定期 → 槽 2/3 miss 弃 → 真峰重开确认
+        2363: SYNC_ACQ_SYNC_WORD,
+        2463: SYNC_ACQ_SYNC_WORD,
+        2563: SYNC_ACQ_ANTI_WORD,
+        2763: SYNC_ACQ_ANTI_WORD,
+        2863: SYNC_ACQ_SYNC_WORD,
+        3063: SYNC_ACQ_SYNC_WORD,
+    }
+    edge_bits = _sync_acq_forced_stream(3400, forces_e, seed + 2)
+    # [F] hit 等号两侧（独立 200 零底 + 翻转字，构造同黄金自检 [5]）：
+    #     12 翻 → corr=52 == thresh → 命中；13 翻 → corr=51 → 不命中
+    eq_hit = _sync_acq_eq_word(12, 52)
+    eq_miss = _sync_acq_eq_word(13, 51)
+    edge_bits += [0] * 200 + _word_bits(eq_hit)
+    edge_bits += [0] * 200 + _word_bits(eq_miss)
+    # 停表空隙钉在同步字中段（拆字）/ 槽位拍前 / acq 拍前后——冻结语义最易错的位置
+    gaps_e = [(62, 5), (262, 3), (862, 7), (863, 2), (1562, 4),
+              (2162, 6), (3062, 3), (3063, 2), (3400 + 200 + 62, 5)]
+    edge = _sync_acq_cmds(edge_bits, gaps_e)
+
+    return [
+        ("seq", seq, f"缩参帧流 24 帧×{fl} bit（同步字+136 载荷）：规则节拍 acq 每 2 帧、fs 每帧"),
+        ("rand", rand, f"随机 + 注入同步字/反相字 ×24 + ~20% 插入式停表（{len(rand)} 拍）"),
+        ("edge", edge, "零填窗 / hit 等号两侧 / M/N 全边界 / 锁定期 / 伪峰吞真峰 / 弃候选重开 / 停表拆字"),
+    ]
+
+
+def _export_sync_acq(payload, seed: int):
+    stim_hex, expect_hex = [], []
+    for v, b in payload:
+        stim_hex.append(hex_of_int(pack_fields((v, 1), (b, 1)), 2))
+    out = sim_sync_acq(payload, frame_len=SYNC_ACQ_CMP_FRAME_LEN)
+    for hit, acq, fs, corr, thresh in out:
+        expect_hex.append(hex_of_int(pack_fields(
+            (hit, 1), (acq, 1), (fs, 1), (corr, 7), (thresh, 7)), 17))
+    meta = {
+        "stim": {"bits": 2, "packing": "{din_valid, din_bit}", "frac": None},
+        "expect": {"bits": 17,
+                   "packing": "{hit, acq, frame_start, corr[6:0], thresh[6:0]}", "frac": None},
+        "frame_len": SYNC_ACQ_CMP_FRAME_LEN,
+        "param_note": "缩参比对（冻结 FRAME_LEN=2160 由 tb_sync_acq_long + stat_sync_acq + 黄金自检覆盖）",
+        "sync_word": f"0x{SYNC_ACQ_SYNC_WORD:016X}",
+        "n_hits": sum(1 for h, _, _, _, _ in out if h),
+        "n_acqs": sum(1 for _, a, _, _, _ in out if a),
+        "n_frame_starts": sum(1 for _, _, f, _, _ in out if f),
+        "n_frozen": sum(1 for v, _ in payload if not v),
+        "n_samples": len(expect_hex),
+        "stim_period": 1,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -1025,6 +1197,11 @@ MODULES = {
         "cases": _tod_cases,
         "export": _export_tod,
         "golden_source": "golden_ref.fixed_point.tod.sim_tod（1 ms tick + 截断 TOD 外推跳沿）",
+    },
+    "sync_acq": {
+        "cases": _sync_acq_cases,
+        "export": _export_sync_acq,
+        "golden_source": "golden_ref.fixed_point.sync_acq.sim_sync_acq（滑动相关 + 恒虚警门限 + M/N 帧槽确认）",
     },
 }
 

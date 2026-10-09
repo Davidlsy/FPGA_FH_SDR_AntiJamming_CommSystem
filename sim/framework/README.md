@@ -188,7 +188,7 @@ xsim snap_<module> -runall
 
 发射链按 `qpsk_map` → `conv_enc` → `frame_tx`（P1）→ `blk_inter`（P2）→ `srrc_duc`（P3）
 逐个在 `MODULES` 里注册；接收链（S5）按 `ddc_rx` / `blk_deinter` / `viterbi_dec` 接入；
-跳频层（S6）按 `fh_ctrl` → `nco_hop` → `tod` 接入。
+跳频层（S6）按 `fh_ctrl` → `nco_hop` → `tod` → `sync_acq` 接入。
 
 | 模块 | 状态 | 用例（`vectors/<模块>/`） | 拍数关系 |
 |---|---|---|---|
@@ -205,6 +205,7 @@ xsim snap_<module> -runall
 | `fh_ctrl` | **已接入**（S6 #1） | `seq` 16384→16384、`rand` 16388→16384、`edge` 804→768 | 命令:跳 = M:1（加载拍不出数，N:M 解耦直用） |
 | `nco_hop` | **已接入**（S6 #2） | `seq` 2048→2048、`rand` 4099→3171、`edge` 209→201 | 冻结拍不出数（din_valid 门控，N:M 解耦直用） |
 | `tod` | **已接入**（S6 #3） | `seq` 2881→2881、`rand` 6101→4921、`edge` 581→568 | 时基停表拍不出数（din_valid 门控，N:M 解耦直用） |
+| `sync_acq` | **已接入**（S6 #4） | `seq` 4800→4800、`rand` 6330→6000、`edge` 3965→3928 | 捕获停表拍不出数（din_valid 门控，N:M 解耦直用） |
 
 - N:M 模块靠框架的两条契约（长度解耦、激励节奏）接入，只需写 `cases`/`export` 与 DUT 接线；
   接收链另备第三条契约（`SKIP_OUT` 前导跳过，自测 `positive 接收链形状` 覆盖），但 `sync_rx`
@@ -255,4 +256,14 @@ xsim snap_<module> -runall
   语义对参数无依赖；冻结值本身由 `tb_tod_align_long`（真实 8000/32 + 时序判据）与黄金自检覆盖。
   7 相位长跑自含激励（双 `tod` + 双 `fh_ctrl` 收发互比）：对齐误差 max 100 拍 ≤ ±2000 判据、
   tick 节拍 0 错、`hop_index`/`channel` 逐跳相等、40 tick 自由外推 `drift_err=0`。
+- `sync_acq` 位真比对 **已完整接入**（S6 #4，2026-10-09）：TB `tb/tb_sync_acq_compare.sv`、
+  分项入口 `sim/run_sync_acq_check.bat`（seq / rand / edge 三用例 + `tb_sync_acq_long` 长跑串跑），
+  逐拍 `{hit, acq, frame_start, corr[6:0], thresh[6:0]}` `errors=0`（seq 4800、rand 6000、edge 3928 拍）。
+  激励总线 2 bit `{din_valid, din_bit}`、期望总线 18 bit；**din_valid 是数据位**（停表拍要能进向量），
+  停表拍不出数直接落在长度解耦上（rand 6330 → 6000、edge 3965 → 3928）。
+  比对缩参 `FRAME_LEN=200`（冻结 2160 单帧占 2160 行，语义对帧长无依赖），同步字 64 bit、
+  M/N=2/3、门限参数均按冻结值比对；冻结值本身由 `tb_sync_acq_long`（真实 2160/M=2/N=3 +
+  噪声段无误声明 / 捕获延迟恰 2160 有效拍 / frame_start 与同步字末位拍重合）与黄金自检覆盖。
+  统计判据 `stat_sync_acq.py` → `data/s6_sync_acq/`（Pfa 解析联合界 2.25e-10 ≤ 1e-6、
+  Pd(0 dB)=1.0000 ≥ 0.99，Pd/Pfa 曲线 + SNR 表 + 报告）。
 - 整链环回（S8）复用同一比对器，只换顶层与向量。

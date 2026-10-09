@@ -1,0 +1,31 @@
+{
+  "module": "sync_acq",
+  "case": "edge",
+  "stim_rows": 3965,
+  "expect_rows": 3928,
+  "count": 3928,
+  "case_note": "零填窗 / hit 等号两侧 / M/N 全边界 / 锁定期 / 伪峰吞真峰 / 弃候选重开 / 停表拆字",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.sync_acq.sim_sync_acq（滑动相关 + 恒虚警门限 + M/N 帧槽确认）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-09T21:34:15+08:00",
+  "stim": {
+    "bits": 2,
+    "packing": "{din_valid, din_bit}",
+    "frac": null
+  },
+  "expect": {
+    "bits": 17,
+    "packing": "{hit, acq, frame_start, corr[6:0], thresh[6:0]}",
+    "frac": null
+  },
+  "frame_len": 200,
+  "param_note": "缩参比对（冻结 FRAME_LEN=2160 由 tb_sync_acq_long + stat_sync_acq + 黄金自检覆盖）",
+  "sync_word": "0x517AE4216E7555CA",
+  "n_hits": 15,
+  "n_acqs": 5,
+  "n_frame_starts": 13,
+  "n_frozen": 37,
+  "n_samples": 3928,
+  "stim_period": 1
+}
