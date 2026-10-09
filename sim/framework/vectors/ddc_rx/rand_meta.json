@@ -8,7 +8,7 @@
   "seed": 20260924,
   "golden_source": "golden_ref.fixed_point.rx_modules.fixed_ddc_rx（CIC 抽取 + 匹配 FIR）",
   "golden_ref_version": "1.0.0",
-  "generated_at": "2026-10-08T21:05:17+08:00",
+  "generated_at": "2026-10-09T13:22:58+08:00",
   "stim": {
     "bits": 24,
     "packing": "{i[11:0], q[11:0]}",

@@ -115,6 +115,9 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S4-P3 | `srrc_duc` 手写多相版 + FIR Compiler IP 版 + NCO/DUC 混频；三项决策冻结 | **完成**（2026-10-07 收口：两版逐拍位真一致，四套件各 8712 拍 0 错误；NCO/DUC SFDR −85.45 dBc 达标） | `src/srrc_duc{,_fir}.v`、`sim/run_srrc{,_fir}_check.bat`、`docs/spec/s4_tx_interface.md` §6.1/§8、`docs/spec/s4_tx_p3_freeze_draft.md`、`sim/golden_ref/sim/sfdr_analysis.py`；**S4 报告尚未补 P3 章节** |
 | S4-P4 | IP vs 手写三栏对比（资源 / Fmax / SFDR） | **完成**（2026-10-08：手写版 LUT 5581/FF 523/DSP 18/Fmax 33.79 MHz；FIR IP 版 LUT 5261/FF 1256/DSP 18/Fmax 59.13 MHz；两版 61.44 MHz 下均时序违规，见已知边界） | `build/p4_compare.tcl`、`docs/report/s4-p4-ip-vs-handwritten-comparison.html` |
 | S4-P5 | 五模块整链收口（`frame_tx`→`conv_enc`→`blk_inter`→速率适配→`qpsk_map`→`srrc_duc` 串联位真比对） | **完成**（2026-10-08：随机帧载荷端到端 256 字节 → 8712 采样，frame/edge 两用例各 8712 拍 0 错误，**S4 出口门槛达成**） | `src/tx_chain_top.v`、`sim/run_tx_chain_check.bat`、`sim/framework/tb/tb_tx_chain_compare.sv`、`sim/framework/export_vectors.py`（新增 tx_chain 端到端向量） |
+| S5-P0/预备 | 接收链接口冻结 + 黄金参考补齐（DDC/同步/Viterbi/解交织）+ 框架 `SKIP_OUT` 与接收链向量导出 | **完成**（2026-10-08：P0 四项决策冻结；黄金模型自检 24/24、框架自测 9/9） | `docs/spec/s5_rx_interface.md`、`sim/golden_ref/fixed_point/rx_modules.py`、`sim/framework/export_vectors.py` |
+| S5 #2 | `ddc_rx` 数字下变频：CIC 3 级抽取（D=4，48 bit 卷绕）+ 33 抽头匹配 FIR，RTL + 位真比对 | **完成**（2026-10-09：rand 8064 拍、edge 320 拍逐拍 0 错误；黄金模型自检 27/27） | `src/ddc_rx.v`、`sim/run_ddc_rx_check.bat`、`sim/framework/tb/tb_ddc_rx_compare.sv` |
+| S5 #3 | `sync_rx` 符号级同步：位真语义 + **同步环参数标定冻结**（Q1.19）+ RTL + 位真比对 | **完成**（2026-10-09：rand/freq/rate/edge 四用例共 2160 符号逐符号 0 错误；标定 126 例全过） | `src/sync_rx.v`、`sim/run_sync_rx_check.bat`、`sim/framework/tb/tb_sync_rx_compare.sv`、`docs/spec/fixed_point_spec.md` v1.1 §3.4 |
 
 ### 已知边界
 
@@ -124,10 +127,12 @@ vivado -mode batch -source build/create_smoke_project.tcl
   均在板卡到货后补。人读引脚表与状态总览见 `docs/pins.md`。
 - S2 五项之间没有联合仿真：RF 侧（信道 + 干扰源）接口一致但未串联，控制侧（SPI / AXI）与 RF 侧
   也无交叉；登记见 `sim/README.md` §6 与 `docs/report/s2_verification.md` §5/§6。
-- `sim/framework/` 的比对框架现已由**六个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
-  / `srrc_duc` 手写版与 FIR IP 版）在使用，并为此扩展成"激励/期望长度解耦 + 激励节奏"（S4-P0）：
-  原实现只支持一入一出，装不下成帧（256 拍进 / 2160 拍出）与上采样这类 N:M 模块。框架自测因此从
-  4 项扩到 8 项，每条新判据都配了专门证伪它的用例。**尚未用过框架的是接收链与跳频层**。
+- `sim/framework/` 的比对框架现已由**九个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
+  / `srrc_duc` 手写版与 FIR IP 版 / `tx_chain` / `sync_rx` / `ddc_rx`）在使用，并为此扩展成"激励/期望长度解耦 +
+  激励节奏 + 前导跳过"（S4-P0 / S5）：原实现只支持一入一出，装不下成帧（256 拍进 / 2160 拍出）、
+  上采样这类 N:M 模块与 4:1 同步环。每加一条判据都配了专门证伪它的用例（`sim/framework/README.md` §7）。
+  **尚未用过框架的只剩跳频层**；接收链中 `sync_rx` / `ddc_rx` 已完整位真接入（0 错误），`blk_deinter`
+  / `viterbi_dec` 只到"向量已导出"，RTL/TB 待做。
 - S4 的五个模块现已全部落地（`frame_tx` / `conv_enc` / `blk_inter` / `qpsk_map` / `srrc_duc` 双版），
   P0–P5 已收口，**任务卡的 S4 出口门槛已达成**（五模块位真比对全过：单模块 + IP 对比 + 整链端到端）。
   `docs/report/s4_verification.md` 尚未补 P3–P5 章节，引用 P3/P4/P5 结论分别以
@@ -152,8 +157,19 @@ vivado -mode batch -source build/create_smoke_project.tcl
   仍写"P3–P5 未开始"），引用 P3 结论时以 `docs/spec/s4_tx_interface.md` §0/§6.1/§8 为准。
 - `srrc_duc` 用 S1 冻结的 **33 抽头**（`span 8 × sps 4 + 1`），与任务卡写的"31 抽头"是有意偏差：
   位真裁判必须同源，改抽头数要重跑 S1 BER 基线。登记在 `docs/spec/s4_tx_interface.md` §7。
-- `docs/spec/freeze_status.json` 只覆盖 S1 定点规格（v1.0），未覆盖 S4 接口规格 v1.1；S4 的冻结
-  状态以 `docs/spec/s4_tx_interface.md` §0 为准。
+- `docs/spec/freeze_status.json` 覆盖定点规格（v1.1 = S1 位宽 2026-09-22 + `sync_rx` 同步环参数
+  2026-10-09），未覆盖 S4/S5 接口规格；两者的冻结状态分别以 `docs/spec/s4_tx_interface.md` §0、
+  `docs/spec/s5_rx_interface.md` §0（v1.2）为准。
+- **S5 `sync_rx` 的证据口径**：rand/freq/rate/edge 四用例共 2160 符号逐符号位真 0 错误，由
+  `sim/run_sync_rx_check.bat` 串跑给出（日志 `sim/logs/sync_rx_*`）。同步环 Q1.19 系数的唯一来源是
+  `config.RX_CONFIG`（`fixed_point_spec.md` v1.1 §3.4 只是它的渲染）；改系数必须依次重跑
+  `calib_sync_rx.py` 标定 → `export_vectors.py --module sync_rx` 重导向量 → `run_sync_rx_check.bat`，
+  三步缺一即失去"位真裁判同源"。
+- **S5 `ddc_rx` 的证据口径**：rand/edge 两用例共 8384 拍逐拍位真 0 错误（激励 32128 + 1152 拍 →
+  期望 8064 + 320 拍，D = 4 抽取），由 `sim/run_ddc_rx_check.bat` 串跑给出（日志 `sim/logs/ddc_rx_*`）。
+  黄金裁判 `fixed_ddc_rx` 的匹配 FIR 输出侧是 **Q3.11 整数刻度**，末级量化只剩 round half-to-even +
+  饱和，**不能再走 `quantize`（幅度语义会二次量化、刻度翻倍全体饱和）**——踩过一次的坑，
+  改模型前先读 `rx_modules.py` 该处注释；`check_rx.py` 27/27 是该修复后的自检口径。
 - `blk_inter` 的两种存储实现（`blk_mem_gen` IP 版与 RTL 推断版）已跑同一套向量、位真一致；
   资源/时序的定量对比属 P4，本阶段不出口径。
 - S4 长跑判据（1000 帧 / 10⁶ bit）的向量体积约 9 MB，按 `.gitignore` 的"S4 长跑向量"段不入库，
@@ -192,6 +208,9 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── srrc_coeff.vh           #   S4-P3 SRRC 33 抽头系数（生成物，见 sim/golden_ref/gen_srrc_duc.py）
 │   ├── srrc_fir.coe            #   S4-P3 FIR Compiler 系数源（.coe → IP，产物 build/ip/fir_compiler/）
 │   ├── nco_lut.mem             #   S4-P3 NCO 四分之一波 LUT（16384 × 16 bit，$readmemh 加载）
+│   ├── tx_chain_top.v          #   S4-P5 发射链整链串联顶层（五模块 + blk_inter→qpsk_map 符号速率适配）
+│   ├── ddc_rx.v                #   S5 数字下变频：CIC 3 级抽取（D=4）+ 33 抽头匹配 FIR（12 bit ADC → 4 sps Q3.11）
+│   ├── sync_rx.v               #   S5 符号级同步：二阶 Costas + 早迟门定时 + 软解调（1/符号更新）
 │   └── constraints/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
@@ -206,15 +225,19 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── run_s4_acceptance.ps1   #   S4 统一验收：位真比对 + 证伪用例 → [S4 ACCEPTANCE]（-Full 带长跑判据）
 │   ├── run_srrc_check.bat      #   S4-P3 srrc_duc 手写版分项跑（frame / edge 两套件）
 │   ├── run_srrc_fir_check.bat  #   S4-P3 srrc_duc_fir FIR IP 版分项跑（需先建 build/ip/fir_compiler）
+│   ├── run_tx_chain_check.bat  #   S4-P5 发射链整链位真比对（frame / edge 两用例）
+│   ├── run_ddc_rx_check.bat    #   S5 ddc_rx 位真比对（rand / edge 两用例串跑）
+│   ├── run_sync_rx_check.bat   #   S5 sync_rx 位真比对（rand / freq / rate / edge 四用例串跑）
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
 │   │   ├── README.md           #     向量契约 / TB 时序契约 / 判据 / 自测结论 / 有意偏离
 │   │   ├── export_vectors.py   #     从 golden_ref 确定性导出向量（--case long 出长跑向量，不入库）
-│   │   ├── run_selftest.ps1    #     框架自测 8 项（含 1:N 长度解耦与激励节奏契约；另有 .bat）
+│   │   ├── run_selftest.ps1    #     框架自测（长度解耦 / 激励节奏 / 前导跳过等契约各有证伪用例；另有 .bat）
 │   │   ├── hdl/tb_vec_cmp.sv   #     逐拍比对器：stim/expect 长度解耦 + stim_period 节奏 + stim_count
 │   │   ├── tb/                 #     各模块 TB（见下）
 │   │   │   ├── tb_vector_selftest.sv        #   框架自测用例
 │   │   │   ├── tb_module_template.sv        #   新模块 TB 模板（照 README §6 十分钟起一个）
 │   │   │   ├── tb_{qpsk_map,conv_enc,frame_tx,blk_inter,srrc_duc}_compare.sv  # 五模块位真 TB（-d 切用例）
+│   │   │   ├── tb_{tx_chain,sync_rx,ddc_rx}_compare.sv  #  S4-P5 整链 / S5 sync_rx、ddc_rx 位真 TB
 │   │   │   ├── tb_srrc_duc_fir_compare.sv   #   FIR IP 版 SRRC TB（与手写版同向量同判据）
 │   │   │   ├── tb_blk_inter_burst.sv        #   blk_inter 突发打散量化（TB 侧带独立解交织模型）
 │   │   │   └── tb_fir_check.sv              #   FIR Compiler IP 单体对齐核验（延迟 / 前 3 拍空转）
@@ -241,15 +264,17 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── vip/                    #   S2 PS/PL 协同仿真环境（AXI VIP 主端 + PS 软件序列；gen/ 本地生成可重建）
 │   ├── golden_ref/             #   S1 黄金参考链（Python 包 golden_ref）——全工程唯一正确性基准
 │   │   ├── README.md           #     复现入口与包内约定
-│   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）+ FRAME_* + DUC_CONFIG
+│   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）+ RX_CONFIG（接收链）+ FRAME_* + DUC_CONFIG
 │   │   ├── run_ber.py          #     BER 仿真入口 → data/s1_ber_baseline/
 │   │   ├── generate_spec.py    #     生成定点规格书 → docs/spec/
 │   │   ├── gen_frame_sync.py   #     S4 帧同步字 → src/frame_tx_sync.vh（带 --check）
 │   │   ├── gen_srrc_duc.py     #     S4-P3 系数与 LUT → src/srrc_coeff.vh、src/nco_lut.mem、src/srrc_fir.coe
+│   │   ├── calib_sync_rx.py    #     S5 sync_rx 环路系数标定（工况×种子×幅度 126 例 → Q1.19 冻结值）
 │   │   ├── float_chain/        #     浮点模块（卷积/交织/QPSK/SRRC/AWGN/同步/Viterbi）
 │   │   │   └── framing.py      #       S4 帧层裁判：m 序列 / Gold / CRC16 / 成帧与解析
 │   │   ├── fixed_point/        #     定点模块 + 量化器
-│   │   │   └── duc.py          #       S4-P3 DUC 裁判：NCO 相位累加 + 四分之一波 LUT + 复数混频
+│   │   │   ├── duc.py          #       S4-P3 DUC 裁判：NCO 相位累加 + 四分之一波 LUT + 复数混频
+│   │   │   └── rx_modules.py   #       S5 接收链位真裁判：fixed_ddc_rx / fixed_sync_rx_hw / 解交织 / Viterbi
 │   │   └── sim/                #     链路 BER 仿真 + SNR 损失分析 + 帧层 / DUC / SFDR 自检
 │   │       └── sfdr_analysis.py  #    S4-P3 SFDR：NCO/DUC 判据项（−85.45 dBc）+ SRRC 频谱报告项
 │   ├── float_ref/              #   V2.x MATLAB 归档链重跑与对照（对照证据，不是基准）
@@ -286,11 +311,13 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
     ├── s4-tx-chain-implementation-dark.html    # S4 TX 链实现说明（约 4.3 MB，内嵌字体）
     ├── pins.md                 # 人读引脚映射表（与 board/fhss_zynq_pins.xdc 1:1，含待填清单与状态总览）
     ├── spec/
-    │   ├── fixed_point_spec.md #   S1 定点规格书（评审冻结基准，由 generate_spec.py 生成）
+    │   ├── fixed_point_spec.md #   定点规格书 v1.1（S1 位宽 + S5 sync_rx 同步环参数 §3.4，由 generate_spec.py 生成）
     │   ├── frame_format.md     #   S4 帧格式规格书（帧层首次定义，已冻结）
     │   ├── s4_tx_interface.md  #   S4 发射链接口规格书 v1.1（流控 / 位序 / 拍数账本 / NCO 语义 / §8 P3 冻结记录）
     │   ├── s4_tx_p3_freeze_draft.md  # S4-P3 三项冻结决策全文（含 2026-10-07 评审确认结果）
-    │   └── freeze_status.json  #   S1 定点规格冻结状态的机器可读来源
+    │   ├── s5_rx_interface.md  #   S5 接收链接口规格书 v1.2（逆映射 / 拍数账本 / 同步环语义，环路参数已解悬置）
+    │   ├── s5_rx_p0_freeze_draft.md  # S5 P0 四项决策全文（含 2026-10-08 评审确认结果）
+    │   └── freeze_status.json  #   定点规格冻结状态（v1.1）的机器可读来源
     ├── report/
     │   ├── env.md              #   开发环境记录
     │   ├── s1_archive_compare.md  # S1 MATLAB 归档对照报告

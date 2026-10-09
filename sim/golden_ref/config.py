@@ -152,17 +152,34 @@ RX_CONFIG = {
     "cic_diff_delay": 1,     # 微分延迟 M
     "cic_acc_w": 48,         # 积分器 / 梳状器累加器位宽（任务卡指定；DSP48E1 原生宽度）
     # CIC 增益 = (D·M)^N = 4^3 = 64 = 2^6 → 输出右移 6 位还原单位增益（round half-to-even）
-    # --- 同步环（结构冻结；系数为初值，待 #5 收敛性验证标定后更新本组）---
-    "sync_acc_w": 16,        # 相位 / 定时累加器位宽（§4.2 冻结）
+    # --- 同步环（结构与位宽 P0 冻结；系数数值 #3 标定冻结，见下 _q19 组）---
+    "sync_acc_w": 16,        # 相位 / 定时累加器位宽（§4.2 冻结）：phase/freq/mu/dt 四态统一 16 bit 卷绕
     "sync_coeff_w": 20,      # 环路系数定点位宽
     "sync_coeff_frac": 19,   # 环路系数小数位（Q1.19：Ki ~1e-4 才有足够分辨率）
-    # 二阶环初值：ζ = 0.707、归一化带宽 B_n ≈ 5e-3（B_L ≈ 2.5 kHz @ 500 ksps），
-    # 按 Kp = 4ζB_n/(1+2ζB_n+B_n²)、Ki = 4B_n²/(1+2ζB_n+B_n²) 取——
-    # **仅为初值**，判别器增益并入后须在 #5 重新标定（见 s5_rx_p0_freeze_draft.md §2.3）
-    "costas_kp": 0.0140,
-    "costas_ki": 0.000099,
-    "timing_kp": 0.0140,
-    "timing_ki": 0.000099,
+    "sync_err_w": 16,        # 误差字（pe / te）位宽，Q3.11（引出 phase_err / timing_err）
+    "sync_err_frac": 11,
+    # 环路系数 **Q1.19 冻结值**（#3 标定，2026-10-09）—— sync_rx RTL / 向量 / 位真模型的唯一来源。
+    # 语义：inc = round_he(err × coef, 14)（14 = err_frac + coeff_frac − acc_w），系数 =
+    # 每单位误差对应的卷绕周期数（载波：相位周期 2π / 误差；定时：符号周期 4 采样 / 误差）。
+    # 等效浮点值（与候选实现 fixed_costas_timing_rx 的口径互换）：
+    #   载波 Kp_f = Kp_q19·2π/2^19、Ki_f = Ki_q19·2π/2^19；定时 Kp_f = Kp_q19/2^17、Ki_f = Ki_q19/2^17
+    #
+    # 标定来源 `sim/golden_ref/calib_sync_rx.py`（A/B/C/D 工况 × 6 种子 × 3 幅度 = 126 例全过）。
+    # 两个必须记住的教训：
+    #   1. **早迟门误差极性** = |late|² − |early|²。用 |early|²−|late|² 配 `mu += Kp·te` 是正反馈，
+    #      mu 在 ±2 采样间乱跳、采样点滑出符号峰；而**载波残差判据察觉不到**（照样过检）。
+    #   2. **Ki 必须高于整数乘积的量化死区**：Ki 太小时 (te×Ki, 14) 恒舍入为 0，积分路径不走。
+    #      定时 Ki 在半幅度下尤其明显（误差 ∝ A²）：Ki_t=13 时 mu 卡死不跟 500ppm 漂移，
+    #      Ki_t=104 才干净跟住（resid 0.25 → 0.033）。
+    "costas_kp_q19": 2336,   # 等效 Kp_f ≈ 0.02800
+    "costas_ki_q19": 64,     # 等效 Ki_f ≈ 0.000767
+    "timing_kp_q19": 1835,   # 等效 Kp_f ≈ 0.01400
+    "timing_ki_q19": 104,    # 等效 Ki_f ≈ 0.000793
+    # 以下四个浮点字段只服务候选实现 fixed_costas_timing_rx（收敛性交叉对照），非 RTL 来源
+    "costas_kp": 0.02800,
+    "costas_ki": 0.000767,
+    "timing_kp": 0.01400,
+    "timing_ki": 0.000793,
     "costas_damping": 0.707,
     # --- Viterbi（位宽继承 S1 FIXED_POINT_CONFIG 的 viterbi_metric/pm）---
     "viterbi_tb_depth": 96,  # 回溯深度（任务卡指定）

@@ -1,0 +1,41 @@
+{
+  "module": "sync_rx",
+  "case": "rand",
+  "stim_rows": 2464,
+  "expect_rows": 616,
+  "count": 616,
+  "case_note": "600 QPSK 符号成形+匹配滤波（全卷积拖尾 → 2464 采样）无损伤基线",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.rx_modules.fixed_sync_rx_hw（Costas + 早迟门 + 软解调）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-09T11:42:41+08:00",
+  "stim": {
+    "bits": 28,
+    "packing": "{i_in[13:0], q_in[13:0]}",
+    "frac": 11,
+    "rate": "4 sps"
+  },
+  "expect": {
+    "bits": 76,
+    "packing": "{sym_i[13:0], sym_q[13:0], soft_i[7:0], soft_q[7:0], pe[15:0], te[15:0]}",
+    "field_frac": {
+      "sym": 11,
+      "soft": 5,
+      "pe": 11,
+      "te": 11
+    },
+    "rate": "1 sps（早迟门 4:1 取样）"
+  },
+  "n_sym": 616,
+  "loop_coeffs_q19": {
+    "costas_kp_q19": 2336,
+    "costas_ki_q19": 64,
+    "timing_kp_q19": 1835,
+    "timing_ki_q19": 104
+  },
+  "mu_range_samp": [
+    -0.0108642578125,
+    0.04901123046875
+  ],
+  "stim_period": 1
+}

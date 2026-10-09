@@ -47,11 +47,13 @@ from golden_ref.fixed_point.fixed_modules import (
 )
 from golden_ref.fixed_point.rx_modules import (
     fixed_ddc_rx,
+    fixed_sync_rx_hw,
     fixed_viterbi_hw,
     rx_adc_quantize,
     soft_deinterleave,
     upsample_bandlimited,
 )
+from golden_ref.calib_sync_rx import impair, mk_mf_int
 from golden_ref.float_chain.conv_encoder import conv_encode
 from golden_ref.float_chain.framing import build_frame_bits
 from golden_ref.float_chain.interleaver import block_interleave
@@ -424,8 +426,9 @@ def _export_tx_chain(payloads, seed: int):
 # 接收链是发射链的逆（见 docs/spec/s5_rx_interface.md §2/§3）。位真裁判来自
 # sim/golden_ref/fixed_point/rx_modules.py。
 #
-# sync_rx **暂不注册**：它的环路参数属 S5 的出口产物（#5 收敛性验证后才写入定点规格书
-# 修订版），现在导出向量等于把一个会变的参考固化下来，反而制造返工——待 #5 标定后再接入。
+# sync_rx 的环路系数已按 #3 标定**冻结**（config.RX_CONFIG 的 Q1.19 值），故向量是
+# 冻结参考而非草稿；信号构造与标定器共用 golden_ref/calib_sync_rx.py 的 mk_mf_int /
+# impair（同一套损伤模型，不另抄一份）。
 RX_DECIM = RX_CONFIG["cic_decim"]
 # 接收链软判决 8bit/5 小数（S1 冻结）；理想强软值取 ±3.5（满量程 3.96875，避免饱和）
 RX_SOFT_STRONG = 3.5
@@ -571,6 +574,110 @@ def _export_viterbi_dec(payload, seed: int):
 
 
 # ============================================================
+# sync_rx（S5）：符号级同步 —— Costas 载波环 + 早迟门定时 + 软解调
+# ============================================================
+# 激励 = 4 sps 复采样 Q3.11 整数；expect 把 sync_rx 的**全部输出**一拍打包（76 bit）：
+# 判决符号 + 双路软判决 + pe/te。环路状态一旦走岔，pe/te 会先于符号暴露出来。
+# 位真比对从第 1 个符号起（SKIP_OUT=0）：golden 模型与 RTL 共享复位状态，暂态是确定的，
+# 不需要"收敛后再比"——§6 第 3 条的收敛窗口是判"解调对错"的口径，不是位真比对的口径。
+SYNC_IN_W = 14   # din_data 单路位宽（Q3.11）
+SYNC_N_SYM = 600  # rand/freq 用例符号数（= calib 的工况长度）
+
+
+def _sync_sat14(a):
+    """损伤后重量化到 din_data 的 14 bit 端口（RTL 口装不下的部分按饱和丢弃）。
+
+    频偏旋转保复数幅度但 I/Q 各自可到 |z|（≈√2×峰值），故满幅信号损伤后会超出
+    14 bit——真实链路里 ddc_rx 输出就是 14 bit，这里同样饱和后再喂模型与 RTL。
+    """
+    return np.clip(a, -(1 << (SYNC_IN_W - 1)), (1 << (SYNC_IN_W - 1)) - 1).astype(np.int64)
+
+
+def _sync_rx_cases(seed: int):
+    """用例载荷 = (i_int, q_int) 一对 Q3.11 整数序列（长度 4 的整数倍）。
+
+    rand/freq/rate 与 calib_sync_rx.py 的 B/A1/D 工况同构（同一 mk_mf_int / impair），
+    rate 取 ±750 ppm 双段：mu 扫过近 ±2 采样，抽头窗 j0 = 1−(mu>>>14) 的 4 个取值
+    全部走到——这是 sync_rx 组合逻辑里最容易写错的一处，向量必须踩到。
+    """
+    i0, q0 = mk_mf_int(n_sym=SYNC_N_SYM, seed=seed)
+
+    # rate：±750 ppm 真时间轴拉伸（calib impair 的 ppm 语义），前后两段反号
+    n_seg = 400 * 4
+    ir, qr = mk_mf_int(n_sym=800, seed=seed)
+    ip, qp = impair(ir[:n_seg], qr[:n_seg], ppm=+750e-6)
+    in_, qn = impair(ir[n_seg:], qr[n_seg:], ppm=-750e-6)
+    rate = (np.concatenate([ip, in_]), np.concatenate([qp, qn]))
+
+    # edge：数值边界（不走信号链，直接构造整数），段长均为 4 的整数倍
+    alt  = np.tile(np.array([8191, -8192], dtype=np.int64), 32)          # 满幅交替（饱和路径）
+    ties = np.resize(np.array([3, -3, 32, -32, 96, -96, 33, -33,        # 舍入 tie 候选（Q6.22→Q3.11
+                               1, -1, 2, -2, 4096, -4096, 8191, -8192],  # 与软判决 >>17 的 .5 位）
+                     dtype=np.int64), 64)
+    rng = np.random.default_rng(seed)
+    small = rng.integers(-4, 5, 128).astype(np.int64)                    # 量化死区（环路 Ki 舍 0）
+    med   = rng.integers(-4096, 4096, 128).astype(np.int64)
+
+    edge = (
+        np.concatenate([np.zeros(64, dtype=np.int64), alt, ties, small, med]),
+        np.concatenate([np.zeros(64, dtype=np.int64), np.roll(alt, 1), np.roll(ties, 3),
+                        rng.integers(-4, 5, 128).astype(np.int64),
+                        rng.integers(-4096, 4096, 128).astype(np.int64)]),
+    )
+
+    return [
+        ("rand", (i0, q0),
+         f"{SYNC_N_SYM} QPSK 符号成形+匹配滤波（全卷积拖尾 → {len(i0)} 采样）无损伤基线"),
+        ("freq", impair(i0, q0, f_off=1e3, ph0=0.7),
+         "+1 kHz 频偏 + 0.7 rad 相偏（计划书损伤注入）"),
+        ("rate", rate,
+         "±750 ppm 符号率偏差（真时间轴拉伸）双段：mu 扫过近 ±2 采样，抽头窗 j0 四取值全覆盖"),
+        ("edge", edge, "数值边界：全 0 / 满幅交替 / 舍入 tie 值 / 小信号量化死区 / 中幅随机"),
+    ]
+
+
+def _export_sync_rx(payload, seed: int):
+    i_int = _sync_sat14(np.asarray(payload[0], dtype=np.int64))
+    q_int = _sync_sat14(np.asarray(payload[1], dtype=np.int64))
+    if len(i_int) != len(q_int) or len(i_int) % 4:
+        raise RuntimeError(f"sync_rx 激励长度异常: {len(i_int)}/{len(q_int)}（须相等且为 4 的整数倍）")
+
+    stim_hex = [hex_of_int(pack_fields((int(i), SYNC_IN_W), (int(q), SYNC_IN_W)), 2 * SYNC_IN_W)
+                for i, q in zip(i_int, q_int)]
+
+    r = fixed_sync_rx_hw(i_int, q_int)
+    expect_hex = []
+    for k in range(len(r["sym_i"])):
+        expect_hex.append(hex_of_int(
+            pack_fields(
+                (int(r["sym_i"][k]), SYNC_IN_W), (int(r["sym_q"][k]), SYNC_IN_W),
+                (int(r["soft_i"][k]), 8), (int(r["soft_q"][k]), 8),
+                (int(r["pe"][k]), 16), (int(r["te"][k]), 16),
+            ),
+            2 * SYNC_IN_W + 8 + 8 + 16 + 16,
+        ))
+
+    mu_samp = r["mu"].astype(np.float64) / float(1 << 14)   # Q2.14 → 采样
+    meta = {
+        "stim": {"bits": 2 * SYNC_IN_W, "packing": "{i_in[13:0], q_in[13:0]}",
+                 "frac": 11, "rate": "4 sps"},
+        "expect": {
+            "bits": 2 * SYNC_IN_W + 8 + 8 + 16 + 16,
+            "packing": "{sym_i[13:0], sym_q[13:0], soft_i[7:0], soft_q[7:0], pe[15:0], te[15:0]}",
+            "field_frac": {"sym": 11, "soft": 5, "pe": 11, "te": 11},
+            "rate": "1 sps（早迟门 4:1 取样）",
+        },
+        "n_sym": len(r["sym_i"]),
+        "loop_coeffs_q19": {k: RX_CONFIG[k] for k in
+                            ("costas_kp_q19", "costas_ki_q19", "timing_kp_q19", "timing_ki_q19")},
+        # 轨迹摘要（只读不比对）：证明本用例真把抽头窗 j0 的取值踩到了
+        "mu_range_samp": [float(mu_samp.min()), float(mu_samp.max())],
+        "stim_period": 1,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -618,6 +725,11 @@ MODULES = {
         "cases": _viterbi_dec_cases,
         "export": _export_viterbi_dec,
         "golden_source": "golden_ref.fixed_point.rx_modules.fixed_viterbi_hw",
+    },
+    "sync_rx": {
+        "cases": _sync_rx_cases,
+        "export": _export_sync_rx,
+        "golden_source": "golden_ref.fixed_point.rx_modules.fixed_sync_rx_hw（Costas + 早迟门 + 软解调）",
     },
 }
 

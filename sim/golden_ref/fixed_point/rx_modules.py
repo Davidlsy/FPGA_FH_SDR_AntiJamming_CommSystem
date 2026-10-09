@@ -11,11 +11,12 @@ S5 接收链定点黄金模型（ddc_rx / sync_rx / blk_deinter / viterbi_dec）
 
 三段的状态：
   - `fixed_cic_decimate` / `fixed_ddc_rx`    —— 位真（整数域，可逐拍比对）
+  - `fixed_sync_rx_hw`                        —— 位真（整数域：插值 / Costas / 早迟门 / 软判决）
   - `soft_deinterleave`                       —— 位真（纯置换）
   - `fixed_viterbi_hw`                        —— 位真（整数 PM + 滑窗回溯）
-  - `fixed_costas_timing_rx`                  —— **候选实现**：定点 I/O + 定点相位/定时累加器，
-    内部误差项与环路乘法用浮点建模。完全逐位真需与 RTL 协同定标（判别器增益、每步舍入点），
-    故本函数当前用于**收敛性判定**（#5 的判据），其位真冻结随 RTL 落地（#3/#16）。
+  - `fixed_costas_timing_rx`                  —— **候选实现**（保留作收敛性交叉对照）：定点 I/O +
+    定点相位/定时累加器，内部误差项与环路乘法用浮点建模。sync_rx 的位真裁判是
+    `fixed_sync_rx_hw`（#3 随 `src/sync_rx.v` 冻结），本函数不再是比对基线。
 
 输入定标约定（贯穿本文件，RTL 必须同款）：
   ADC 12 bit 补码满量程 ±2048 ↔ 归一化基带幅度 ±1.0
@@ -25,6 +26,7 @@ S5 接收链定点黄金模型（ddc_rx / sync_rx / blk_deinter / viterbi_dec）
 import numpy as np
 
 from ..config import CONV_K, FIXED_POINT_CONFIG, INTERLEAVER_DEPTH, RX_CONFIG
+from .duc import _sin_int, gen_sin_lut
 from .fixed_modules import fixed_srrc_coeffs
 from .quantizer import quantize_complex
 
@@ -218,12 +220,16 @@ def fixed_ddc_rx(samples, decim=None, h_q=None):
     i_dc = fixed_cic_decimate(i_int, decim=decim)
     q_dc = fixed_cic_decimate(q_int, decim=decim)
 
-    # 匹配滤波：整数序列（已含 2^11 刻度）× Q1.11 系数 → 结果即 Q3.11 整数
+    # 匹配滤波：整数序列（已含 2^11 刻度）× Q1.11 系数 → i_f 即 **Q3.11 整数刻度**（幅度 × 2^11）。
+    # 整数域等价式：i_f = MAC(x_int, h_int) / 2^11，输出整数 = sat14(round_he(MAC, 11))。
     i_f = np.convolve(i_dc.astype(np.float64), h_q)
     q_f = np.convolve(q_dc.astype(np.float64), h_q)
 
     out_w, out_frac = fp["srrc_out_w"], fp["srrc_out_frac"]
-    out_q, _ = quantize_complex(i_f + 1j * q_f, out_w, out_frac)
+    # i_f 已是整数刻度，量化到 14 bit 只剩 round half-to-even + 饱和——**不能**再走
+    # quantize(·, w, frac)（那个接口把入参当幅度、内部乘 2^frac，会把刻度翻倍，
+    # 输出全体饱和到轨）。换回幅度语义须先除 2^frac。
+    out_q = (_sat_int(np.round(i_f), out_w) + 1j * _sat_int(np.round(q_f), out_w)) / (1 << out_frac)
 
     peak = float(max(np.max(np.abs(out_q.real)), np.max(np.abs(out_q.imag))))
     info = {
@@ -292,8 +298,8 @@ def fixed_costas_timing_rx(samples, sps=4, costas_kp=None, costas_ki=None,
         on_t = interp(base)
         late = interp(base + EL)
 
-        # --- 早迟门定时误差：|early|² − |late|² ---
-        te = float(np.abs(early) ** 2 - np.abs(late) ** 2)
+        # --- 早迟门定时误差：|late|² − |early|²（te > 0 = 采样偏早 → mu 该增大）---
+        te = float(np.abs(late) ** 2 - np.abs(early) ** 2)
         dt += timing_ki * te
         mu += timing_kp * te + dt
         # 定时常数回中（防漂移），保持 mu ∈ [-sps/2, sps/2)
@@ -342,6 +348,156 @@ def fixed_costas_timing_rx(samples, sps=4, costas_kp=None, costas_ki=None,
         "n_symbols": n_sym,
     }
     return symbols, pe_hist, te_hist, info
+
+
+# ============================================================
+# 同步：位真模型（二阶 Costas + 早迟门，整数域）—— sync_rx 的比对裁判
+# ============================================================
+# NCO LUT 与 srrc_duc **同源**：src/nco_lut.mem 由 gen_srrc_duc.py 从 gen_sin_lut() 渲染，
+# 故这里用 gen_sin_lut() 即与 RTL 加载的表逐项相同（同一份四分之一波 Q2.14 表）。
+
+_SYNC_ERR_W = 16        # 误差字（pe / te）位宽：Q3.11，引出为 phase_err / timing_err
+_SYNC_ERR_FRAC = 11
+_SOFT_SQRT2_Q11 = 2896  # round(sqrt(2) * 2^11)：软判决 LLR = sqrt(2) * x 的定点常数（同 S1 软解调律）
+
+
+def _lerp_q14(a, b, frac):
+    """线性插值 a + (b−a)·frac/2^14，round half-to-even；结果必在 [min(a,b), max(a,b)] 内。"""
+    return int(a) + int(_round_shift_half_even((int(b) - int(a)) * int(frac), 14))
+
+
+def _loop_inc(err, coef, shift):
+    """环路乘法：inc = round_he(err × coef, shift)，再由调用方卷绕进 16 bit 累加器。"""
+    return int(_round_shift_half_even(int(err) * int(coef), shift))
+
+
+def _rot_q14(i, q, phase, lut_int):
+    """复数旋转 (i+jq)·e^(−jθ)：NCO 查表（Q2.14）→ 全精度中间 → Q3.11（round half-to-even + 饱和）。
+
+    与 srrc_duc 的混频量化同口径（乘积 Q5.25 → Q3.11 丢 14 位），只是输出落到 14 bit。
+    """
+    s = int(_sin_int(int(phase) & 0xFFFF, lut_int, 16))
+    c = int(_sin_int((int(phase) + (1 << 14)) & 0xFFFF, lut_int, 16))
+    ri = int(_sat_int(_round_shift_half_even(int(i) * c + int(q) * s, 14), 14))
+    rq = int(_sat_int(_round_shift_half_even(int(q) * c - int(i) * s, 14), 14))
+    return ri, rq
+
+
+def fixed_sync_rx_hw(i_in, q_in, costas_kp=None, costas_ki=None,
+                     timing_kp=None, timing_ki=None):
+    """
+    sync_rx 位真模型（整数域，与 `src/sync_rx.v` 逐符号语义一致）—— S5 位真比对的**裁判**。
+
+    结构（`docs/spec/s5_rx_interface.md` §4.2 冻结）：二阶 Costas 载波环 + 早迟门定时恢复 +
+    软解调，更新率 1/符号。全部状态 16 bit **自然补码卷绕**（`RX_CONFIG["sync_acc_w"]`）：
+
+      phase_acc  NCO 载波相位（2^16 = 2π，即 LUT 地址，四分之一波表与 srrc_duc 同源）
+      freq_acc   载波频偏积分项（NCO 单位/符号）
+      mu         定时偏移 Q2.14（**2^16 = 4 采样 = 1 符号**，卷绕即"滑采样"）
+      dt         定时积分项（mu 单位）
+
+    每符号 k（n_sym = len(i_in) // 4，尾部不足 4 采样的余数不出符号）：
+
+      1. n0 = 4k + (mu >>> 14)（算术右移 = floor），frac = mu & 0x3FFF；
+         读 x[n0−1 .. n0+2] 四个采样，**越界读 0**（对应 RTL 复位后延迟线为 0）；
+      2. 早/中/迟三点线性插值（同一 frac）：y = a + round_he((b−a)·frac, 14)；
+      3. 早迟门 te = |late|² − |early|²（Q6.22）→ round_he(·, 11) + 饱和 → Q3.11；
+         **极性约定**：te > 0 表示采样偏早（迟端能量大）→ mu 该增大，故 `mu += Kp·te`
+         为负反馈。S 曲线（`calib_sync_rx.py` 口径）在 mu=0 处斜率为正的正是 |late|²−|early|²；
+      4. 定时环：dt += Ki_t·te；mu += Kp_t·te + dt（先更新积分项，再进累加器；16 bit 卷绕）；
+      5. 载波误差取**旧相位**旋转的中点采样：pe = sign(I)·Q − sign(Q)·I，
+         sign(x) = x ≥ 0 ? +1 : −1（硬件取符号位，**0 算 +1**）；
+      6. 载波环：freq += Ki_c·pe；phase += Kp_c·pe + freq（16 bit 卷绕）；
+      7. 判决符号 = 中点采样按**新相位**再旋转一次（Q3.11）；
+      8. 软判决 = sat8(round_he(符号 × 2896, 17))（= √2·x 的 LLR 律，Q3.5）。
+
+    环路系数 = **Q1.19 整数**（`RX_CONFIG["sync_coeff_w"/"sync_coeff_frac"]`，#3 标定冻结值），
+    环路乘法统一为 `inc = round_he(err × coef, 14)`（14 = err_frac + coef_frac − acc_w），
+    即系数语义 = **每单位误差对应的卷绕周期数**（载波：相位周期/误差；定时：符号周期/误差）。
+
+    参数:
+        i_in / q_in: 4 sps 复采样，Q3.11 补码整数（ddc_rx 输出同刻度）
+        *_kp/*_ki:   Q1.19 环路系数整数（None 用 `config.RX_CONFIG` 冻结值）
+
+    返回: dict，全部为 int64 数组（长度 n_sym）
+        sym_i/sym_q  判决符号 Q3.11        soft_i/soft_q  软判决 Q3.5
+        pe/te        载波/定时误差字 Q3.11（= phase_err / timing_err 引出值）
+        mu/dt        定时状态 Q2.14（mu/2^14 = 采样偏移）—— 收敛判据的**定时项**，
+                     只读不参与 RTL 比对（RTL 不引出内部状态）
+    """
+    cfg = RX_CONFIG
+    acc_w = cfg["sync_acc_w"]                       # 16：四个状态统一卷绕宽度
+    coef_frac = cfg["sync_coeff_frac"]              # 19
+    shift = _SYNC_ERR_FRAC + coef_frac - acc_w      # 14
+
+    ckp = int(cfg["costas_kp_q19"] if costas_kp is None else costas_kp)
+    cki = int(cfg["costas_ki_q19"] if costas_ki is None else costas_ki)
+    tkp = int(cfg["timing_kp_q19"] if timing_kp is None else timing_kp)
+    tki = int(cfg["timing_ki_q19"] if timing_ki is None else timing_ki)
+
+    xi = np.asarray(i_in, dtype=np.int64)
+    xq = np.asarray(q_in, dtype=np.int64)
+    if len(xi) != len(xq):
+        raise ValueError("I/Q 采样长度不一致")
+    L = len(xi)
+    n_sym = L // 4
+
+    lut_int = gen_sin_lut()[1]
+
+    def tap(arr, n):
+        return int(arr[n]) if 0 <= n < L else 0
+
+    sym_i = np.zeros(n_sym, dtype=np.int64)
+    sym_q = np.zeros(n_sym, dtype=np.int64)
+    soft_i = np.zeros(n_sym, dtype=np.int64)
+    soft_q = np.zeros(n_sym, dtype=np.int64)
+    pe_hist = np.zeros(n_sym, dtype=np.int64)
+    te_hist = np.zeros(n_sym, dtype=np.int64)
+    mu_hist = np.zeros(n_sym, dtype=np.int64)
+    dt_hist = np.zeros(n_sym, dtype=np.int64)
+
+    phase = 0   # NCO 相位（16 bit 卷绕）
+    freq = 0    # 频偏积分项
+    mu = 0      # 定时偏移 Q2.14
+    dt = 0      # 定时积分项
+
+    for k in range(n_sym):
+        n0 = 4 * k + (mu >> 14)          # Python >> 对负数即 floor，与 RTL 算术右移一致
+        frac = mu & 0x3FFF
+
+        ei = _lerp_q14(tap(xi, n0 - 1), tap(xi, n0), frac)
+        eq = _lerp_q14(tap(xq, n0 - 1), tap(xq, n0), frac)
+        oi = _lerp_q14(tap(xi, n0), tap(xi, n0 + 1), frac)
+        oq = _lerp_q14(tap(xq, n0), tap(xq, n0 + 1), frac)
+        li = _lerp_q14(tap(xi, n0 + 1), tap(xi, n0 + 2), frac)
+        lq = _lerp_q14(tap(xq, n0 + 1), tap(xq, n0 + 2), frac)
+
+        # --- 早迟门：|l|² − |e|²（Q6.22 → Q3.11），te>0 = 采样偏早 → mu 该增大 ---
+        te = int(_sat_int(_round_shift_half_even(
+            (li * li + lq * lq) - (ei * ei + eq * eq), _SYNC_ERR_FRAC), _SYNC_ERR_W))
+
+        # --- 定时环（先积分项后累加器，与候选实现同序）---
+        dt = _wrap_signed(dt + _loop_inc(te, tki, shift), acc_w)
+        mu = _wrap_signed(mu + _loop_inc(te, tkp, shift) + dt, acc_w)
+
+        # --- Costas 误差：旧相位旋转；sign(0) = +1（硬件取符号位）---
+        ri, rq = _rot_q14(oi, oq, phase, lut_int)
+        pe = (rq if ri >= 0 else -rq) - (ri if rq >= 0 else -ri)
+
+        # --- 载波环 ---
+        freq = _wrap_signed(freq + _loop_inc(pe, cki, shift), acc_w)
+        phase = _wrap_signed(phase + _loop_inc(pe, ckp, shift) + freq, acc_w)
+
+        # --- 判决符号：新相位旋转 + 软判决 ---
+        si, sq = _rot_q14(oi, oq, phase, lut_int)
+        sym_i[k], sym_q[k] = si, sq
+        soft_i[k] = int(_sat_int(_round_shift_half_even(si * _SOFT_SQRT2_Q11, 17), 8))
+        soft_q[k] = int(_sat_int(_round_shift_half_even(sq * _SOFT_SQRT2_Q11, 17), 8))
+        pe_hist[k], te_hist[k] = pe, te
+        mu_hist[k], dt_hist[k] = mu, dt
+
+    return {"sym_i": sym_i, "sym_q": sym_q, "soft_i": soft_i, "soft_q": soft_q,
+            "pe": pe_hist, "te": te_hist, "mu": mu_hist, "dt": dt_hist}
 
 
 # ============================================================

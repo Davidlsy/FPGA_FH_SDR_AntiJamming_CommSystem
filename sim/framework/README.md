@@ -68,9 +68,11 @@ python export_vectors.py                             # 全部模块、全部用�
 - 比对只认 DUT 自己的 `dout_valid`：**先按各自 valid 对齐再比数值**，所以流水线延迟
   不会被误判为数据错（S4-P0「逐拍而非逐帧」的口径）；组合逻辑零延迟同样直接可用；
 - **前导跳过** `SKIP_OUT`（S5 接收链新增，默认 0）：丢弃 DUT 最前面的 N 个 `dout_valid` 拍
-  再开始比对。接收链的同步环在锁定前输出的是过渡态、本就不具可比性——若从第 1 拍就比，
-  "尚未锁定"会被记成"数据错"。被丢弃的拍**既不计 `compared` 也不计 `extra`**，
-  只出现在结果行的 `skipped` 字段里；`SKIP_OUT=0` 与老行为逐拍等价。
+  再开始比对。适用面是"参考与 DUT 不共享复位状态、前 N 拍不可比"的情形（如对着收敛后的
+  浮点轨迹比）；被丢弃的拍**既不计 `compared` 也不计 `extra`**，只出现在结果行的 `skipped`
+  字段里；`SKIP_OUT=0` 与老行为逐拍等价。**注意 `sync_rx` 位真比对刻意取 `SKIP_OUT=0`**：
+  golden 与 RTL 共享复位状态、暂态逐符号确定，收敛窗口属"解调对错"判据而不是位真口径
+  （`docs/spec/s5_rx_interface.md` §6 第 3 条）。
 - DUT 的输出拍数不必等于激励拍数：激励停止后 DUT 仍可继续吐输出（`conv_enc` 的 6 bit
   尾码字、`frame_tx` 的成帧尾段、`srrc_duc` 的上采样尾巴都靠这条），这些拍照常参与比对；
 - 送完 `stim_valid` 拉低，靠 `DRAIN_CYCLES`（默认 64）等流水线排空——深流水线
@@ -195,15 +197,23 @@ xsim snap_<module> -runall
 | `blk_inter` | **已接入**（P2） | `frame` / `rand` / `edge` | 2166 → 2170（补零 8 bit = 4 拍） |
 | `srrc_duc` | **已接入**（P3） | `frame` / `edge` | 符号:采样 = 1:4（4N+32） |
 | `tx_chain` | **已接入**（P5） | `frame` / `edge` | 256 字节 → 8712 采样 |
-| `ddc_rx` | **已接入**（S5） | `rand` 32128→8064、`edge` 1152→320 | **D:1**（CIC 抽取 + 匹配 FIR） |
-| `blk_deinter` | **已接入**（S5） | `frame` 2170→2166 | 逆交织置换 + 去 8 bit 补零 |
-| `viterbi_dec` | **已接入**（S5） | `frame` 2166→2160 | 2N → N−6（64 态 / 回溯 96） |
-| `sync_rx` | **暂不接入** | — | 4:1（早迟门定时） |
+| `ddc_rx` | **已接入**（S5 #2） | `rand` 32128→8064、`edge` 1152→320 | **D:1**（CIC 抽取 + 匹配 FIR） |
+| `blk_deinter` | **向量已接入**（S5；RTL/TB 待做） | `frame` 2170→2166 | 逆交织置换 + 去 8 bit 补零 |
+| `viterbi_dec` | **向量已接入**（S5；RTL/TB 待做） | `frame` 2166→2160 | 2N → N−6（64 态 / 回溯 96） |
+| `sync_rx` | **已接入**（S5 #3） | `rand` / `freq` / `rate` / `edge`（共 2160 符号） | 4:1（早迟门定时，4 sps → 1 sps） |
 
 - N:M 模块靠框架的两条契约（长度解耦、激励节奏）接入，只需写 `cases`/`export` 与 DUT 接线；
-  接收链的同步环额外用上 S5 新增的第三条契约（`SKIP_OUT` 前导跳过）。
+  接收链另备第三条契约（`SKIP_OUT` 前导跳过，自测 `positive 接收链形状` 覆盖），但 `sync_rx`
+  位真比对取 `SKIP_OUT=0`（见 §3）。
 - `ddc_rx` 的 `rand` 用例取 N=2000 符号（激励 32128 行）以适配 `tb_vec_cmp` 缺省的
   `MAX_DEPTH=32768`，开箱即用；若要跑整帧 2170 符号（34848 行），TB 需显式调大 `MAX_DEPTH`。
-- **`sync_rx` 刻意不接入**：它的环路参数属 S5 的**出口产物**（#5 收敛性验证后才写入
-  `fixed_point_spec.md` 修订版），现在导出向量等于把一个会变的参考固化下来，反而制造返工。
+- `ddc_rx` 位真比对 **已完整接入**（S5 #2，2026-10-09）：TB `tb/tb_ddc_rx_compare.sv`、分项入口
+  `sim/run_ddc_rx_check.bat`（rand / edge 两用例串跑），`errors=0`（rand 8064 拍、edge 320 拍）。
+  黄金裁判 `fixed_ddc_rx` 的匹配 FIR 输出侧是 Q3.11 **整数刻度**，末级量化只剩 round half-to-even +
+  饱和，**不能再走 `quantize`**（幅度语义会二次量化、刻度翻倍全体饱和），见 `rx_modules.py` 注释。
+- `sync_rx` 曾刻意压着不接入：它的环路参数属 S5 出口产物，先导向量等于把一个会变的参考固化下来。
+  #3 标定冻结 Q1.19 系数（`docs/spec/fixed_point_spec.md` v1.1 §3.4）后即完整接入——TB
+  `tb/tb_sync_rx_compare.sv`、分项入口 `sim/run_sync_rx_check.bat`（rand/freq/rate/edge 四用例
+  串跑），位真比对 `errors=0`（2026-10-09）。激励与 golden 同源自 `calib_sync_rx.py` 的
+  `mk_mf_int` / `impair`，`rate` 用例的 mu 扫过近 ±2 采样，把抽头窗 `j0` 的四个取值全踩到。
 - 整链环回（S8）复用同一比对器，只换顶层与向量。

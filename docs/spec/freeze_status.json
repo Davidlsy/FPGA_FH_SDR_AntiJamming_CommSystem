@@ -1,9 +1,9 @@
 {
   "spec_id": "fixed_point_spec",
-  "version": "v1.0",
+  "version": "v1.1",
   "status": "frozen",
   "status_zh": "已冻结",
-  "freeze_date": "2026-09-22",
+  "freeze_date": "2026-09-22（v1.0 位宽）/ 2026-10-09（v1.1 同步环参数）",
   "review_record": "docs/report/s1_spec_review.md",
   "baseline_evidence": [
     "data/s1_ber_baseline/snr_loss_table.csv",
@@ -11,5 +11,17 @@
     "docs/report/s1_archive_compare.md"
   ],
   "change_policy": "冻结后位宽/量化/溢出策略变更须走变更流程并重跑 sim/golden_ref",
-  "notes": "评审通过，已冻结"
+  "notes": "评审通过，已冻结",
+  "revisions": [
+    {
+      "version": "v1.0",
+      "date": "2026-09-22",
+      "summary": "S1 位宽 / 量化 / 溢出策略评审冻结（§2/§3/§5）"
+    },
+    {
+      "version": "v1.1",
+      "date": "2026-10-09",
+      "summary": "sync_rx 同步环参数数值冻结（Q1.19 环路系数，新增 §3.4，标定见 sim/golden_ref/calib_sync_rx.py）；位宽表不变，不触发 S1 BER 基线重跑"
+    }
+  ]
 }

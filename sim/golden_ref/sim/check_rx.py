@@ -32,11 +32,13 @@ from golden_ref.fixed_point.rx_modules import (
     fixed_cic_decimate,
     fixed_costas_timing_rx,
     fixed_ddc_rx,
+    fixed_sync_rx_hw,
     fixed_viterbi_hw,
     soft_deinterleave,
     soft_interleave,
     upsample_bandlimited,
 )
+from golden_ref.calib_sync_rx import EDGE, cases, judge, resid_rms
 from golden_ref.float_chain.conv_encoder import conv_encode
 from golden_ref.float_chain.interleaver import block_deinterleave, block_interleave
 from golden_ref.float_chain.viterbi import viterbi_decode
@@ -213,45 +215,61 @@ def test_viterbi():
 
 
 # ============================================================
-# 5. 同步环（收敛性，候选实现）
+# 5. 同步环收敛性（位真模型 fixed_sync_rx_hw；float 候选仅作交叉对照）
 # ============================================================
-def _mk_mf_signal(n_sym, seed=31):
-    rng = np.random.default_rng(seed)
-    syms = fixed_qpsk_modulate(rng.integers(0, 2, 2 * n_sym))
-    shaped = fixed_pulse_shape(syms)
-    h_q, _ = fixed_srrc_coeffs()
-    mf = np.convolve(shaped, h_q)
-    mf_q, _ = quantize_complex(mf, FIXED_POINT_CONFIG["srrc_out_w"],
-                               FIXED_POINT_CONFIG["srrc_out_frac"])
-    return mf_q
 
 
 def test_sync():
-    section("5. 同步环（二阶 Costas + 早迟门，收敛性）")
-    mf_q = _mk_mf_signal(600)
-    fs = 2e6
-    n = np.arange(len(mf_q))
+    section("5. 同步环（二阶 Costas + 早迟门，位真模型 fixed_sync_rx_hw 收敛性）")
+    # 工况/残差/判据三件套直接引自 calib_sync_rx —— 收敛判据只有**一个**来源，
+    # 免得标定器与自检各写一份、漂移后互相掩盖。系数取 config.RX_CONFIG 冻结值。
+    cs = cases(seeds=(31, 77), amps=(1.0, 0.5))
+    m = {}
+    for name, (ri, rq) in cs.items():
+        r = fixed_sync_rx_hw(ri, rq)
+        rms, lock = resid_rms(r["sym_i"], r["sym_q"])
+        mu_tail = float(np.abs(r["mu"][EDGE:-EDGE]).max()) / 16384.0
+        m[name] = (rms, lock, mu_tail)
 
-    sig = mf_q * np.exp(1j * (2 * np.pi * 1e3 / fs * n + 0.7))     # 1 kHz 频偏 + 相偏
-    _, _, _, info = fixed_costas_timing_rx(sig, sps=UPSAMPLE_FACTOR)
-    check("5.1 1 kHz 频偏下 ≤500 符号收敛",
-          info["lock_symbols"] is not None and info["lock_symbols"] <= 500,
-          f"lock={info['lock_symbols']}")
-    check("5.2 稳态残余相位误差 RMS 小（< 0.15 rad）", info["resid_rms_tail"] < 0.15,
-          f"resid_rms={info['resid_rms_tail']:.4f} rad")
+    def agg(prefix):
+        sel = [v for k, v in m.items() if k.startswith(prefix)]
+        return (max((l or 9999) for _, l, _ in sel),
+                max(r for r, _, _ in sel),
+                max(u for _, _, u in sel))
 
-    _, _, _, info0 = fixed_costas_timing_rx(mf_q, sps=UPSAMPLE_FACTOR)
-    check("5.3 无损伤时快速锁定",
-          info0["lock_symbols"] is not None and info0["lock_symbols"] <= 200,
-          f"lock={info0['lock_symbols']}")
+    lock_a, rms_a, mu_a = agg("A")
+    check("5.1 ±1 kHz 频偏下 ≤500 符号锁定", lock_a <= 500, f"lock={lock_a}")
+    check("5.2 稳态残余相位 RMS < 0.15 rad 且 |mu|tail < 0.5 采样",
+          rms_a < 0.15 and mu_a < 0.5,
+          f"resid_rms={rms_a:.4f} rad |mu|tail={mu_a:.3f} samp")
 
-    ppm = 20e-6
-    n2 = np.arange(len(mf_q)) * (1 + ppm)
-    _, _, _, info2 = fixed_costas_timing_rx(
-        mf_q * np.exp(1j * (2 * np.pi * 1e3 / fs * n2)), sps=UPSAMPLE_FACTOR)
-    check("5.4 ±20 ppm 符号率偏差下不发散",
-          np.isfinite(info2["resid_rms_tail"]) and info2["resid_rms_tail"] < 0.25,
-          f"resid_rms={info2['resid_rms_tail']:.4f} rad")
+    lock_b, _, _ = agg("B")
+    check("5.3 无损伤 ≤200 符号锁定", lock_b <= 200, f"lock={lock_b}")
+
+    _, rms_c, mu_c = agg("C")
+    check("5.4 ±20 ppm 符号率偏差下不发散", rms_c < 0.25 and mu_c < 0.5,
+          f"resid_rms={rms_c:.4f} rad |mu|tail={mu_c:.3f} samp")
+
+    _, rms_d, mu_d = agg("D")
+    # 下界是关键：mu 跟住 ~1.2 采样漂移才算积分路径活着；mu 卡在 0 是死区，不是通过
+    check("5.5 ±500 ppm 大速率偏差下 mu 跟住漂移（Ki_t 积分路径无死区）",
+          rms_d < 0.25 and 0.6 < mu_d < 1.8,
+          f"resid_rms={rms_d:.4f} rad |mu|tail={mu_d:.3f} samp")
+
+    check("5.6 全工况通过标定判据 judge()",
+          all(judge(n, *v) for n, v in m.items()),
+          f"{sum(judge(n, *v) for n, v in m.items())}/{len(m)} 例")
+
+    # 交叉对照：float 候选实现（同极性）应有同量级收敛表现，守住 §6 端到端的前提。
+    # 必须用**同一把尺**（resid_rms，掐 EDGE）量它：float 模型自带的 resid_rms_tail 不掐尾，
+    # MF 群延迟末端的衰减/空符号会把 RMS 顶成伪影，拿它跟判据比是量具不齐。
+    ri, rq = next(v for k, v in cs.items() if k.startswith("A1"))
+    sym_f, _, _, _ = fixed_costas_timing_rx((ri + 1j * rq).astype(np.complex128),
+                                            sps=UPSAMPLE_FACTOR)
+    rms_f, lock_f = resid_rms(sym_f.real, sym_f.imag)
+    check("5.7 float 候选实现（交叉对照）同量级收敛",
+          lock_f is not None and lock_f <= 500 and rms_f < 0.15,
+          f"lock={lock_f} resid_rms={rms_f:.4f} rad")
 
 
 # ============================================================

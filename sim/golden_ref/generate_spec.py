@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from golden_ref.config import FIXED_POINT_CONFIG, QUANT_MODE, OVERFLOW_MODE
+from golden_ref.config import FIXED_POINT_CONFIG, QUANT_MODE, OVERFLOW_MODE, RX_CONFIG
 from golden_ref.fixed_point.quantizer import get_quant_range, get_quantization_noise_power
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,6 +29,7 @@ def _load_freeze_status():
         "review_record": "docs/report/s1_spec_review.md",
         "change_policy": "冻结后位宽/量化/溢出策略变更须走变更流程并重跑 sim/golden_ref",
         "baseline_evidence": [],
+        "revisions": [],
     }
     if not _FREEZE_JSON.exists():
         return default
@@ -66,8 +67,8 @@ def generate_fixed_point_spec(output_path=None):
     lines.append("# 定点规格书 (Fixed-Point Specification)")
     lines.append("")
     lines.append("> **版本**: " + str(freeze.get("version", "v1.0")) + "  ")
-    lines.append("> **适用模块**: S1 浮点黄金参考与定点化  ")
-    lines.append("> **生成方式**: 自动生成自 `config.FIXED_POINT_CONFIG`  ")
+    lines.append("> **适用模块**: S1 浮点黄金参考与定点化；S5 `sync_rx` 同步环参数（§3.4）  ")
+    lines.append("> **生成方式**: 自动生成自 `config.FIXED_POINT_CONFIG` + `config.RX_CONFIG`（§3.4）  ")
     lines.append("")
     status_zh = freeze.get("status_zh") or ("已冻结" if frozen else "待评审")
     lines.append("## 0. 评审冻结状态")
@@ -172,6 +173,48 @@ def generate_fixed_point_spec(output_path=None):
                  "具体级数和位宽根据最终插值/抽取比确定。")
     lines.append("")
 
+    # ---- 同步环参数（sync_rx，Q1.19）----
+    cw = RX_CONFIG.get("sync_coeff_w", 20)
+    cf = RX_CONFIG.get("sync_coeff_frac", 19)
+    ew = RX_CONFIG.get("sync_err_w", 16)
+    ef = RX_CONFIG.get("sync_err_frac", 11)
+    aw = RX_CONFIG.get("sync_acc_w", 16)
+    costas_coef_f = 2.0 * 3.141592653589793 / (1 << cf)   # 相位周期 2π 对应整周期
+    timing_coef_f = 4.0 / (1 << cf)                        # 符号周期 4 采样对应整周期
+    lines.append("### 3.4 同步环参数（`sync_rx`，Q1.19 冻结值）")
+    lines.append("")
+    lines.append(f"- **环路系数**: {cw} bit 有符号（Q1.{cf}），误差字 {ew} bit（Q3.{ef}，引出 "
+                 f"`phase_err` / `timing_err`），环路状态（phase / freq / mu / dt）{aw} bit 补码卷绕")
+    lines.append(f"- **增量语义**: `inc = round_half_even(err × coef, {ef + cf - aw})`"
+                 f"（{ef + cf - aw} = err_frac + coeff_frac − acc_w）；系数 = 每单位误差对应的卷绕周期数")
+    lines.append("")
+    lines.append("| 参数 | Q1.%d 整数 | 等效浮点 | 含义 |" % cf)
+    lines.append("|---|---|---|---|")
+    coef_rows = [
+        ("`costas_kp_q19`", "costas_kp_q19", costas_coef_f, "载波环（二阶 Costas）比例增益"),
+        ("`costas_ki_q19`", "costas_ki_q19", costas_coef_f, "载波环积分增益"),
+        ("`timing_kp_q19`", "timing_kp_q19", timing_coef_f, "定时环（早迟门）比例增益"),
+        ("`timing_ki_q19`", "timing_ki_q19", timing_coef_f, "定时环积分增益"),
+    ]
+    for name, key, unit, desc in coef_rows:
+        v = RX_CONFIG[key]
+        lines.append(f"| {name} | {v} | {v * unit:.6g} | {desc} |")
+    lines.append("")
+    lines.append("等效浮点换算（与候选实现 `fixed_costas_timing_rx` 的口径互换）：载波 "
+                 "`Kp_f = Kp_q19·2π/2^19`、`Ki_f = Ki_q19·2π/2^19`；定时 `Kp_f = Kp_q19/2^17`、"
+                 "`Ki_f = Ki_q19/2^17`。")
+    lines.append("")
+    lines.append("**标定来源** `sim/golden_ref/calib_sync_rx.py`（A/B/C/D 工况 × 6 种子 × 3 幅度 = 126 例全过）。"
+                 "两条硬教训（改系数前必读）：")
+    lines.append("")
+    lines.append("1. **早迟门误差极性 = |late|² − |early|²**：配 `mu += Kp·te` 才是负反馈；极性反了是正反馈，"
+                 "mu 在 ±2 采样间乱跳、采样点滑出符号峰，而**载波残差判据察觉不到**（照样过检）——"
+                 "收敛判据必须含定时项。")
+    lines.append("2. **Ki 必须高于整数乘积的量化死区**：Ki 太小时 `(err×Ki, 14)` 恒舍入为 0，积分路径不走。"
+                 "定时环误差 ∝ A²，半幅度下尤其明显：Ki_t=13 时 mu 卡死不跟 500 ppm 漂移，"
+                 "Ki_t=104 才干净跟住（resid 0.25 → 0.033）。")
+    lines.append("")
+
     # ---- 验证方法 ----
     lines.append("## 4. 验证方法")
     lines.append("")
@@ -190,6 +233,17 @@ def generate_fixed_point_spec(output_path=None):
     lines.append("3. 更新关键节点 SNR 损失表")
     lines.append("4. 评审通过后更新本文档版本号")
     lines.append("")
+
+    # ---- 修订记录 ----
+    revisions = freeze.get("revisions") or []
+    if revisions:
+        lines.append("## 6. 修订记录")
+        lines.append("")
+        lines.append("| 版本 | 日期 | 内容 |")
+        lines.append("|---|---|---|")
+        for rev in revisions:
+            lines.append(f"| {rev.get('version', '')} | {rev.get('date', '')} | {rev.get('summary', '')} |")
+        lines.append("")
     lines.append("---")
     lines.append("")
     lines.append("*本文档由 `generate_spec.py` 自动生成；冻结状态来自 `docs/spec/freeze_status.json`，"
