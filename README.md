@@ -121,6 +121,7 @@ vivado -mode batch -source build/create_smoke_project.tcl
 | S5 #4 | `blk_deinter` 块解交织：逆 `blk_inter` 置换 + 去 8 bit 补零（乒乓双缓冲），RTL + 位真比对 | **完成**（2026-10-09：frame 2166 拍、rand 8664 拍逐拍 0 错误；黄金模型自检 27/27） | `src/blk_deinter.v`、`sim/run_blk_deinter_check.bat`、`sim/framework/tb/tb_blk_deinter_compare.sv` |
 | S5 #5 | `viterbi_dec` 软判决 Viterbi 译码：64 态 ACS + 16 bit PM 归一化 + 回溯 96（寄存器交换），RTL + 位真比对 + **BER 三路同序列对比** | **完成**（2026-10-09：frame 2160 bit、rand 8640 bit、edge 2160 bit 逐比特 0 错误；黄金模型自检 27/27；BER 对比最大 SNR 损失 0.004 dB、无平底、MATLAB `vitdec` 同序列 2.48 Mbit 叠图一致） | `src/viterbi_dec.v`、`sim/run_viterbi_dec_check.bat`、`sim/framework/tb/tb_viterbi_dec_compare.sv`、`sim/golden_ref/run_viterbi_ber.py`、`docs/report/s5_viterbi_ber.md` |
 | S6 #1 | `fh_ctrl` 跳频图案发生器：LFSR-16（`x^16+x^15+x^13+x^4+1`）每跳移 4 bit 非重叠取字 + 运行时种子重载，RTL + 位真比对 + **10⁶ 跳长跑** | **完成**（2026-10-09：seq 16384 跳、rand 16384 跳、edge 768 跳逐跳 0 错误；10⁶ 跳收发互比 mismatches=0、驻留 min 62450 / max 62551 达 ±10% 判据；黄金自检 11/11） | `src/fh_ctrl.v`、`sim/run_fh_ctrl_check.bat`、`sim/framework/tb/tb_fh_ctrl_{compare,long}.sv`、`sim/golden_ref/fixed_point/fh_pattern.py`、`docs/spec/s6_fh_interface.md` |
+| S6 #2 | `nco_hop` 跳频 NCO：信道 → FTW 查表（`(2k+1)·1024`）+ 相位连续 16 bit NCO（四分之一波 LUT，跳只换 FTW 绝不清相位），RTL + 位真比对 + **3×10⁵ 跳相位轨迹断言长跑** | **完成**（2026-10-09：seq 2048 拍、rand 3171 拍、edge 201 拍逐拍 0 错误；长跑 300012 跳 / 1616006 拍相位无阶跃 cont_err=0、FTW 生效延迟 2 拍 = 250 ns < 1 µs 全命中；三档跳速 8000/16000/80000 拍/跳真实节拍覆盖；黄金自检 18/18） | `src/nco_hop.v`、`sim/run_nco_hop_check.bat`、`sim/framework/tb/tb_nco_hop_{compare,long}.sv`、`sim/golden_ref/fixed_point/nco_hop.py`、`data/s6_nco_hop_phase/phase_trajectory.png`、`docs/spec/s6_fh_interface.md` |
 
 ### 已知边界
 
@@ -130,14 +131,14 @@ vivado -mode batch -source build/create_smoke_project.tcl
   均在板卡到货后补。人读引脚表与状态总览见 `docs/pins.md`。
 - S2 五项之间没有联合仿真：RF 侧（信道 + 干扰源）接口一致但未串联，控制侧（SPI / AXI）与 RF 侧
   也无交叉；登记见 `sim/README.md` §6 与 `docs/report/s2_verification.md` §5/§6。
-- `sim/framework/` 的比对框架现已由**十二个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
+- `sim/framework/` 的比对框架现已由**十三个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
   / `srrc_duc` 手写版与 FIR IP 版 / `tx_chain` / `sync_rx` / `ddc_rx` / `blk_deinter` / `viterbi_dec`
-  / `fh_ctrl`）在使用，并为此扩展成"激励/期望长度解耦 +
+  / `fh_ctrl` / `nco_hop`）在使用，并为此扩展成"激励/期望长度解耦 +
   激励节奏 + 前导跳过"（S4-P0 / S5）：原实现只支持一入一出，装不下成帧（256 拍进 / 2160 拍出）、
   上采样这类 N:M 模块与 4:1 同步环。每加一条判据都配了专门证伪它的用例（`sim/framework/README.md` §7）。
   接收链四个模块 `ddc_rx` / `sync_rx` / `blk_deinter` / `viterbi_dec` 已全部完整位真接入（0 错误）；
-  跳频层 `fh_ctrl` 亦已完整位真接入（S6 #1，0 错误 + 10⁶ 跳长跑），**S6 剩余模块**
-  （`nco_hop` / TOD / 捕获 / 跳同步状态机）尚未开工。
+  跳频层 `fh_ctrl`（S6 #1，0 错误 + 10⁶ 跳长跑）与 `nco_hop`（S6 #2，0 错误 + 3×10⁵ 跳相位断言）
+  亦已完整位真接入，**S6 剩余模块**（TOD 时基 / 同步字捕获 / 跳同步状态机）尚未开工。
 - S4 的五个模块现已全部落地（`frame_tx` / `conv_enc` / `blk_inter` / `qpsk_map` / `srrc_duc` 双版），
   P0–P5 已收口，**任务卡的 S4 出口门槛已达成**（五模块位真比对全过：单模块 + IP 对比 + 整链端到端）。
   `docs/report/s4_verification.md` 尚未补 P3–P5 章节，引用 P3/P4/P5 结论分别以
@@ -219,6 +220,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── blk_deinter.v           #   S5 块解交织：逆 blk_inter 置换 + 去 8 bit 补零（乒乓双缓冲）
 │   ├── viterbi_dec.v           #   S5 软判决 Viterbi 译码：64 态 ACS + 16 bit PM 归一化 + 回溯 96（寄存器交换）
 │   ├── fh_ctrl.v               #   S6 跳频图案发生器：LFSR-16 每跳移 4 bit 非重叠取字 + 种子重载
+│   ├── nco_hop.v               #   S6 跳频 NCO：信道 → FTW 查表（(2k+1)*1024）+ 相位连续 16 bit NCO
 │   └── constraints/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
@@ -239,6 +241,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   ├── run_blk_deinter_check.bat  # S5 blk_deinter 位真比对（frame / rand 两用例串跑）
 │   ├── run_viterbi_dec_check.bat  # S5 viterbi_dec 位真比对（frame / rand / edge 三用例串跑）
 │   ├── run_fh_ctrl_check.bat   #   S6 fh_ctrl 位真比对（seq / rand / edge 三用例 + 10⁶ 跳长跑串跑）
+│   ├── run_nco_hop_check.bat   #   S6 nco_hop 位真比对（seq / rand / edge 三用例 + 3×10⁵ 跳相位断言长跑串跑）
 │   ├── framework/              #   S2 自动比对框架：golden 向量导出 + 逐拍比对器 + TB 模板
 │   │   ├── README.md           #     向量契约 / TB 时序契约 / 判据 / 自测结论 / 有意偏离
 │   │   ├── export_vectors.py   #     从 golden_ref 确定性导出向量（--case long 出长跑向量，不入库）
@@ -251,6 +254,8 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   │   ├── tb_{tx_chain,sync_rx,ddc_rx,blk_deinter,viterbi_dec}_compare.sv  #  S4-P5 整链 / S5 sync_rx、ddc_rx、blk_deinter、viterbi_dec 位真 TB
 │   │   │   ├── tb_fh_ctrl_compare.sv        #   S6 fh_ctrl 跳频图案位真 TB（-d 切 seq/rand/edge）
 │   │   │   ├── tb_fh_ctrl_long.sv           #   S6 fh_ctrl 10⁶ 跳长跑（收发互比 + 驻留均匀性，自含激励）
+│   │   │   ├── tb_nco_hop_compare.sv        #   S6 nco_hop 跳频 NCO 位真 TB（-d 切 seq/rand/edge）
+│   │   │   ├── tb_nco_hop_long.sv           #   S6 nco_hop 3×10⁵ 跳相位轨迹断言 + 三档跳速真实节拍（自含激励）
 │   │   │   ├── tb_srrc_duc_fir_compare.sv   #   FIR IP 版 SRRC TB（与手写版同向量同判据）
 │   │   │   ├── tb_blk_inter_burst.sv        #   blk_inter 突发打散量化（TB 侧带独立解交织模型）
 │   │   │   └── tb_fir_check.sv              #   FIR Compiler IP 单体对齐核验（延迟 / 前 3 拍空转）
@@ -280,6 +285,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   ├── config.py           #     系统参数 + FIXED_POINT_CONFIG（位宽唯一来源）+ RX_CONFIG（接收链）+ FRAME_* + DUC_CONFIG
 │   │   ├── run_ber.py          #     BER 仿真入口 → data/s1_ber_baseline/
 │   │   ├── run_viterbi_ber.py  #     S5 viterbi_dec BER 三路同序列对比入口（含 MATLAB vitdec 交叉）→ data/s5_viterbi_ber/
+│   │   ├── plot_nco_hop_phase.py  #   S6 nco_hop 相位轨迹图（跳沿折点 + 实测步进 vs 冻结 FTW 表）→ data/s6_nco_hop_phase/
 │   │   ├── generate_spec.py    #     生成定点规格书 → docs/spec/
 │   │   ├── gen_frame_sync.py   #     S4 帧同步字 → src/frame_tx_sync.vh（带 --check）
 │   │   ├── gen_srrc_duc.py     #     S4-P3 系数与 LUT → src/srrc_coeff.vh、src/nco_lut.mem、src/srrc_fir.coe
@@ -289,10 +295,12 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   ├── fixed_point/        #     定点模块 + 量化器
 │   │   │   ├── duc.py          #       S4-P3 DUC 裁判：NCO 相位累加 + 四分之一波 LUT + 复数混频
 │   │   │   ├── rx_modules.py   #       S5 接收链位真裁判：fixed_ddc_rx / fixed_sync_rx_hw / 解交织 / Viterbi
-│   │   │   └── fh_pattern.py   #       S6 fh_ctrl 跳频图案裁判：LFSR-16 直移 + 每跳 4 bit 取字 + 种子重载
+│   │   │   ├── fh_pattern.py   #       S6 fh_ctrl 跳频图案裁判：LFSR-16 直移 + 每跳 4 bit 取字 + 种子重载
+│   │   │   └── nco_hop.py      #       S6 nco_hop 裁判：FTW 表 (2k+1)*1024 + 相位连续 NCO（跳不清相位）
 │   │   └── sim/                #     链路 BER 仿真 + SNR 损失分析 + 帧层 / DUC / SFDR / 跳频图案自检
 │   │       ├── sfdr_analysis.py  #    S4-P3 SFDR：NCO/DUC 判据项（−85.45 dBc）+ SRRC 频谱报告项
-│   │       └── check_fh_pattern.py  # S6 跳频图案自检（周期 65535 / 10⁶ 跳均匀性 / 平铺互证，11 项）
+│   │       ├── check_fh_pattern.py  # S6 跳频图案自检（周期 65535 / 10⁶ 跳均匀性 / 平铺互证，11 项）
+│   │       └── check_nco_hop.py  #   S6 nco_hop 自检（FTW 表 / NCO 核交叉锚点 / 生效延迟 / 3×10⁵ 跳轨迹，18 项）
 │   ├── float_ref/              #   V2.x MATLAB 归档链重跑与对照（对照证据，不是基准）
 │   │   ├── run_ber_sweep.m     #     归档脚本重跑 → results/（另 run_ber_sweep_export.m 导数据）
 │   │   ├── run_viterbi_vitdec.m  #   S5 viterbi_dec BER 对比的 MATLAB 侧桥（vitdec 同序列）
@@ -320,7 +328,8 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │   │   └── snr_loss_table.csv  #     SNR 损失表（链路 + 节点位宽）
 │   ├── s2_channel_stats/       #   S2 信道模型核验表（channel_stats_table.csv）
 │   ├── s2_jammer_stats/        #   S2 干扰源核验表（jammer_stats_table.csv）
-│   └── s5_viterbi_ber/         #   S5 viterbi_dec BER 三路同序列对比（三线叠图 / SNR 损失表 / npz；matlab_io/ 过路 .mat 不入库）
+│   ├── s5_viterbi_ber/         #   S5 viterbi_dec BER 三路同序列对比（三线叠图 / SNR 损失表 / npz；matlab_io/ 过路 .mat 不入库）
+│   └── s6_nco_hop_phase/       #   S6 nco_hop 相位轨迹图（phase_trajectory.png，出口门槛"断言报告 + 相位轨迹图"双证据之二）
 │
 └── docs/                       # 【文档】
     ├── fpga-fhss-amd-implementation-plan.html  # 实施手册 V3.0.1（主线，阶段号 P0′–P7′）
@@ -335,7 +344,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
     │   ├── s4_tx_p3_freeze_draft.md  # S4-P3 三项冻结决策全文（含 2026-10-07 评审确认结果）
     │   ├── s5_rx_interface.md  #   S5 接收链接口规格书 v1.2（逆映射 / 拍数账本 / 同步环语义，环路参数已解悬置）
     │   ├── s5_rx_p0_freeze_draft.md  # S5 P0 四项决策全文（含 2026-10-08 评审确认结果）
-    │   ├── s6_fh_interface.md  #   S6 跳频链接口规格书（fh_ctrl 口径冻结：LFSR-16 / 取字 / 种子重载 / 10⁶ 跳判据）
+    │   ├── s6_fh_interface.md  #   S6 跳频链接口规格书（fh_ctrl + nco_hop 口径冻结：图案 / FTW 表 / 相位连续语义 / 判据）
     │   └── freeze_status.json  #   定点规格冻结状态（v1.1）的机器可读来源
     ├── report/
     │   ├── env.md              #   开发环境记录

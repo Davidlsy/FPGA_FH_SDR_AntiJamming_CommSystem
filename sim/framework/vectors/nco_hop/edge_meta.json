@@ -1,0 +1,49 @@
+{
+  "module": "nco_hop",
+  "case": "edge",
+  "stim_rows": 209,
+  "expect_rows": 201,
+  "count": 201,
+  "case_note": "min 跳间隔 / 同信道连跳 / 长稳态 64 拍 / 信道 0·15 边界 / 冻结拍 hop 须忽略",
+  "seed": 20260924,
+  "golden_source": "golden_ref.fixed_point.nco_hop.sim_nco_hop（FTW 表 + 相位连续 NCO）",
+  "golden_ref_version": "1.0.0",
+  "generated_at": "2026-10-09T18:38:10+08:00",
+  "stim": {
+    "bits": 6,
+    "packing": "{din_valid, hop_valid, channel[3:0]}",
+    "frac": null
+  },
+  "expect": {
+    "bits": 48,
+    "packing": "{phase[15:0], cos[15:0], sin[15:0]}",
+    "field_frac": {
+      "phase": null,
+      "cos": 14,
+      "sin": 14
+    }
+  },
+  "ftw_table": [
+    1024,
+    3072,
+    5120,
+    7168,
+    9216,
+    11264,
+    13312,
+    15360,
+    17408,
+    19456,
+    21504,
+    23552,
+    25600,
+    27648,
+    29696,
+    31744
+  ],
+  "ftw_formula": "FTW[k] = (2k+1)*1024（s6_fh_interface.md §5.1 冻结）",
+  "n_samples": 201,
+  "n_frozen": 8,
+  "n_hops": 59,
+  "stim_period": 1
+}

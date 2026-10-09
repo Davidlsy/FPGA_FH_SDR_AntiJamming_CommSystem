@@ -46,6 +46,7 @@ from golden_ref.fixed_point.fh_pattern import (
     FH_INDEX_MASK,
     sim_fh_ctrl,
 )
+from golden_ref.fixed_point.nco_hop import NCO_HOP_FTW_TABLE, sim_nco_hop
 from golden_ref.fixed_point.fixed_modules import (
     fixed_pulse_shape,
     fixed_qpsk_modulate,
@@ -770,6 +771,77 @@ def _export_fh_ctrl(payload, seed: int):
 
 
 # ============================================================
+# nco_hop（S6）：信道 → FTW 查表 + 相位连续跳频 NCO —— 口径 docs/spec/s6_fh_interface.md §5
+# ============================================================
+# 激励 = {din_valid, hop_valid, channel[3:0]}（6 bit）每拍一行——din_valid 是数据位，
+# 门控空隙（冻结拍）也是激励行；expect = {phase[15:0], cos[15:0], sin[15:0]}（48 bit）。
+# 冻结拍无输出 → stim/expect 长度解耦（框架契约直接支持）。
+def _nco_hop_cases(seed: int):
+    # 用例载荷 = 命令流 (din_valid, hop_valid, channel) 列表，每三元组一拍。
+    # seq：16 信道顺序轮转 × 16 轮、每跳 8 拍（2048 拍）——扫全 FTW 表，
+    #      且每信道驻留 8 拍 > 生效延迟 2 拍，稳态频点真实可见。
+    # rand：随机信道 + 随机跳间隔 1..16 拍 + 随机 din_valid 空隙（门控冻结）——
+    #       跳事件散布在不规则节拍上，打「冻结拍相位/ftw 保持」。
+    # edge：min 跳间隔（每拍一跳）/ 同信道连跳 / 长稳态 64 拍 / 信道 0·15 边界 /
+    #       冻结拍上的 hop_valid（必须被忽略）——语义边界集中处。
+    seq = []
+    for h in range(256):
+        ch = h % 16
+        seq += [(1, 1, ch)] + [(1, 0, ch)] * 7
+
+    rng = np.random.default_rng(seed)
+    rand = []
+    while len(rand) < 4096:
+        ch = int(rng.integers(0, 16))
+        dwell = int(rng.integers(1, 17))
+        rand.append((1, 1, ch))
+        for _ in range(dwell - 1):
+            v = 0 if rng.random() < 0.25 else 1
+            rand.append((v, 0, int(rng.integers(0, 16))))
+
+    edge = []
+    edge += [(0, 1, 7)] * 4                          # 复位后冻结拍：hop 必须被忽略
+    edge += [(1, 1, k % 16) for k in range(32)]      # 每拍一跳（min 间隔）扫全表
+    edge += [(1, 1, 15)] * 8                         # 同信道连跳（信道 15）
+    edge += [(1, 1, 0)] + [(1, 0, 0)] * 63           # 长稳态 64 拍 @ 信道 0
+    edge += [(1, 1, 0), (1, 1, 15)] * 8              # 0/15 边界交替 min 间隔
+    edge += [(0, 1, 3)] * 4                          # 中段冻结拍：hop 无效
+    edge += [(1, 0, 0)] * 8                          # 解冻后 ftw 不变（被忽略的 hop 不生效）
+    edge += [(1, 1, 15)] + [(1, 0, 15)] * 63         # 长稳态 64 拍 @ 信道 15
+    edge += [(1, 1, 0)] + [(1, 0, 0)] * 8
+
+    return [
+        ("seq", seq, "16 信道顺序轮转 ×16 轮、每跳 8 拍（2048 拍，扫全 FTW 表）"),
+        ("rand", rand, f"随机信道 + 跳间隔 1..16 拍 + 25% din_valid 门控空隙（{len(rand)} 拍）"),
+        ("edge", edge, "min 跳间隔 / 同信道连跳 / 长稳态 64 拍 / 信道 0·15 边界 / 冻结拍 hop 须忽略"),
+    ]
+
+
+def _export_nco_hop(payload, seed: int):
+    stim_hex, expect_hex = [], []
+    for v, hop, ch in payload:
+        stim_hex.append(hex_of_int(pack_fields((v, 1), (hop, 1), (ch, 4)), 6))
+    for phase, cos_i, sin_i in sim_nco_hop(payload):
+        expect_hex.append(hex_of_int(
+            pack_fields((phase, 16), (cos_i, 16), (sin_i, 16)), 48))
+    meta = {
+        "stim": {"bits": 6, "packing": "{din_valid, hop_valid, channel[3:0]}", "frac": None},
+        "expect": {
+            "bits": 48,
+            "packing": "{phase[15:0], cos[15:0], sin[15:0]}",
+            "field_frac": {"phase": None, "cos": 14, "sin": 14},
+        },
+        "ftw_table": list(NCO_HOP_FTW_TABLE),
+        "ftw_formula": "FTW[k] = (2k+1)*1024（s6_fh_interface.md §5.1 冻结）",
+        "n_samples": len(expect_hex),
+        "n_frozen": sum(1 for v, _, _ in payload if not v),
+        "n_hops": sum(1 for v, hop, _ in payload if v and hop),
+        "stim_period": 1,
+    }
+    return stim_hex, expect_hex, meta
+
+
+# ============================================================
 # 注册表：新增模块在此登记
 # ============================================================
 MODULES = {
@@ -827,6 +899,11 @@ MODULES = {
         "cases": _fh_ctrl_cases,
         "export": _export_fh_ctrl,
         "golden_source": "golden_ref.fixed_point.fh_pattern.sim_fh_ctrl（LFSR-16 跳频图案）",
+    },
+    "nco_hop": {
+        "cases": _nco_hop_cases,
+        "export": _export_nco_hop,
+        "golden_source": "golden_ref.fixed_point.nco_hop.sim_nco_hop（FTW 表 + 相位连续 NCO）",
     },
 }
 

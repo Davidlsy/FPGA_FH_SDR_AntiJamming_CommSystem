@@ -188,7 +188,7 @@ xsim snap_<module> -runall
 
 发射链按 `qpsk_map` → `conv_enc` → `frame_tx`（P1）→ `blk_inter`（P2）→ `srrc_duc`（P3）
 逐个在 `MODULES` 里注册；接收链（S5）按 `ddc_rx` / `blk_deinter` / `viterbi_dec` 接入；
-跳频层（S6）自 `fh_ctrl` 起接入。
+跳频层（S6）按 `fh_ctrl` → `nco_hop` 接入。
 
 | 模块 | 状态 | 用例（`vectors/<模块>/`） | 拍数关系 |
 |---|---|---|---|
@@ -203,6 +203,7 @@ xsim snap_<module> -runall
 | `viterbi_dec` | **已接入**（S5 #5） | `frame`/`edge` 2166→2160、`rand` 8664→8640 | 2N → N−6（64 态 / 回溯 96） |
 | `sync_rx` | **已接入**（S5 #3） | `rand` / `freq` / `rate` / `edge`（共 2160 符号） | 4:1（早迟门定时，4 sps → 1 sps） |
 | `fh_ctrl` | **已接入**（S6 #1） | `seq` 16384→16384、`rand` 16388→16384、`edge` 804→768 | 命令:跳 = M:1（加载拍不出数，N:M 解耦直用） |
+| `nco_hop` | **已接入**（S6 #2） | `seq` 2048→2048、`rand` 4099→3171、`edge` 209→201 | 冻结拍不出数（din_valid 门控，N:M 解耦直用） |
 
 - N:M 模块靠框架的两条契约（长度解耦、激励节奏）接入，只需写 `cases`/`export` 与 DUT 接线；
   接收链另备第三条契约（`SKIP_OUT` 前导跳过，自测 `positive 接收链形状` 覆盖），但 `sync_rx`
@@ -235,4 +236,12 @@ xsim snap_<module> -runall
   长度解耦上（rand 16388 命令 → 16384 跳，edge 804 → 768）。10⁶ 跳长跑 `tb_fh_ctrl_long`
   自含激励不读向量（7 MB 向量不入库），收发双实例互比 mismatches=0 + 驻留均匀性 PASS，
   前 8 跳黄金锚点把长跑钉在 `check_fh_pattern.py` 上。
+- `nco_hop` 位真比对 **已完整接入**（S6 #2，2026-10-09）：TB `tb/tb_nco_hop_compare.sv`、
+  分项入口 `sim/run_nco_hop_check.bat`（seq / rand / edge 三用例 + `tb_nco_hop_long` 断言长跑串跑），
+  逐拍 `{phase, cos, sin}` `errors=0`（seq 2048、rand 3171、edge 201 拍）。激励总线 6 bit
+  `{din_valid, hop_valid, channel}`、期望总线 48 bit `{phase, cos, sin}`；**din_valid 是数据位**
+  （冻结拍要能进向量），故 DUT 接 `stim_valid && stim_data[5]`——直接挂 `stim_data[5]` 会在
+  向量送完后被 `tb_vec_cmp` 保持的末行数据喂出无限续吐（实测踩过，登记为接线口径）。
+  3×10⁵ 跳长跑 `tb_nco_hop_long` 自含激励（fh_ctrl 实例产跳事件，`din_hop_valid` 同拍耦合
+  §5.3 契约），相位轨迹断言 cont_err=0 / FTW 生效延迟断言 delay_err=0，三档真实节拍各 4 跳。
 - 整链环回（S8）复用同一比对器，只换顶层与向量。
