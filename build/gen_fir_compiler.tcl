@@ -2,7 +2,8 @@
 # gen_fir_compiler.tcl — 生成 srrc_duc 用的 FIR Compiler（SRRC 成形）
 #
 # 用法（Vivado 2021.2）:
-#     vivado -mode batch -source build/gen_fir_compiler.tcl
+#     vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/gen_fir -source build/gen_fir_compiler.tcl
+# （-tempDir 见 build/p4_compare.tcl 头注释：不给它 Vivado 会在启动目录即仓库根目录建 .Xil/）
 #
 # 产物: build/ip/fir_compiler/fir_srrc/
 #     ├── fir_srrc.xci                  IP 配置（参数唯一来源）

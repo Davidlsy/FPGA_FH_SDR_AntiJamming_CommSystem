@@ -1,0 +1,47 @@
+AX7020 用户手册
+CN1
+SW1
+5V 电源 U26
+F3
+输入 3.3V/3A
+TLV62130R
+GT
+保险丝
+电源开关 U25
+TLV62130R 1.5V/3A
+GT
+U32
+VTT
+TPS51200
+VREF
+U24
+TLV62130R
+1.8V/3A
+GT
+U23
+TLV62130R 1.0V/3A
+GT
+U20
+SPX3819M5 VCCIO/0.5A
+-3-3
+图 3-1 原理图中电源接口部分
+开发板通过+5V 供电, 通过四路 DC/DC 电源芯片 TLV62130RGT 转化成+3.3V，+1.5V，
++1.8V，+1.0V 四路电源， 每路输出电流可高达 3A。通过一路 LDO SPX3819M5-3-3 产生
+VCCIO 电源，VCCIO 最要是针对 ZYNQ 的 BANK35 进行供电，通过更换其它的 LDO 芯片，
+使得 BANK35 的 IO 适应不同的电压标准。1.5V 通过 TI 的 TPS51200 生成 DDR3 需要的 VTT
+和 VREF 电压。各个电源分配的功能如下表所示：
+电源 功能
+ZYNQ VCCIO, 以太网，串口，HDMI, RTC，
++3.3V
+FLASH, EEPROM 以及 SD card
+ZYNQ 辅助电压, ZYNQ PLL, ZYNQ Bank501
++1.8V
+VCCIO, 以太网，USB2.0
++1.0V ZYNQ,的核心电压
++1.5V DDR3, ZYNQ Bank502
+VREF, VTT DDR3
+VCCIO ZYNQ Bank35
+因为 ZYNQ 的 PS 和 PL 部分的电源有上电顺序的要求，在电路设计中，我们已经按照
+ZYQN 的电源要求设计，上电依次为 1.0V -> 1.8V -> 1.5 V -> 3.3V -> VCCIO，图 3-2 为
+9 / 43 Http://www.heijin.org
+9 / 43

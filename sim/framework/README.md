@@ -113,9 +113,13 @@ python export_vectors.py                             # 全部模块、全部用�
 单模块 TB 三步（与 `sim/models/ad9363/run_xsim.bat` 同一套工具链）：
 
 ```powershell
-xvlog -sv -work work hdl/tb_vec_cmp.sv tb/tb_<module>_<case>.sv
-xelab -relax -timescale 1ns/1ps -snapshot snap_<module> -debug typical work.tb_<module>_<case>
-xsim snap_<module> -runall
+# 必须在 sim/framework 下执行：xvlog/xelab/xsim 把工作库 xsim.dir/、编译库 *.pb 和日志写在
+# **当前目录**，且没有开关能改（--work name=dir 只用于查找已有库，不决定输出位置）。
+# 在仓库根目录敲这三行，就会把 xsim.dir/ 与 xvlog.log 留在根目录。
+# --nolog 关掉工具自带的那份 <tool>.log——日志已由调用脚本重定向到 logs/，不必再来一份。
+xvlog --nolog -sv -work work hdl/tb_vec_cmp.sv tb/tb_<module>_<case>.sv
+xelab --nolog -relax -timescale 1ns/1ps -snapshot snap_<module> -debug typical work.tb_<module>_<case>
+xsim --nolog snap_<module> -runall
 ```
 
 ## 6. 10 分钟起一个新模块 TB
@@ -183,6 +187,7 @@ xsim snap_<module> -runall
 | 判据 match 不到中文 | 重定向后日志的中文编码不可靠 | 判据只用 `[VEC-RESULT]` 的 ASCII 字段 |
 | `.hex` 向量会不会被 gitignore 吞掉 | 不会——仓库有意不按扩展名全局忽略 `.hex`（它是存储器初始化源文件） | 向量正常入库，作为比对证据 |
 | 中文 `$display` 在 xsim 里显示正常 | xvlog 按字节透传 | 无需处理 |
+| xsim 产物跑到了仓库根目录 | `xvlog`/`xelab`/`xsim` 把 `xsim.dir/`、`*.pb`、`<tool>.log` 写在**当前目录**，没有任何开关能改 | 三步必须在 `sim/framework` 下执行（见 §5）；脚本已统一加 `--nolog`，不再另写一份 `.log` |
 
 ## 10. 接入进度（S4 → S5）
 

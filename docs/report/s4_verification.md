@@ -239,7 +239,7 @@ python sim\golden_ref\gen_frame_sync.py --check
 powershell -File sim\framework\run_selftest.ps1
 
 # blk_inter 正式版存储 IP（约 40 s；产物不入库，验收脚本会在缺失时自动生成）
-vivado -mode batch -source build\gen_blk_mem_gen.tcl
+vivado -mode batch -nojournal -nolog -tempDir build\vivado_tmp\gen_blk_mem_gen -source build\gen_blk_mem_gen.tcl
 
 # S4 统一验收：短用例 18/18 套件 83.5 s（本机实测，Vivado 2021.2 xsim）
 powershell -File sim\run_s4_acceptance.ps1

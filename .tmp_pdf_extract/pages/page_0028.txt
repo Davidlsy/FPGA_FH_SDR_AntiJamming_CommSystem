@@ -1,0 +1,17 @@
+AX7020 用户手册
+SD 卡槽引脚分配
+信号名称 ZYNQ 引脚名 ZYNQ 引脚号 备注
+SD_CLK PS_MIO40 D14 SD时钟信号
+SD_CMD PS_MIO41 C17 SD命令信号
+SD_D0 PS_MIO42 E12 SD数据Data0
+SD_D1 PS_MIO43 A9 SD数据Data1
+SD_D2 PS_MIO44 F13 SD数据Data2
+SD_D3 PS_MIO45 B15 SD数据Data3
+SD_CD PS_MIO47 B14 SD卡插入信号
+6.7 PS PMOD 连接器
+AX7020 开发板预留了一个 12 针 2.54mm 间距的 PMOD 接口(J12)用于连接 PS
+BANK500 的 IO 和外部模块或电路。因为 BANK500 的 IO 是 3.3V 标准的，所以连接的外部
+设备和电路的信号也需要 3.3V 电平标准。PMOD 连接器的原理图如图 6-12 所示
+图 6-12 PMOD 连接器原理图
+图 6-13 为 PS PMOD 连接器的实物图
+黑金动力社区 28 / 43

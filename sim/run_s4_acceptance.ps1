@@ -61,7 +61,8 @@ if ($LASTEXITCODE -ne 0) { throw 'export_vectors.py failed' }
 # ---------------------------------------------------------------------
 if (-not (Test-Path -LiteralPath $IpModel)) {
     Write-Host '[0b] 生成 blk_mem_gen IP（首次约 40 s，产物不入库）'
-    & vivado -mode batch -nojournal -nolog -source (Join-Path $RepoRoot 'build\gen_blk_mem_gen.tcl') *> (Join-Path $LogDir 'gen_blk_mem_gen.log')
+    & vivado -mode batch -nojournal -nolog -tempDir (Join-Path $RepoRoot 'build\vivado_tmp\gen_blk_mem_gen') `
+            -source (Join-Path $RepoRoot 'build\gen_blk_mem_gen.tcl') *> (Join-Path $LogDir 'gen_blk_mem_gen.log')
     if (-not (Test-Path -LiteralPath $IpModel)) {
         throw "blk_mem_gen IP 生成失败，见 $(Join-Path $LogDir 'gen_blk_mem_gen.log')"
     }
@@ -193,14 +194,14 @@ function Invoke-Suite {
     $saved = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        & xvlog @xvlogArgs *> $xvlogLog
+        & xvlog --nolog @xvlogArgs *> $xvlogLog
         if ($LASTEXITCODE -ne 0) { $result.Error = "xvlog failed -> $xvlogLog"; return $result }
 
-        & xelab -relax -timescale 1ns/1ps -snapshot "snap_$($Suite.Name)" -debug typical `
+        & xelab --nolog -relax -timescale 1ns/1ps -snapshot "snap_$($Suite.Name)" -debug typical `
                 "work.$($Suite.Tb)" *> $xelabLog
         if ($LASTEXITCODE -ne 0) { $result.Error = "xelab failed -> $xelabLog"; return $result }
 
-        & xsim "snap_$($Suite.Name)" -runall *> $xsimLog
+        & xsim --nolog "snap_$($Suite.Name)" -runall *> $xsimLog
         if (-not (Test-Path -LiteralPath $xsimLog)) { $result.Error = "xsim produced no log -> $xsimLog"; return $result }
         $result.Text = Get-Content -LiteralPath $xsimLog -Raw
         $result.Exit = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }

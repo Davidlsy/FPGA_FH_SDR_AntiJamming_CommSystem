@@ -54,13 +54,13 @@ function Invoke-VectorSim {
     foreach ($define in $Defines) { $xvlogArgs += @('-d', $define) }
     $xvlogArgs += @('-work', 'work', 'hdl/tb_vec_cmp.sv', 'tb/tb_vector_selftest.sv')
 
-    & xvlog @xvlogArgs *> $xvlogLog
+    & xvlog --nolog @xvlogArgs *> $xvlogLog
     if ($LASTEXITCODE -ne 0) { throw "xvlog failed ($Tag), see $xvlogLog" }
 
-    & xelab -relax -timescale 1ns/1ps -snapshot $snapshot -debug typical work.tb_vector_selftest *> $xelabLog
+    & xelab --nolog -relax -timescale 1ns/1ps -snapshot $snapshot -debug typical work.tb_vector_selftest *> $xelabLog
     if ($LASTEXITCODE -ne 0) { throw "xelab failed ($Tag), see $xelabLog" }
 
-    & xsim $snapshot -runall *> $xsimLog
+    & xsim --nolog $snapshot -runall *> $xsimLog
     return (Get-Content -LiteralPath $xsimLog -Raw)
 }
 

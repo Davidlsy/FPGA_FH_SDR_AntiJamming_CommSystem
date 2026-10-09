@@ -25,11 +25,11 @@ rmdir /s /q work 2>nul
 rmdir /s /q xsim.dir 2>nul
 set DEF=
 if not "%~2"=="-" set DEF=-d %~2
-call xvlog -sv %DEF% -i "%SRC%" -work work hdl\tb_vec_cmp.sv tb\tb_blk_deinter_compare.sv "%SRC%\blk_deinter.v" > %LOG%\blk_deinter_%~1.xvlog.log 2>&1
+call xvlog --nolog -sv %DEF% -i "%SRC%" -work work hdl\tb_vec_cmp.sv tb\tb_blk_deinter_compare.sv "%SRC%\blk_deinter.v" > %LOG%\blk_deinter_%~1.xvlog.log 2>&1
 if errorlevel 1 (echo [blk_deinter/%~1] XVLOG FAIL & type %LOG%\blk_deinter_%~1.xvlog.log & exit /b 1)
-call xelab -relax -timescale 1ns/1ps -snapshot snap_blk_deinter_%~1 -debug typical work.tb_blk_deinter_compare > %LOG%\blk_deinter_%~1.xelab.log 2>&1
+call xelab --nolog -relax -timescale 1ns/1ps -snapshot snap_blk_deinter_%~1 -debug typical work.tb_blk_deinter_compare > %LOG%\blk_deinter_%~1.xelab.log 2>&1
 if errorlevel 1 (echo [blk_deinter/%~1] XELAB FAIL & type %LOG%\blk_deinter_%~1.xelab.log & exit /b 1)
-call xsim snap_blk_deinter_%~1 -runall > %LOG%\blk_deinter_%~1.xsim.log 2>&1
+call xsim --nolog snap_blk_deinter_%~1 -runall > %LOG%\blk_deinter_%~1.xsim.log 2>&1
 echo ==================== blk_deinter/%~1 ====================
 type %LOG%\blk_deinter_%~1.xsim.log
 findstr /c:"status=PASS" %LOG%\blk_deinter_%~1.xsim.log >nul

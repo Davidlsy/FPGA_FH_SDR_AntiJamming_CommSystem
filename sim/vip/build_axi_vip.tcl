@@ -7,7 +7,8 @@
 #     gen/axi_vip_mst_1/sim/axi_vip_mst.sv       per-instance wrapper（可直接例化）
 #     gen/axi_vip_mst_1/hdl/axi_vip_v1_1_vl_rfs.sv   实现（亦可由预编译库提供）
 #
-# 用法：vivado -mode batch -nojournal -nolog -source build_axi_vip.tcl
+# 用法：vivado -mode batch -nojournal -nolog -tempDir ../../build/vivado_tmp/vip -source build_axi_vip.tcl
+# （在 sim/vip 下执行；-tempDir 见 build/p4_compare.tcl 头注释）
 # 产物不入版本控制，由 run_vip_check.ps1 一键重建。
 # =====================================================================
 

@@ -86,7 +86,7 @@ Requires Vivado / Vitis ML 2021.2. From a clean checkout:
 
 ```bash
 # smoke project: create -> synthesize -> implement -> bitstream
-vivado -mode batch -source build/create_smoke_project.tcl
+vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/smoke -source build/create_smoke_project.tcl
 ```
 
 ---
@@ -127,10 +127,13 @@ vivado -mode batch -source build/create_smoke_project.tcl
 
 ### 已知边界
 
-- **板卡未到货**。`board/fhss_zynq_pins.xdc` 只有 `sys_clk` 与 4 个 LED 已填，AD9363 数据 / SPI / 按键
-  全是注释占位；`src/constraints/fhss_zynq_timing.xdc` 仅 `[1][6]` 生效。**当前 bitstream 只用于工具流
-  验证，不得下载到板卡**；引脚冻结（P1′-S1）、AD9363 真机回读（BV-01）、排针信号完整性（BV-02）
-  均在板卡到货后补。人读引脚表与状态总览见 `docs/pins.md`。
+- **板卡未到货**。`board/fhss_zynq_pins.xdc` 已按 ALINX AX7020 用户手册 V2.2 **全量填号**（2026-10-09）：
+  `sys_clk=U18`、LED=M14/M15/K16/J16（较 AX7Z020B 旧填法已更正）、按键 N15/N16/T17/R17、AD9363
+  数据 / SPI / 控制 35 根按 J10（RX+SPI）/ J11（TX+控制）逐脚展开；其中按键与 AD9363 为「已填·待启用」
+  （xdc 中带编号的注释行，等集成顶层端口落地后启用，避免冒烟流空对象告警）。`src/constraints/
+  fhss_zynq_timing.xdc` 仅 `[1][6]` 生效。**当前 bitstream 只用于工具流验证，不得下载到板卡**；
+  引脚冻结评审（P1′-S1）、AD9363 真机回读（BV-01）、排针信号完整性（BV-02）均在板卡到货后补。
+  人读引脚表与状态总览见 `docs/pins.md`。
 - S2 五项之间没有联合仿真：RF 侧（信道 + 干扰源）接口一致但未串联，控制侧（SPI / AXI）与 RF 侧
   也无交叉；登记见 `sim/README.md` §6 与 `docs/report/s2_verification.md` §5/§6。
 - `sim/framework/` 的比对框架现已由**十五个 DUT**（`frame_tx` / `conv_enc` / `qpsk_map` / `blk_inter`
@@ -230,7 +233,7 @@ FPGA_FH_SDR_AntiJamming_CommSystem/
 │       └── fhss_zynq_timing.xdc  # 时序约束（跨板复用，唯一副本；当前 [1][6] 生效，[2][3][4][5A][7] 分阶段启用）
 │
 ├── board/                      # 【板级约束】
-│   └── fhss_zynq_pins.xdc      #   物理属性（每板一份，换板只替换此文件；当前仅 sys_clk + 4 LED 已填，AD9363 / 按键为占位）
+│   └── fhss_zynq_pins.xdc      #   物理属性（每板一份，换板只替换此文件；AX7020 手册 V2.2 已全量填号，AD9363 / 按键注释态待启用）
 │
 ├── sim/                        # 【仿真】入口见 sim/README.md
 │   ├── README.md               #   仿真树总入口：两条线如何汇合、五件套关系、约定与运行顺序

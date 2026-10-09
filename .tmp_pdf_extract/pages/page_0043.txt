@@ -1,0 +1,10 @@
+AX7020 用户手册
+图 7-17 4 个 PL 用户按键实物图
+按键引脚分配：
+信号名称 ZYNQ 引脚名 ZYNQ 引脚号 备注
+KEY1 IO_L21P_T3_35 N15 PL用户按键1
+KEY2 IO_L21N_T3_35 N16 PL用户按键2
+KEY3 IO_L20P_T3_34 T17 PL用户按键3
+KEY4 IO_L19N_T3_34 R17 PL用户按键4
+43 / 43 Http://www.heijin.org
+43 / 43

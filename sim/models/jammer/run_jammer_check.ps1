@@ -38,15 +38,15 @@ $svFiles = @(
 )
 
 Write-Host '[1/4] xvlog'
-& xvlog -sv -work work @svFiles *> (Join-Path $LogDir 'jammer.xvlog.log')
+& xvlog --nolog -sv -work work @svFiles *> (Join-Path $LogDir 'jammer.xvlog.log')
 if ($LASTEXITCODE -ne 0) { throw "xvlog failed, see $LogDir\jammer.xvlog.log" }
 
 Write-Host '[2/4] xelab'
-& xelab -relax -timescale 1ns/1ps -snapshot sn_jammer -debug typical work.tb_jammer_stats *> (Join-Path $LogDir 'jammer.xelab.log')
+& xelab --nolog -relax -timescale 1ns/1ps -snapshot sn_jammer -debug typical work.tb_jammer_stats *> (Join-Path $LogDir 'jammer.xelab.log')
 if ($LASTEXITCODE -ne 0) { throw "xelab failed, see $LogDir\jammer.xelab.log" }
 
 Write-Host '[3/4] xsim（七个场景，导出 dump/）'
-& xsim sn_jammer -runall *> (Join-Path $LogDir 'jammer.xsim.log')
+& xsim --nolog sn_jammer -runall *> (Join-Path $LogDir 'jammer.xsim.log')
 if ((Get-Content -LiteralPath (Join-Path $LogDir 'jammer.xsim.log') -Raw) -match 'FATAL_ERROR') {
     throw "xsim reported a fatal error, see $LogDir\jammer.xsim.log"
 }

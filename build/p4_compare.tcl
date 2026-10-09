@@ -3,8 +3,12 @@
 #   对比对象：srrc_duc（手写多相 SRRC）vs srrc_duc_fir（FIR Compiler IP 版）
 #
 # 运行（在仓库根目录执行，Vivado 2021.2 batch，OOC 模式，固定 Explore 指令）：
-#   vivado -mode batch -source build/p4_compare.tcl -tclargs hand > build/p4_compare/hand.log 2>&1
-#   vivado -mode batch -source build/p4_compare.tcl -tclargs fir  > build/p4_compare/fir.log  2>&1
+#   vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/p4 -source build/p4_compare.tcl -tclargs hand > build/p4_compare/hand.log 2>&1
+#   vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/p4 -source build/p4_compare.tcl -tclargs fir  > build/p4_compare/fir.log  2>&1
+#
+# -tempDir 把 Vivado 的 session scratch 从启动目录挪到 build/ 下：不给这个参数它会往启动目录
+# （= 仓库根目录）建 .Xil/——正常退出留个空目录，被中断就留下整棵 Vivado-<pid> 树。
+# 取值须与下面 $scratch_base 一致：ensure_rt_run_dirs 靠它找到 Vivado 生成的 run tcl。
 #
 # 前置依赖：FIR 版必须先运行 build/gen_fir_compiler.tcl 生成 fir_srrc IP。
 # 产物：build/p4_compare/<top>/<top>_util.rpt   分层资源报告
@@ -16,17 +20,34 @@ set root     [file normalize [file join [file dirname [file normalize [info scri
 set part     xc7z020clg400-2
 set T        16.276
 set outroot  [file join $root "build" "p4_compare"]
+# 与启动参数 -tempDir 一致的 scratch 根（见文件头）：改了启动参数，这里要跟着改
+set scratch_base [file join $root "build" "vivado_tmp" "p4"]
 set lut_file [file join $root "src" "nco_lut.mem"]
 set fir_xci  [file join $root "build" "ip" "fir_compiler" "fir_srrc" "fir_srrc.xci"]
 
 if {![file exists $lut_file]} { puts "\[P4\] FAIL: 找不到 $lut_file"; exit 1 }
 
-# 本机 Vivado 2021.2 会漏建综合 scratch 目录 .Xil/Vivado-<pid>-<host>/realtime，而它自己生成的
-# run tcl 就放在那里并被 source，于是报 "couldn't read file ... No error" 直接综合失败。
+# 本机 Vivado 2021.2 会漏建综合 scratch 目录 <scratch>/Vivado-<pid>-<host>/realtime，而它自己
+# 生成的 run tcl 就放在那里并被 source，于是报 "couldn't read file ... No error" 直接综合失败。
 # 该目录在流程中途还会被重建清掉，所以每个综合类命令前都补建一次（幂等）。
+#
+# scratch 根按启动方式二选一（见文件头）：
+#   · 传了 -tempDir → Vivado 建在 <tempDir>/.Xil_SYSTEM/Vivado-<pid>-<host>（create_project 后即可见）
+#   · 没传          → <cwd>/.Xil/Vivado-<pid>-<host>
+# 只补已存在的那一支。特别地：-tempDir 生效时**不能**再去 mkdir 启动目录的 .Xil——那正是
+# 本脚本要避免的（跑一次就在启动目录留一个 .Xil/，而启动目录就是仓库根）。
 proc ensure_rt_run_dirs {} {
-    set dirs [list [file join [pwd] ".Xil" "Vivado-[pid]-[string toupper [info hostname]]"]]
-    foreach d [glob -nocomplain [file join [pwd] ".Xil" "Vivado-*"]] { lappend dirs $d }
+    global scratch_base
+    set dirs {}
+    if {[file isdirectory $scratch_base]} {
+        foreach d [glob -nocomplain [file join $scratch_base "Vivado-*"] [file join $scratch_base "*" "Vivado-*"]] {
+            lappend dirs $d
+        }
+    } else {
+        set legacy [file join [pwd] ".Xil"]
+        lappend dirs [file join $legacy "Vivado-[pid]-[string toupper [info hostname]]"]
+        foreach d [glob -nocomplain [file join $legacy "Vivado-*"]] { lappend dirs $d }
+    }
     foreach d $dirs { file mkdir [file join $d "realtime"] }
 }
 
@@ -98,7 +119,7 @@ switch -- $which {
     "hand"  { run_one srrc_duc     0 }
     "fir"   { run_one srrc_duc_fir 1 }
     default {
-        puts "\[P4\] 用法: vivado -mode batch -source build/p4_compare.tcl -tclargs {hand|fir}"
+        puts "\[P4\] 用法: vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/p4 -source build/p4_compare.tcl -tclargs {hand|fir}"
         exit 1
     }
 }

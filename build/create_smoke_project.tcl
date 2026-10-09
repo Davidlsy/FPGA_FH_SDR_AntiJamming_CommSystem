@@ -3,12 +3,13 @@
 # One-shot smoke project rebuild: create -> synth -> impl -> bitstream
 # Optional: behavioral sim for [SMOKE] PASS
 # Tool   : Vivado ML 2021.2
-# Part   : xc7z020clg400-2 (AX7Z020B)
+# Part   : xc7z020clg400-2 (ALINX AX7020)
 # Usage  :
 #   cd FPGA_FH_SDR_AntiJamming_CommSystem
-#   vivado -mode batch -source build/create_smoke_project.tcl
+#   vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/smoke -source build/create_smoke_project.tcl
 #   Optional sim only after project exists:
-#     vivado -mode batch -source build/create_smoke_project.tcl -tclargs sim
+#     vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/smoke -source build/create_smoke_project.tcl -tclargs sim
+# (-tempDir 见 build/p4_compare.tcl 头注释：不给它 Vivado 会在启动目录即仓库根目录建 .Xil/)
 # =============================================================================
 
 set script_dir [file dirname [file normalize [info script]]]

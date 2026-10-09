@@ -39,7 +39,9 @@ if (Test-Path $GenDir) {
 if ($Rebuild -or -not $IpPkg -or -not $IpWrap) {
     Write-Host '[1/4] 生成 AXI VIP（vivado -mode batch，首次约 1 分钟）'
     if (Test-Path $GenDir) { Remove-Item -LiteralPath $GenDir -Recurse -Force }
-    & vivado -mode batch -nojournal -nolog -notrace -source build_axi_vip.tcl *> (Join-Path $LogDir 'vip.build.log')
+    # 与 build/*.tcl 同一口径：scratch 不能落在启动目录（sim/vip），否则源码树里多出 .Xil/
+    $VivadoTmp = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\build\vivado_tmp\vip'))
+    & vivado -mode batch -nojournal -nolog -notrace -tempDir $VivadoTmp -source build_axi_vip.tcl *> (Join-Path $LogDir 'vip.build.log')
     $found = Get-ChildItem -LiteralPath $GenDir -Recurse -Filter 'axi_vip_mst_pkg.sv' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($found) { $IpPkg = $found.FullName }
     $found = Get-ChildItem -LiteralPath $GenDir -Recurse -Filter 'axi_vip_mst.sv' -ErrorAction SilentlyContinue |
@@ -67,17 +69,17 @@ foreach ($dir in 'work', 'xsim.dir') {
 
 Write-Host '[2/4] xvlog（带 -L 以便编译期解析 xilinx_vip 预编译包）'
 $srcs = @($IpPkg, $IpWrap, 'axi_regs_demo.sv', 'tb_axi_ps_seq.sv')
-& xvlog -sv -L xilinx_vip -L axi_vip_v1_1_11 -work work @srcs *> (Join-Path $LogDir 'vip.xvlog.log')
+& xvlog --nolog -sv -L xilinx_vip -L axi_vip_v1_1_11 -work work @srcs *> (Join-Path $LogDir 'vip.xvlog.log')
 if ($LASTEXITCODE -ne 0) { throw "xvlog 失败，见 logs\vip.xvlog.log" }
 
 Write-Host '[3/4] xelab（用预编译 VIP 库）'
-& xelab -relax -timescale 1ns/1ps -snapshot sn_vip -debug typical `
+& xelab --nolog -relax -timescale 1ns/1ps -snapshot sn_vip -debug typical `
     -L axi_vip_v1_1_11 -L xilinx_vip work.tb_axi_ps_seq *> (Join-Path $LogDir 'vip.xelab.log')
 if ($LASTEXITCODE -ne 0) { throw "xelab 失败，见 logs\vip.xelab.log" }
 
 Write-Host '[4/4] xsim（执行 PS 侧读写序列）'
 $simLog = Join-Path $LogDir 'vip.xsim.log'
-& xsim sn_vip -runall *> $simLog
+& xsim --nolog sn_vip -runall *> $simLog
 $simText = Get-Content -LiteralPath $simLog -Raw
 
 $summary = [regex]::Matches($simText, '\[VIP-RESULT\][^\r\n]*') | ForEach-Object { $_.Value }

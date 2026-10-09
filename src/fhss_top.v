@@ -4,8 +4,8 @@
 //-----------------------------------------------------------------------------
 // Purpose    : verify Vivado 2021.2 + xc7z020clg400-2 full flow
 //              (synthesis -> implementation -> bitstream).
-// Clock      : sys_clk = PL_GCLK1 (U18, 50 MHz single-ended, AX7Z020B
-//              manual sec 2.5)
+// Clock      : sys_clk = PL_GCLK (U18, 50 MHz single-ended, ALINX AX7020
+//              user manual V2.2 sec 5.2)
 // Output     : led[3:0] binary heartbeat -- led[3] blinks at ~1.5 Hz
 //              (visible), lower bits toggle progressively faster
 // Reset      : none (GSR loads initial values at power-up; a smoke design
@@ -13,13 +13,14 @@
 // Lifecycle  : replaced by the real integration top (fh_ctrl / nco_hop /
 //              ad9363_if / axi_regs ...) after board arrival (P1'-S1)
 // Constraints: src/constraints/fhss_zynq_timing.xdc (sections [1][6] active)
-//              board/fhss_zynq_pins.xdc (sys_clk + led pins filled)
+//              board/fhss_zynq_pins.xdc (all pins filled; keys/AD9363
+//              commented until the integration top exposes those ports)
 // Encoding   : pure ASCII English comments -- Vivado on Chinese Windows
 //              reads BOM-less files as GBK, UTF-8 Chinese comments garble;
 //=============================================================================
 module fhss_top (
-    input  wire       sys_clk,   // PL_GCLK1, U18, 50 MHz
-    output wire [3:0] led        // user LED1-4 (J14/K14/J18/H18)
+    input  wire       sys_clk,   // PL_GCLK, U18, 50 MHz
+    output wire [3:0] led        // user LED1-4 (M14/M15/K16/J16)
 );
 
     reg [25:0] cnt = 26'd0;      // init value loaded by GSR, no reset pin needed

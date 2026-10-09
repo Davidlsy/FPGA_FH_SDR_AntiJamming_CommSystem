@@ -30,11 +30,11 @@ rmdir /s /q work 2>nul
 rmdir /s /q xsim.dir 2>nul
 set DEF=
 if not "%~2"=="-" set DEF=-d %~2
-call xvlog -sv %DEF% -i "%SRC%" -work work hdl\tb_vec_cmp.sv tb\tb_fh_ctrl_compare.sv "%SRC%\fh_ctrl.v" > %LOG%\fh_ctrl_%~1.xvlog.log 2>&1
+call xvlog --nolog -sv %DEF% -i "%SRC%" -work work hdl\tb_vec_cmp.sv tb\tb_fh_ctrl_compare.sv "%SRC%\fh_ctrl.v" > %LOG%\fh_ctrl_%~1.xvlog.log 2>&1
 if errorlevel 1 (echo [fh_ctrl/%~1] XVLOG FAIL & type %LOG%\fh_ctrl_%~1.xvlog.log & exit /b 1)
-call xelab -relax -timescale 1ns/1ps -snapshot snap_fh_ctrl_%~1 -debug typical work.tb_fh_ctrl_compare > %LOG%\fh_ctrl_%~1.xelab.log 2>&1
+call xelab --nolog -relax -timescale 1ns/1ps -snapshot snap_fh_ctrl_%~1 -debug typical work.tb_fh_ctrl_compare > %LOG%\fh_ctrl_%~1.xelab.log 2>&1
 if errorlevel 1 (echo [fh_ctrl/%~1] XELAB FAIL & type %LOG%\fh_ctrl_%~1.xelab.log & exit /b 1)
-call xsim snap_fh_ctrl_%~1 -runall > %LOG%\fh_ctrl_%~1.xsim.log 2>&1
+call xsim --nolog snap_fh_ctrl_%~1 -runall > %LOG%\fh_ctrl_%~1.xsim.log 2>&1
 echo ==================== fh_ctrl/%~1 ====================
 type %LOG%\fh_ctrl_%~1.xsim.log
 findstr /c:"status=PASS" %LOG%\fh_ctrl_%~1.xsim.log >nul
@@ -45,11 +45,11 @@ exit /b 0
 rem 1e6 hop TX/RX cross-check + dwell uniformity (self-stimulated, no vectors)
 rmdir /s /q work 2>nul
 rmdir /s /q xsim.dir 2>nul
-call xvlog -sv -i "%SRC%" -work work tb\tb_fh_ctrl_long.sv "%SRC%\fh_ctrl.v" > %LOG%\fh_ctrl_long.xvlog.log 2>&1
+call xvlog --nolog -sv -i "%SRC%" -work work tb\tb_fh_ctrl_long.sv "%SRC%\fh_ctrl.v" > %LOG%\fh_ctrl_long.xvlog.log 2>&1
 if errorlevel 1 (echo [fh_ctrl/long] XVLOG FAIL & type %LOG%\fh_ctrl_long.xvlog.log & exit /b 1)
-call xelab -relax -timescale 1ns/1ps -snapshot snap_fh_ctrl_long -debug typical work.tb_fh_ctrl_long > %LOG%\fh_ctrl_long.xelab.log 2>&1
+call xelab --nolog -relax -timescale 1ns/1ps -snapshot snap_fh_ctrl_long -debug typical work.tb_fh_ctrl_long > %LOG%\fh_ctrl_long.xelab.log 2>&1
 if errorlevel 1 (echo [fh_ctrl/long] XELAB FAIL & type %LOG%\fh_ctrl_long.xelab.log & exit /b 1)
-call xsim snap_fh_ctrl_long -runall > %LOG%\fh_ctrl_long.xsim.log 2>&1
+call xsim --nolog snap_fh_ctrl_long -runall > %LOG%\fh_ctrl_long.xsim.log 2>&1
 echo ==================== fh_ctrl/long ====================
 type %LOG%\fh_ctrl_long.xsim.log
 findstr /c:"status=PASS" %LOG%\fh_ctrl_long.xsim.log >nul

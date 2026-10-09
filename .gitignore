@@ -47,6 +47,10 @@ usage_statistics*
 # Vivado 临时目录
 .Xil/
 build/vivado_smoke/
+# Vivado 会话 scratch 的目标位置：build/*.tcl 与 sim/*.ps1 都传 -tempDir 指到这里，替代
+# 「往启动目录建 .Xil/」。目录名由 Vivado 自己决定（2021.2 实测为 .Xil_SYSTEM/<session>/），
+# 故整目录锚定忽略，不依赖 .Xil_SYSTEM 这个名字。代价：build/vivado_tmp/ 下不放任何要入库的东西。
+/build/vivado_tmp/
 
 # 检查点与比特流：大二进制，不入库；归档见文末 releases 规则
 # design checkpoint

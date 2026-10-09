@@ -71,6 +71,10 @@ Windows / PowerShell（本仓库工具链 Vivado ML 2021.2）：
 两个 `.vh` 必须与 `.sv` 同目录（xvlog 按当前目录解析 `include`），故脚本先 `cd` 到
 自身所在目录。
 
+三步都带 `--nolog`：脚本已把控制台输出重定向成日志（`sim_run.log`），工具再自写一份
+`xvlog.log` / `xelab.log` / `xsim.log` 只是重复。工作库 `xsim.dir/` 与 `*.pb` 仍留在本目录
+——xsim 把它们固定在当前目录，没有开关可改。
+
 期望结果：`RESULT : *** ALL TESTS PASSED ***`（已验证：checks=1444~1446, errors=0）。
 
 > 检查总数不是定值：T6 用 `$urandom` 生成随机突发长度，总数随随机序列在

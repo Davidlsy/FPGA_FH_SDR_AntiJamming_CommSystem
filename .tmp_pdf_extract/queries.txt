@@ -1,0 +1,5 @@
+﻿LED 引脚 封装脚 PL
+扩展口 排针 引脚定义 FPGA 管脚
+按键 引脚 PL 管脚
+50M 时钟 晶振 PL 管脚 BANK
+扩展口 IO 电平 BANK 3.3V

@@ -11,26 +11,29 @@
 #   source /tools/Xilinx/Vivado/202X.X/settings64.sh
 #=====================================================================
 set -e
+# 与 run_iv.sh 同一口径：xsim 的 xsim.dir/ 与 *.pb 落在当前目录，且这里的源文件路径
+# 都是相对脚本自身的，故先切到脚本目录（从仓库根目录调用也不会把产物留在根目录）
+cd "$(dirname "$0")"
 GUI=0
 [ "$1" == "gui" ] && GUI=1
 
 # ---------- 1. 编译 (SystemVerilog-2009 兼容) ----------
-xvlog -sv -work work \
+xvlog --nolog -sv -work work \
     ad9363_spi_model.sv \
     tb_ad9363_spi_model.sv
 
 # ---------- 2. 详细化 ----------
 # -relax: 宽松类型检查; -timescale: 统一时间刻度
 # dut TIMEOUT_NS=1000ns, TCO_NS=5ns 与 iverilog 回归一致
-xelab -relax -timescale 1ns/1ps -snapshot tb_snap \
+xelab --nolog -relax -timescale 1ns/1ps -snapshot tb_snap \
     -debug typical \
     work.tb_ad9363_spi_model
 
 # ---------- 3. 运行 ----------
 if [ $GUI -eq 1 ]; then
-    xsim tb_snap -gui -wdb tb_ad9363_spi_model.wdb
+    xsim --nolog tb_snap -gui -wdb tb_ad9363_spi_model.wdb
 else
-    xsim tb_snap -runall
+    xsim --nolog tb_snap -runall
 fi
 
 # 期望输出末尾:

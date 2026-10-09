@@ -2,7 +2,8 @@
 # gen_blk_mem_gen.tcl — 生成 blk_inter 用的 blk_mem_gen（BRAM 存储）
 #
 # 用法（Vivado 2021.2）:
-#     vivado -mode batch -source build/gen_blk_mem_gen.tcl
+#     vivado -mode batch -nojournal -nolog -tempDir build/vivado_tmp/gen_blk_mem_gen -source build/gen_blk_mem_gen.tcl
+# （-tempDir 见 build/p4_compare.tcl 头注释：不给它 Vivado 会在启动目录即仓库根目录建 .Xil/）
 #
 # 产物: build/ip/blk_mem_gen/blk_mem_gen_1w1r/
 #     ├── blk_mem_gen_1w1r.xci            IP 配置（参数唯一来源，可重建）

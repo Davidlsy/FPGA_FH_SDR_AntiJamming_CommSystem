@@ -1,0 +1,19 @@
+AX7020 用户手册
+PIN32 EX_IO2_15P IO_L13P_T2_35 H16
+PIN33 EX_IO2_16N IO_L19N_T3_35 G15
+PIN34 EX_IO2_16P IO_L19P_T3_35 H15
+PIN35 EX_IO2_17N IO_L20N_T3_35 J14
+PIN36 EX_IO2_17P IO_L20P_T3_35 K14
+PIN37 GND - -
+PIN38 GND - -
+PIN39 +3.3V - -
+PIN40 +3.3V - -
+7.6 用户 LED
+AX7020 开发板的 PL 部分连接了 4 个 LED 发光二极管。4 个用户 LED 部分的原理图如
+图 6-6-1，LED 灯的信号连接到 PL 部分 BANK35 的 IO 上。当 PL 部分 BANK35 的 IO 引脚
+输出为逻辑 0 时，LED 会被点亮，出为逻辑 1 时，LED 会被熄灭。
+图 7-13 PL 用户 LED 原理图
+图 7-14 为这四个 LED 实物图
+图 7-15 PL 用户 LED 实物图
+41 / 43 Http://www.heijin.org
+41 / 43

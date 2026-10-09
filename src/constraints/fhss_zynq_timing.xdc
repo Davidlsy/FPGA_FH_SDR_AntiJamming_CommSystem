@@ -26,10 +26,11 @@
 #     guaranteed by the PS7 configuration (RX delay via rgmii-id, solved at
 #     the PS / device-tree level). Enable the fallback block [7] only if
 #     forced onto a PL-side PHY / EMIO.
-#   NOTE (correction 2026-09-16): the AX7Z020B has a 50 MHz single-ended PL
-#     oscillator (U18, BANK34, LVCMOS33) per the ALINX official user manual
-#     sec 2.5 -- the earlier "200 MHz differential pair" assumption is void;
-#     port names sys_clk_p/n renamed to sys_clk accordingly.
+#   NOTE (correction 2026-09-16): the ALINX board has a 50 MHz single-ended PL
+#     oscillator (U18, BANK34, LVCMOS33) -- AX7020 user manual V2.2 sec 5.2
+#     (same pin on the AX7Z020B manual sec 2.5) -- the earlier "200 MHz
+#     differential pair" assumption is void; port names sys_clk_p/n renamed to
+#     sys_clk accordingly.
 #
 # Staged enabling (current file state = stage 1, loadable as-is, all other
 # sections fully commented):

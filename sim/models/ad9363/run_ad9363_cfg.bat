@@ -19,21 +19,21 @@ cd /d "%~dp0"
 if /i "%~1"=="gui" (set "GUI=1") else (set "GUI=0")
 
 echo [1/3] xvlog
-call xvlog -work work ..\..\..\src\spi_master.v ..\..\..\src\ad9363_cfg.v
+call xvlog --nolog -work work ..\..\..\src\spi_master.v ..\..\..\src\ad9363_cfg.v
 if errorlevel 1 goto :fail
-call xvlog -sv -work work ad9363_spi_model.sv tb_ad9363_cfg.sv
+call xvlog --nolog -sv -work work ad9363_spi_model.sv tb_ad9363_cfg.sv
 if errorlevel 1 goto :fail
 
 echo [2/3] xelab
-call xelab -relax -timescale 1ns/1ps -snapshot tb_ad9363_cfg -debug typical work.tb_ad9363_cfg
+call xelab --nolog -relax -timescale 1ns/1ps -snapshot tb_ad9363_cfg -debug typical work.tb_ad9363_cfg
 if errorlevel 1 goto :fail
 
 echo [3/3] xsim
 if "%GUI%"=="1" (
-    call xsim tb_ad9363_cfg -gui -wdb tb_ad9363_cfg.wdb
+    call xsim --nolog tb_ad9363_cfg -gui -wdb tb_ad9363_cfg.wdb
     exit /b 0
 )
-call xsim tb_ad9363_cfg -runall > ad9363_cfg_run.log 2>&1
+call xsim --nolog tb_ad9363_cfg -runall > ad9363_cfg_run.log 2>&1
 type ad9363_cfg_run.log
 findstr /C:"AD9363-CFG PASS" ad9363_cfg_run.log >nul
 if errorlevel 1 goto :fail

@@ -30,11 +30,11 @@ rmdir /s /q work 2>nul
 rmdir /s /q xsim.dir 2>nul
 set DEF=
 if not "%~2"=="-" set DEF=-d %~2
-call xvlog -sv %DEF% -i "%SRC%" -work work hdl\tb_vec_cmp.sv tb\tb_nco_hop_compare.sv "%SRC%\nco_hop.v" > %LOG%\nco_hop_%~1.xvlog.log 2>&1
+call xvlog --nolog -sv %DEF% -i "%SRC%" -work work hdl\tb_vec_cmp.sv tb\tb_nco_hop_compare.sv "%SRC%\nco_hop.v" > %LOG%\nco_hop_%~1.xvlog.log 2>&1
 if errorlevel 1 (echo [nco_hop/%~1] XVLOG FAIL & type %LOG%\nco_hop_%~1.xvlog.log & exit /b 1)
-call xelab -relax -timescale 1ns/1ps -snapshot snap_nco_hop_%~1 -debug typical work.tb_nco_hop_compare > %LOG%\nco_hop_%~1.xelab.log 2>&1
+call xelab --nolog -relax -timescale 1ns/1ps -snapshot snap_nco_hop_%~1 -debug typical work.tb_nco_hop_compare > %LOG%\nco_hop_%~1.xelab.log 2>&1
 if errorlevel 1 (echo [nco_hop/%~1] XELAB FAIL & type %LOG%\nco_hop_%~1.xelab.log & exit /b 1)
-call xsim snap_nco_hop_%~1 -runall > %LOG%\nco_hop_%~1.xsim.log 2>&1
+call xsim --nolog snap_nco_hop_%~1 -runall > %LOG%\nco_hop_%~1.xsim.log 2>&1
 echo ==================== nco_hop/%~1 ====================
 type %LOG%\nco_hop_%~1.xsim.log
 findstr /c:"status=PASS" %LOG%\nco_hop_%~1.xsim.log >nul
@@ -45,11 +45,11 @@ exit /b 0
 rem 3e5 hop phase-trajectory assertions + 3 real hop-rate dwells (self-stimulated, no vectors)
 rmdir /s /q work 2>nul
 rmdir /s /q xsim.dir 2>nul
-call xvlog -sv -i "%SRC%" -work work tb\tb_nco_hop_long.sv "%SRC%\nco_hop.v" "%SRC%\fh_ctrl.v" > %LOG%\nco_hop_long.xvlog.log 2>&1
+call xvlog --nolog -sv -i "%SRC%" -work work tb\tb_nco_hop_long.sv "%SRC%\nco_hop.v" "%SRC%\fh_ctrl.v" > %LOG%\nco_hop_long.xvlog.log 2>&1
 if errorlevel 1 (echo [nco_hop/long] XVLOG FAIL & type %LOG%\nco_hop_long.xvlog.log & exit /b 1)
-call xelab -relax -timescale 1ns/1ps -snapshot snap_nco_hop_long -debug typical work.tb_nco_hop_long > %LOG%\nco_hop_long.xelab.log 2>&1
+call xelab --nolog -relax -timescale 1ns/1ps -snapshot snap_nco_hop_long -debug typical work.tb_nco_hop_long > %LOG%\nco_hop_long.xelab.log 2>&1
 if errorlevel 1 (echo [nco_hop/long] XELAB FAIL & type %LOG%\nco_hop_long.xelab.log & exit /b 1)
-call xsim snap_nco_hop_long -runall > %LOG%\nco_hop_long.xsim.log 2>&1
+call xsim --nolog snap_nco_hop_long -runall > %LOG%\nco_hop_long.xsim.log 2>&1
 echo ==================== nco_hop/long ====================
 type %LOG%\nco_hop_long.xsim.log
 findstr /c:"status=PASS" %LOG%\nco_hop_long.xsim.log >nul

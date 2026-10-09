@@ -31,15 +31,15 @@ $svFiles = @('ch_pkg.sv', 'ch_awgn.sv', 'ch_cfo.sv', 'ch_sfo.sv',
              'ch_multipath.sv', 'ch_top.sv', 'tb_channel_stats.sv')
 
 Write-Host '[1/4] xvlog'
-& xvlog -sv -work work @svFiles *> (Join-Path $LogDir 'channel.xvlog.log')
+& xvlog --nolog -sv -work work @svFiles *> (Join-Path $LogDir 'channel.xvlog.log')
 if ($LASTEXITCODE -ne 0) { throw "xvlog failed, see $LogDir\channel.xvlog.log" }
 
 Write-Host '[2/4] xelab'
-& xelab -relax -timescale 1ns/1ps -snapshot sn_channel -debug typical work.tb_channel_stats *> (Join-Path $LogDir 'channel.xelab.log')
+& xelab --nolog -relax -timescale 1ns/1ps -snapshot sn_channel -debug typical work.tb_channel_stats *> (Join-Path $LogDir 'channel.xelab.log')
 if ($LASTEXITCODE -ne 0) { throw "xelab failed, see $LogDir\channel.xelab.log" }
 
 Write-Host '[3/4] xsim（七个场景，导出 dump/）'
-& xsim sn_channel -runall *> (Join-Path $LogDir 'channel.xsim.log')
+& xsim --nolog sn_channel -runall *> (Join-Path $LogDir 'channel.xsim.log')
 if ((Get-Content -LiteralPath (Join-Path $LogDir 'channel.xsim.log') -Raw) -match 'FATAL_ERROR') {
     throw "xsim reported a fatal error, see $LogDir\channel.xsim.log"
 }
